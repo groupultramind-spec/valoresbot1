@@ -1,7 +1,7 @@
 # --- Pastas de Sistema (Ignorar sempre) ---
 node_modules/
 .env
-dist/
+# dist/ # Mantido no git para deploy no ShardCloud
 .gemini/
 .shardcloud
 .wwebjs_auth/
