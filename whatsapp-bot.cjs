@@ -15,9 +15,9 @@ if (API_URL.includes("discloud.app")) {
     API_URL = "https://portalsvr.shardweb.app";
 }
 
-const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").replace(/"/g, "");
-const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/"/g, "");
-const GEMINI_KEY = process.env.SVR_AI_RUNTIME_TOKEN || "";
+const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwav_zOdWEKMnNv8PFjZ3g").replace(/"/g, "");
+const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "-1003940670305").replace(/"/g, "");
+const GEMINI_KEY = process.env.SVR_AI_RUNTIME_TOKEN || "AIzaSyCe0RyNY95UPhE1woWTfsshjrZGtyFKAV8";
 
 function mask(str) {
     if (!str) return "NÃO CONFIGURADO";

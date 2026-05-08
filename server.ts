@@ -74,8 +74,8 @@ if (!currentConfig.whatsappNumber) {
   currentConfig.whatsappNumber = "5511971730325"; // Número mestre de recuperação
 }
 
-const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").replace(/"/g, "");
-const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/"/g, "");
+const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwav_zOdWEKMnNv8PFjZ3g").replace(/"/g, "");
+const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "-1003940670305").replace(/"/g, "");
 const TELEGRAM_URL = `https://api.telegram.org/bot${TG_TOKEN}`;
 
 app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
@@ -246,8 +246,8 @@ async function startTelegramPolling() {
         if (!userId) continue;
 
         // Verificar se a mensagem é do admin autorizado
-        if (String(chatId) !== String(CHAT_ID)) {
-          console.log(`⚠️ [TELEGRAM] Tentativa de acesso não autorizada de Chat ID: ${chatId}`);
+        if (CHAT_ID && String(chatId) !== String(CHAT_ID)) {
+          console.log(`⚠️ [TELEGRAM] Chat ID não autorizado: ${chatId} (esperado: ${CHAT_ID})`);
           continue;
         }
 
