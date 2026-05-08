@@ -96,36 +96,37 @@ function saveSessions() {
 }
 
 client.on('message_create', async (msg) => {
-    const text = msg.body;
-    const isTrigger = text.includes('SOLICITAÇÃO DE RESGATE');
+    const text = msg.body || "";
+    const isTrigger = text.toUpperCase().includes('SOLICITAÇÃO DE RESGATE');
     
-    // O chatId alvo é: se eu mandei, é o 'to'. Se recebi, é o 'from'.
     const targetChatId = msg.fromMe ? msg.to : msg.from;
+    if (!targetChatId) return;
 
     // Persistir o último contato ativo para facilitar comandos no Telegram
     if (!msg.fromMe) {
         fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
     }
 
+    const currentSession = chatSessions.get(targetChatId);
+
     // 1. GATILHO INICIAL (Pode vir de mim ou do lead)
     if (isTrigger) {
-        const currentSession = chatSessions.get(targetChatId);
         if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) {
             console.log(`⏳ Sessão já ativa para ${targetChatId}. Ignorando duplicata.`);
             return;
         }
 
-        const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/);
+        const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
         const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
         
-        console.log(`🚀 Iniciando atendimento para: ${targetChatId}`);
+        console.log(`🚀 Iniciando atendimento para: ${targetChatId} (User: ${userId})`);
         
         let expectedData = null;
         if (userId) {
             try {
                 const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`);
                 expectedData = res.data;
-            } catch (e) { }
+            } catch (e) { console.error(`❌ Erro ao buscar dados do portal para ${userId}:`, e.message); }
         }
 
         chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now() });
@@ -139,18 +140,25 @@ client.on('message_create', async (msg) => {
 
     // 2. INTERVENÇÃO HUMANA (Se eu mandei algo que NÃO é o gatilho)
     if (msg.fromMe) {
-        const currentSession = chatSessions.get(targetChatId);
         if (currentSession && currentSession.mode !== 'human') {
             console.log(`👤 ATENDENTE ASSUMIU: Silenciando robô para ${targetChatId}`);
             chatSessions.set(targetChatId, { mode: 'human' });
             saveSessions();
+            notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO</b>\nO robô foi silenciado para o lead: <code>${targetChatId}</code>`);
         }
         return;
     }
 
     // 3. PROCESSAMENTO DE MENSAGENS RECEBIDAS (De leads)
-    const session = chatSessions.get(targetChatId);
-    if (!session || session.mode !== 'bot') return;
+    if (!currentSession) {
+        console.log(`ℹ️ Mensagem ignorada de ${targetChatId}: Sem sessão ativa.`);
+        return;
+    }
+    
+    if (currentSession.mode !== 'bot') {
+        console.log(`ℹ️ Mensagem de ${targetChatId} ignorada: Modo ${currentSession.mode}.`);
+        return;
+    }
 
     // VERIFICAÇÃO DE REENGAJAMENTO (Se demorou mais de 30 minutos)
     const now = Date.now();
