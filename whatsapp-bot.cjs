@@ -181,4 +181,22 @@ client.on('message_create', async (msg) => {
     }
 });
 
+// --- WATCHER DE COMANDOS EXTERNOS (TELEGRAM -> WHATSAPP) ---
+setInterval(async () => {
+    const files = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-send-') && f.endsWith('.json'));
+    for (const file of files) {
+        try {
+            const cmdPath = path.join(process.cwd(), file);
+            const cmd = JSON.parse(fs.readFileSync(cmdPath, 'utf-8'));
+            
+            console.log(`📤 Enviando comando externo para: ${cmd.to}`);
+            await client.sendMessage(cmd.to, cmd.message);
+            
+            fs.unlinkSync(cmdPath); // Apaga o comando após enviar
+        } catch (e) {
+            console.error("❌ Erro ao processar comando externo:", e.message);
+        }
+    }
+}, 3000);
+
 client.initialize();
