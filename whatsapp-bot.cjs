@@ -60,26 +60,34 @@ client.on('message_create', async (msg) => {
     const chatId = msg.from;
     const text = msg.body;
 
-    // 1. GATILHO INICIAL (Mensagem enviada pelo próprio robô via WA.ME)
-    if (msg.fromMe && text.includes('SOLICITAÇÃO DE RESGATE')) {
-        const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/);
-        const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
-        
-        console.log(`🚀 Iniciando atendimento para: ${msg.to}`);
-        
-        let expectedData = null;
-        if (userId) {
-            try {
-                const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`);
-                expectedData = res.data;
-            } catch (e) { }
-        }
+    // 1. GATILHO INICIAL OU INTERVENÇÃO HUMANA
+    if (msg.fromMe) {
+        if (text.includes('SOLICITAÇÃO DE RESGATE')) {
+            const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/);
+            const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
+            
+            console.log(`🚀 Iniciando atendimento para: ${msg.to}`);
+            
+            let expectedData = null;
+            if (userId) {
+                try {
+                    const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`);
+                    expectedData = res.data;
+                } catch (e) { }
+            }
 
-        chatSessions.set(msg.to, { mode: 'bot', step: 1, userId, expectedData });
-        
-        setTimeout(async () => {
-            await client.sendMessage(msg.to, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o **Protocolo de Validação de Dados**.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (Ex: 10/05/1990):`);
-        }, 2500);
+            chatSessions.set(msg.to, { mode: 'bot', step: 1, userId, expectedData });
+            
+            setTimeout(async () => {
+                await client.sendMessage(msg.to, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o **Protocolo de Validação de Dados**.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (Ex: 10/05/1990):`);
+            }, 2500);
+        } else {
+            // Se o atendente mandou qualquer outra mensagem, silenciamos o robô para este chat
+            if (chatSessions.has(msg.to)) {
+                console.log(`👤 ATENDENTE ASSUMIU: Silenciando robô para ${msg.to}`);
+                chatSessions.set(msg.to, { mode: 'human' });
+            }
+        }
         return;
     }
 
