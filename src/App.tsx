@@ -42,9 +42,8 @@ export default function App() {
           device,
           location: "Brasil (Identificado via IP)" 
         });
-        console.log("🚀 Sessão iniciada no servidor para:", userId);
       } catch (e) {
-        console.error("❌ Erro ao iniciar sessão. Verifique o API_URL.");
+        // Silencioso — tracking é secundário, não deve bloquear o site
       }
     };
 
