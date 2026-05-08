@@ -1,12 +1,14 @@
-﻿node_modules/
+# --- Pastas de Sistema (Ignorar sempre) ---
+node_modules/
 .env
 dist/
-*.zip
-deploy_shardcloud_v*/
-deploy_v*_discloud/
+.gemini/
+.shardcloud
 .wwebjs_auth/
 .wwebjs_cache/
 bot-status*.json
-.gemini/
-.shardcloud
-node_modules
+
+# --- Arquivos Temporários e Backups (Ignorar sempre) ---
+*.zip
+deploy_*/
+backup_*/
