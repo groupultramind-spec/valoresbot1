@@ -140,7 +140,7 @@ client.on('message_create', async (msg) => {
             }
         }
 
-        chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now() });
+        chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now(), createdAt: Date.now() });
         saveSessions();
         
         setTimeout(async () => {
@@ -151,9 +151,14 @@ client.on('message_create', async (msg) => {
 
     if (msg.fromMe) {
         if (currentSession && currentSession.mode === 'bot') {
-            chatSessions.set(targetChatId, { mode: 'human' });
-            saveSessions();
-            notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO</b>\nLead: <code>${targetChatId}</code>`);
+            // Só assume modo humano se a sessão tiver mais de 15s
+            // Evita que as respostas automáticas do próprio bot ativem o modo humano
+            const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
+            if (sessionAge > 15000) {
+                chatSessions.set(targetChatId, { mode: 'human' });
+                saveSessions();
+                notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO</b>\nLead: <code>${targetChatId}</code>`);
+            }
         }
         return;
     }
