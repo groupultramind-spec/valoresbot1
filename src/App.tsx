@@ -42,17 +42,33 @@ export default function App() {
           device,
           location: "Brasil (Identificado via IP)" 
         });
-      } catch (e) {}
+        console.log("🚀 Sessão iniciada no servidor para:", userId);
+      } catch (e) {
+        console.error("❌ Erro ao iniciar sessão. Verifique o API_URL.");
+      }
     };
 
     startSession();
+
+    // Final Beacon for Exit Tracking
+    const handleUnload = () => {
+      if (userId) {
+        const url = `${API_URL}/api/v1/session/heartbeat`;
+        const data = JSON.stringify({ userId, exiting: true });
+        navigator.sendBeacon(url, new Blob([data], { type: 'application/json' }));
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
 
     // Heartbeat every 20 seconds
     const interval = setInterval(() => {
       axios.post(`${API_URL}/api/v1/session/heartbeat`, { userId }).catch(() => {});
     }, 20000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
   }, []);
 
   const showNotification = (message: string, type: NotificationType = "info") => {

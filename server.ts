@@ -139,6 +139,7 @@ app.post("/api/v1/session/heartbeat", (req, res) => {
   const session = sessions.get(userId);
   if (session) {
     session.lastHeartbeat = Date.now();
+    console.log(`💓 Heartbeat: Lead #${userId} continua ativo.`);
     res.json({ status: "alive" });
   } else {
     res.json({ status: "not_found" });
