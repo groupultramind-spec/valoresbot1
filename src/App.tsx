@@ -50,15 +50,16 @@ export default function App() {
 
     startSession();
 
-    // Final Beacon for Exit Tracking
+    // Final Beacon for Exit Tracking — notifica saída imediatamente
     const handleUnload = () => {
       if (userId) {
-        const url = `${API_URL}/api/v1/session/heartbeat`;
-        const data = JSON.stringify({ userId, exiting: true });
+        const url = `${API_URL}/api/v1/session/end`;
+        const data = JSON.stringify({ userId });
         navigator.sendBeacon(url, new Blob([data], { type: 'application/json' }));
       }
     };
     window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
 
     // Heartbeat every 20 seconds
     const interval = setInterval(() => {
@@ -68,6 +69,7 @@ export default function App() {
     return () => {
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
     };
   }, []);
 

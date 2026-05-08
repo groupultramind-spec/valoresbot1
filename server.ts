@@ -178,7 +178,31 @@ app.post("/api/v1/session/convert", async (req, res) => {
   }
 });
 
-// 4. Metrics Log (General)
+// 4. Session End (Explicit Exit)
+app.post("/api/v1/session/end", async (req, res) => {
+  const { userId } = req.body;
+  const session = sessions.get(userId);
+
+  res.json({ status: "ok" }); // Responde rápido pro beacon não travar
+
+  if (!session || session.converted) return; // Já convertido = já notificado
+
+  const timeSpent = Math.floor((Date.now() - session.startTime) / 1000);
+  const mins = Math.floor(timeSpent / 60);
+  const secs = timeSpent % 60;
+
+  const message = `<b>🚪 VISITANTE SAIU DO SITE</b>\n\n` +
+    `<b>IP:</b> ${session.ip}\n` +
+    `<b>Dispositivo:</b> ${session.device}\n` +
+    `<b>Tempo no site:</b> ${mins}m ${secs}s\n` +
+    `<b>Status:</b> 🔴 Saiu sem converter`;
+
+  console.log(`🔴 [SAÍDA] Lead #${userId} saiu após ${mins}m ${secs}s.`);
+  await sendTelegram(message, session.messageId || undefined);
+  sessions.delete(userId);
+});
+
+// 5. Metrics Log (General)
 app.post("/api/v1/metrics/log", async (req, res) => {
   const { payload } = req.body;
   if (!payload) return res.sendStatus(200);
