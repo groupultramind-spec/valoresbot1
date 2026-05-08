@@ -1,0 +1,12 @@
+﻿node_modules/
+.env
+dist/
+*.zip
+deploy_shardcloud_v*/
+deploy_v*_discloud/
+.wwebjs_auth/
+.wwebjs_cache/
+bot-status*.json
+.gemini/
+.shardcloud
+node_modules
