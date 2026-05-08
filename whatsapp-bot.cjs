@@ -62,7 +62,14 @@ client.on('message_create', async (msg) => {
 
     // 1. GATILHO INICIAL OU INTERVENÇÃO HUMANA
     if (msg.fromMe) {
+        // Só iniciamos o bot se a mensagem for o gatilho E não houver uma sessão ativa ou se a sessão for idle
+        const currentSession = chatSessions.get(msg.to);
         if (text.includes('SOLICITAÇÃO DE RESGATE')) {
+            if (currentSession && currentSession.mode === 'bot') {
+                console.log(`⏳ Sessão já ativa para ${msg.to}. Ignorando duplicata.`);
+                return;
+            }
+
             const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/);
             const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
             
@@ -76,14 +83,14 @@ client.on('message_create', async (msg) => {
                 } catch (e) { }
             }
 
-            chatSessions.set(msg.to, { mode: 'bot', step: 1, userId, expectedData });
+            chatSessions.set(msg.to, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now() });
             
             setTimeout(async () => {
                 await client.sendMessage(msg.to, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o **Protocolo de Validação de Dados**.\n\n📍 *ETAPA 1:* Digite sua **Data de Nascimento** (Ex: 10/05/1990):`);
-            }, 2500);
+            }, 2000);
         } else {
-            // Se o atendente mandou qualquer outra mensagem, silenciamos o robô para este chat
-            if (chatSessions.has(msg.to)) {
+            // Se o atendente mandou qualquer outra mensagem, silenciamos o robô
+            if (currentSession && currentSession.mode !== 'human') {
                 console.log(`👤 ATENDENTE ASSUMIU: Silenciando robô para ${msg.to}`);
                 chatSessions.set(msg.to, { mode: 'human' });
             }

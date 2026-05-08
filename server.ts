@@ -45,8 +45,13 @@ function stopBot(id: string) {
   }
 }
 
+let isBotStarting = false;
 function startBot(id: string = 'main') {
+  if (isBotStarting && id === 'main') return;
+  if (id === 'main') isBotStarting = true;
+  
   stopBot(id);
+  console.log(`🤖 [SISTEMA] Iniciando instância do robô: ${id}`);
   const proc = spawn('node', ['whatsapp-bot.cjs', `--id=${id}`], { stdio: 'inherit' });
   botProcesses.set(id, proc);
 }
