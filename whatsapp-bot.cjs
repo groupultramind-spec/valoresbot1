@@ -14,9 +14,9 @@ const _d = (b) => Buffer.from(b, 'base64').toString('utf-8');
 
 let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://www.consultarvaloresareceber.com.br').replace(/\/$/, "");
 
-// FORÇAR CORREÇÃO DE URL SE ESTIVER APONTANDO PARA CLUSTERS ANTIGOS
-if (API_URL.includes("discloud.app") || API_URL.includes("shardweb.app")) {
-    console.log("⚠️ [SEGURANÇA] URL legado detectado. Corrigindo para o domínio Hostinger...");
+// FORÇAR CORREÇÃO DE URL SE ESTIVER APONTANDO PARA CLUSTERS ANTIGOS (apenas Discloud era legado)
+if (API_URL.includes("discloud.app")) {
+    console.log("⚠️ [SEGURANÇA] URL Discloud legado detectado. Corrigindo para o domínio principal...");
     API_URL = "https://www.consultarvaloresareceber.com.br";
 }
 
