@@ -9,7 +9,7 @@ import { spawn, ChildProcess } from "child_process";
 dotenv.config();
 
 const app = express();
-const port = parseInt(process.env.PORT || "3000", 10);
+const port = parseInt(process.env.PORT || "80", 10);
 
 // Config state
 const configPath = path.join(process.cwd(), "config.json");
