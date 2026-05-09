@@ -86,6 +86,7 @@ export function Step2({ data, onReset }: Step2Props) {
           `*DETALHES DA SOLICITAÇÃO:* \n` +
           `• Protocolo: *#${protocol}*\n` +
           `• Token de Validação: *${token}*\n` +
+          `• Tipo de Documento: *${data.docType}*\n` +
           `• Documento Identificado: *${data.docValue}*\n\n` +
           `Solicito o acompanhamento de um especialista para conclusão do procedimento de transferência de acordo com as normas de segurança vigentes.`;
 
