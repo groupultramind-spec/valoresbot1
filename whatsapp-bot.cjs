@@ -101,8 +101,15 @@ async function notifyTelegram(html) {
 }
 
 // --- CLIENTE WHATSAPP ---
+// Determinar o ID desta instância (passado via argumento --id=xxx)
+const botIdArg = process.argv.find(a => a.startsWith('--id='));
+const BOT_ID = botIdArg ? botIdArg.split('=')[1] : 'main';
+const STATUS_FILE = `bot-status-${BOT_ID}.json`;
+
+console.log(`🤖 [BOT] Iniciando instância: ${BOT_ID} | Status: ${STATUS_FILE}`);
+
 const client = new Client({
-    authStrategy: new LocalAuth({ dataPath: '.wwebjs_auth' }),
+    authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
     puppeteer: {
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
@@ -112,15 +119,16 @@ const client = new Client({
 client.on('qr', async (qr) => {
     console.log('\n📱 [QR CODE] Escaneie com o WhatsApp:\n');
     qrcode.generate(qr, { small: true });
-    fs.writeFileSync('bot-status.json', JSON.stringify({ status: 'awaiting_qr', qr, ts: Date.now() }));
+    fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
 
     // Envia o QR Code como imagem no Telegram
     try {
+        const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
         const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
         const form = new FormData();
         form.append('chat_id', CHAT_ID);
         form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
-        form.append('caption', '📲 <b>QR CODE — PERFIL 1</b>\n\nEscaneie com o WhatsApp para conectar o bot.\n\n⏳ Aguardando leitura...', { contentType: 'text/plain' });
+        form.append('caption', `📲 <b>QR CODE — ${slotLabel}</b>\n\nEscaneie com o WhatsApp para conectar o bot.\n\n⏳ Aguardando leitura...`, { contentType: 'text/plain' });
         form.append('parse_mode', 'HTML');
 
         await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
@@ -130,23 +138,32 @@ client.on('qr', async (qr) => {
         console.log('✅ [TELEGRAM] QR Code enviado com sucesso!');
     } catch (e) {
         console.error('❌ [TELEGRAM] Erro ao enviar QR Code como imagem:', e.message);
-        // Fallback: notifica por texto
         await notifyTelegram(`📱 <b>QR CODE GERADO</b>\nNão foi possível enviar a imagem. Verifique os logs do servidor.`);
     }
 });
 
-client.on('ready', () => {
+client.on('ready', async () => {
     console.log('✅ [BOT] WhatsApp conectado e pronto!');
-    fs.writeFileSync('bot-status.json', JSON.stringify({ status: 'ready', ts: Date.now() }));
-    notifyTelegram('✅ <b>PERFIL 1 CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.');
+    let adminName = BOT_ID === 'main' ? 'Perfil 1' : BOT_ID;
+    try {
+        const info = client.info;
+        if (info && info.pushname) adminName = info.pushname;
+    } catch(e) {}
+    fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'CONNECTED', adminName, ts: Date.now() }));
+    const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
+    notifyTelegram(`✅ <b>${slotLabel} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`);
 });
 
 client.on('disconnected', (reason) => {
     console.log('⚠️ [BOT] Desconectado:', reason);
-    fs.writeFileSync('bot-status.json', JSON.stringify({ status: 'disconnected', reason, ts: Date.now() }));
+    fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', reason, ts: Date.now() }));
 });
 
 client.on('message_create', async (msg) => {
+    // ✅ Apenas o Slot 1 (main) processa mensagens com IA e atendimento.
+    // Os outros slots ficam conectados mas não respondem automaticamente.
+    if (BOT_ID !== 'main') return;
+
     const text = (msg.body || "").trim();
     const isTrigger = text.toUpperCase().includes('SOLICITAÇÃO DE RESGATE');
 
