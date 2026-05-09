@@ -419,16 +419,36 @@ async function startTelegramPolling() {
             await sendTelegram("❌ Use: <code>/setzap 5511...</code>");
           } else {
             const newNum = parts[1].replace(/\D/g, "");
-            botStates.set(userId, { action: "confirm_zap", data: newNum });
-            await sendTelegram(`⚠️ <b>CONFIRMAR MUDANÇA?</b>\nDestino: <code>${newNum}</code>\nResponda <b>SIM</b> para confirmar.`);
+            const confirmMsgId = await sendTelegram(`⚠️ <b>CONFIRMAR MUDANÇA?</b>\nDestino: <code>${newNum}</code>\nResponda <b>SIM</b> para confirmar.`);
+            botStates.set(userId, { action: "confirm_zap", data: { number: newNum, msgId: confirmMsgId } });
           }
           continue;
         }
 
         if (state?.action === "confirm_zap" && text.toUpperCase() === "SIM") {
-          currentConfig.whatsappNumber = state.data;
+          const { number, msgId } = state.data;
+          currentConfig.whatsappNumber = number;
           fs.writeFileSync(configPath, JSON.stringify(currentConfig));
-          await sendTelegram(`✅ Número atualizado: <code>${state.data}</code>`);
+
+          // Edita a mensagem de confirmação com o resultado
+          await sendTelegram(
+            `✅ <b>Número atualizado com sucesso!</b>\n📱 Novo destino: <code>${number}</code>`,
+            msgId
+          );
+
+          // Pergunta se deseja gerar QR Code do Perfil 1
+          const qrKeyboard = {
+            inline_keyboard: [[
+              { text: "📲 Sim, gerar QR Code", callback_data: "generate_qr:main" },
+              { text: "❌ Não", callback_data: "cancel_qr" }
+            ]]
+          };
+          await sendTelegram(
+            `🤖 <b>Deseja gerar o QR Code do Perfil 1?</b>\n\nO bot será reiniciado e um novo QR Code aparecerá nos logs do servidor.`,
+            undefined,
+            qrKeyboard
+          );
+
           botStates.delete(userId);
           continue;
         }
@@ -533,6 +553,19 @@ async function startTelegramPolling() {
           } catch (e: any) {
             await sendTelegram(`❌ Erro na consulta.`);
           }
+          continue;
+        }
+
+        if (cb && cb.data.startsWith("generate_qr:")) {
+          const slotId = cb.data.split(":")[1];
+          const slotName = slotId === "main" ? "Perfil 1" : slotId;
+          await sendTelegram(`🔄 <b>Reiniciando ${slotName}...</b>\n\nO QR Code será gerado. Acompanhe nos logs do servidor.`);
+          resetBotSession(slotId);
+          continue;
+        }
+
+        if (cb && cb.data === "cancel_qr") {
+          await sendTelegram(`👌 <b>Ok!</b> Número atualizado. Bot não foi reiniciado.`);
           continue;
         }
 
