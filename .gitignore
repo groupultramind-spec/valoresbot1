@@ -3,7 +3,7 @@ node_modules/
 .env
 # dist/ # Mantido no git para deploy no ShardCloud
 .gemini/
-.shardcloud
+# .shardcloud
 .wwebjs_auth/
 .wwebjs_cache/
 bot-status*.json

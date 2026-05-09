@@ -1,0 +1,8 @@
+DISPLAY_NAME=portalsvr
+DESCRIPTION=Portal de Valores com Bot de WhatsApp
+LANGUAGE=node
+MAIN=server.ts
+MEMORY=2048
+VERSION=latest
+SUBDOMAIN=portalsvr
+CUSTOM_COMMAND=npm install && npx tsx server.ts
