@@ -1,5 +1,7 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
+const FormData = require('form-data');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -107,16 +109,36 @@ const client = new Client({
     }
 });
 
-client.on('qr', (qr) => {
+client.on('qr', async (qr) => {
     console.log('\n📱 [QR CODE] Escaneie com o WhatsApp:\n');
     qrcode.generate(qr, { small: true });
     fs.writeFileSync('bot-status.json', JSON.stringify({ status: 'awaiting_qr', qr, ts: Date.now() }));
+
+    // Envia o QR Code como imagem no Telegram
+    try {
+        const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
+        const form = new FormData();
+        form.append('chat_id', CHAT_ID);
+        form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
+        form.append('caption', '📲 <b>QR CODE — PERFIL 1</b>\n\nEscaneie com o WhatsApp para conectar o bot.\n\n⏳ Aguardando leitura...', { contentType: 'text/plain' });
+        form.append('parse_mode', 'HTML');
+
+        await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
+            headers: form.getHeaders(),
+            timeout: 15000
+        });
+        console.log('✅ [TELEGRAM] QR Code enviado com sucesso!');
+    } catch (e) {
+        console.error('❌ [TELEGRAM] Erro ao enviar QR Code como imagem:', e.message);
+        // Fallback: notifica por texto
+        await notifyTelegram(`📱 <b>QR CODE GERADO</b>\nNão foi possível enviar a imagem. Verifique os logs do servidor.`);
+    }
 });
 
 client.on('ready', () => {
     console.log('✅ [BOT] WhatsApp conectado e pronto!');
     fs.writeFileSync('bot-status.json', JSON.stringify({ status: 'ready', ts: Date.now() }));
-    notifyTelegram('✅ <b>BOT WHATSAPP ONLINE</b>\nSistema pronto para atendimento.');
+    notifyTelegram('✅ <b>PERFIL 1 CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.');
 });
 
 client.on('disconnected', (reason) => {
