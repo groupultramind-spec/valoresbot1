@@ -428,8 +428,8 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
       `STATUS: AGUARDANDO_VALIDAÇÃO_HASH\n` +
       `TYPE: AUTENTICAÇÃO_DE_DESTINO\n` +
       '```\n\n' +
-      `👇 *COPIE O HASH ABAIXO E EM SEGUIDA IMPORTE NO SEU APP BANCÁRIO (Pix Copia e Cola):*`;
-
+      `👇 *COPIE O CÓDIGO PIX ABAIXO E IMPORTE NO SEU APP BANCÁRIO (Pix Copia e Cola):*\n\n` +
+      pixCode;
     const pendingId = `pix_${Date.now()}`;
     pendingPix.set(pendingId, { telefone, formalMessage, pixCode, transId, valorNumeric });
 
@@ -559,8 +559,10 @@ async function generateModifiedPix(telefone: string, valorNumeric: number, pixKe
     `ID: 0x${protocolId}\n` +
     `HASH: ${encryptedKey}\n` +
     `STATUS: AGUARDANDO_VALIDAÇÃO_HASH\n` +
-    `\`\`\`\n\n` +
-    `👇 *COPIE O HASH ABAIXO E EM SEGUIDA IMPORTE NO SEU APP BANCÁRIO (Pix Copia e Cola):*`;
+    '```\n\n' +
+    `👇 *COPIE O CÓDIGO PIX ABAIXO E IMPORTE NO SEU APP BANCÁRIO (Pix Copia e Cola):*\n\n` +
+    pixCode;
+
 
   const pendingId = `pix_${Date.now()}`;
   pendingPix.set(pendingId, { telefone, formalMessage, pixCode, transId: 'MANUAL', valorNumeric });
@@ -1338,11 +1340,8 @@ async function startTelegramPolling() {
           }
 
           if (dest === 'lead') {
+            // formalMessage já contém o código PIX embutido — envia apenas 1 mensagem
             fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: pix.telefone, message: pix.formalMessage }));
-            // Envia o código logo em seguida
-            setTimeout(() => {
-              fs.writeFileSync(`cmd-send-${Date.now() + 1}.json`, JSON.stringify({ to: pix.telefone, message: pix.pixCode }));
-            }, 1000);
             await sendTelegram(`🚀 <b>ENVIADO AO LEAD!</b>\n\nO protocolo foi enviado com sucesso para <code>${pix.telefone}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
           } else if (dest === 'copy') {
             await sendTelegram(`📋 <b>HASH PIX (COPIAR):</b>\n\n<code>${pix.pixCode}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });

