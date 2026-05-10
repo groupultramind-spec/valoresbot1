@@ -202,30 +202,30 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
               Transcreva abaixo os caracteres que você vê na figura:
             </label>
             <div className="flex gap-2">
-              <div className="relative border border-[#ccc] dark:border-[#4b5563] p-0 bg-[#f9f9f9] dark:bg-[#1a2227] flex-shrink-0 flex items-center justify-center overflow-hidden rounded shadow-inner transition-colors duration-300" style={{ width: '150px', height: '80px' }}>
-                 {/* Background noise/pattern for captcha */}
-                 <div className="absolute inset-0 opacity-10 pointer-events-none select-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
-                 <div className="absolute inset-0 flex items-center justify-around font-black text-2xl tracking-[0.1em] text-[#222] select-none pointer-events-none italic opacity-80" style={{ fontFamily: 'serif' }}>
+              <div className="relative border border-[#ccc] dark:border-[#4b5563] p-0 bg-[#f9f9f9] dark:bg-[#1a2227] flex-shrink-0 flex items-center justify-center overflow-hidden rounded shadow-inner transition-colors duration-300" style={{ width: '150px', height: '122px' }}>
+                 {/* Grid background for captcha as in image */}
+                 <div className="absolute inset-0 opacity-20 pointer-events-none select-none" style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
+                 <div className="absolute inset-0 flex items-center justify-around font-black text-2xl tracking-[0.1em] text-[#000] select-none pointer-events-none italic opacity-90" style={{ fontFamily: 'serif' }}>
                     {captchaCode.split('').map((char, i) => (
                       <span key={i} style={{ 
                         transform: `rotate(${Math.random() * 40 - 20}deg) translateY(${Math.random() * 10 - 5}px)`,
-                        color: ['#1b668d', '#2d7890', '#333'][Math.floor(Math.random() * 3)]
                       }}>
                         {char}
                       </span>
                     ))}
                  </div>
-                 {/* Decorative lines to confuse OCR */}
-                 <svg className="absolute inset-0 pointer-events-none opacity-20" width="100%" height="100%">
-                    <line x1="0" y1="20" x2="150" y2="60" stroke="#000" strokeWidth="1" />
-                    <line x1="10" y1="80" x2="140" y2="0" stroke="#000" strokeWidth="1" />
+                 {/* Wavy/Distorted lines to match image */}
+                 <svg className="absolute inset-0 pointer-events-none opacity-60" width="100%" height="100%">
+                    <path d="M 0 40 Q 75 10 150 40" stroke="#000" strokeWidth="2" fill="none" />
+                    <path d="M 0 60 Q 75 90 150 60" stroke="#000" strokeWidth="2" fill="none" />
+                    <line x1="0" y1="50" x2="150" y2="50" stroke="#000" strokeWidth="4" className="opacity-40" />
                  </svg>
               </div>
-              <div className="flex flex-col gap-2 flex-grow">
+              <div className="flex flex-col gap-[2px] flex-grow">
                 <input
                   type="text"
-                  placeholder="Entre com os caract"
-                  className="w-full h-[40px] px-3 border border-[#ccc] dark:border-[#4b5563] bg-white dark:bg-[#1f292e] rounded outline-none focus:border-[#007bff] dark:focus:border-[#3b82f6] text-sm text-gray-500 dark:text-gray-300 font-mono transition-colors duration-300"
+                  placeholder="Entre com os caracteres"
+                  className="w-full h-[38px] px-3 border border-[#ccc] dark:border-[#4b5563] bg-white dark:bg-[#1f292e] rounded-sm outline-none focus:border-[#007bff] dark:focus:border-[#3b82f6] text-[15px] text-gray-700 dark:text-gray-300 transition-colors duration-300"
                   value={captcha}
                   onChange={(e) => setCaptcha(e.target.value)}
                   required
@@ -237,34 +237,36 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
                     utterance.lang = 'pt-BR';
                     window.speechSynthesis.speak(utterance);
                   }}
-                  className="h-[40px] bg-[#2398bf] hover:bg-[#1a7a9a] text-white py-1 px-3 rounded text-[14px] flex items-center justify-center gap-2 transition-colors"
+                  className="h-[40px] bg-[#2398bf] hover:bg-[#1a7a9a] text-white py-1 px-3 rounded-sm text-[14px] flex items-center justify-center gap-2 transition-colors font-medium text-center"
                 >
-                  <Volume2 size={16} /> Ouvir os caracteres
+                  <Volume2 size={20} /> <span className="leading-tight">Ouvir os<br/>caracteres</span>
                 </button>
                 <button 
                   type="button" 
                   onClick={generateCaptcha}
-                  className="h-[40px] bg-[#2398bf] hover:bg-[#1a7a9a] text-white py-1 px-3 rounded text-[14px] flex items-center justify-center gap-2 transition-colors"
+                  className="h-[40px] bg-[#2398bf] hover:bg-[#1a7a9a] text-white py-1 px-3 rounded-sm text-[14px] flex items-center justify-center gap-2 transition-colors font-medium text-center"
                 >
-                  <RefreshCcw size={16} /> Troque os caracteres
+                  <RefreshCcw size={18} /> <span className="leading-tight">Troque os<br/>caracteres</span>
                 </button>
               </div>
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#2398bf] hover:bg-[#1a7a9a] text-white font-bold py-3 px-6 rounded flex items-center justify-center gap-3 transition-all active:scale-[0.98] duration-75 uppercase tracking-wide text-sm"
-          >
-            {loading ? (
-              <RefreshCcw className="animate-spin" size={20} />
-            ) : (
-              <>
-                <Search size={20} /> Consultar
-              </>
-            )}
-          </button>
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-[#1a6b8a] hover:bg-[#14556d] text-white font-medium py-[10px] px-6 rounded flex items-center justify-center gap-3 transition-all active:scale-[0.98] duration-75 text-[17px] shadow-sm"
+            >
+              {loading ? (
+                <RefreshCcw className="animate-spin" size={20} />
+              ) : (
+                <>
+                  <Search size={22} strokeWidth={2.5} /> Consultar
+                </>
+              )}
+            </button>
+          </div>
         </form>
       </div>
     </div>

