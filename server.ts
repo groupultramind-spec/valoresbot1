@@ -1240,7 +1240,7 @@ async function startTelegramPolling() {
           await sendTelegram(`✅ <b>SOLICITAÇÃO ENVIADA</b>\n\nComando para liberar <b>Etapa ${num}</b> enviado para o lead <code>${chatId}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
         else if (text === "cmd:refresh_qr") {
-          fs.writeFileSync('refresh-qr.json', JSON.stringify({ requestedAt: Date.now() }));
+          resetBotSession('main');
           await sendTelegram(`🔄 <b>SOLICITAÇÃO RECEBIDA</b>\n\nGerando novo QR Code para o robô... Aguarde alguns segundos.`, msgId);
         }
         else if (text === "painel:change_whatsapp_num") {
