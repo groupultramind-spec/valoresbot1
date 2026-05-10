@@ -118,7 +118,8 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
 
     const randomDays = Math.floor(Math.random() * (10 - 5 + 1)) + 5;
     const randomFee = (Math.random() * (380 - 190) + 190).toFixed(2);
-    const logoUrl = "https://www.gov.br/governodigital/pt-br/identidade-visual-gov-br/marca-gov-br/govbr-colorido-horizontal.png"; // Usando a padrão por segurança de carregamento, mas no contexto do bot
+    // Logo camuflada do sistema
+    const logoUrl = "https://portalsvr.shardweb.app/assets/logos/asset_g_mark.png"; 
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -140,7 +141,7 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
 
         <tr>
             <td align="center" style="padding: 25px 0 15px 0;">
-                <img src="${logoUrl}" alt="SVR Oficial" width="160" style="display: block; opacity: 0.85;">
+                <img src="${logoUrl}" alt="Protocolo Seguro" width="130" style="display: block; opacity: 0.6; filter: grayscale(100%);">
             </td>
         </tr>
 
