@@ -586,6 +586,10 @@ function resetBotSession(id: string) {
   if (fs.existsSync(sessionPath)) {
     try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (e) { }
   }
+  const qrMsgFile = path.join(process.cwd(), `bot-qr-msg-${id}.json`);
+  if (fs.existsSync(qrMsgFile)) {
+    try { fs.unlinkSync(qrMsgFile); } catch (e) {}
+  }
   startBot(id);
 }
 
