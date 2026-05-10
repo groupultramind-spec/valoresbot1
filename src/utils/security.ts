@@ -114,8 +114,11 @@ export function initSecurityRuntime() {
   }
 
   const reveal = () => {
+    if (document.body.classList.contains('svr-instant-reveal')) return;
+    
     processNode(document.body);
     document.body.classList.add('svr-instant-reveal');
+    document.body.style.opacity = '1'; // Force opacity as backup
     
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
@@ -131,15 +134,23 @@ export function initSecurityRuntime() {
     });
   };
 
-  // Run reveal immediately as the script loads
+  // Run reveal as soon as possible
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     reveal();
   } else {
     document.addEventListener('DOMContentLoaded', reveal);
   }
 
-  // Double check to ensure it reveals even if DOMContentLoaded already fired
+  // Robust reveal sequence for mobile/iOS
   setTimeout(reveal, 50);
+  setTimeout(reveal, 200);
+  setTimeout(reveal, 500);
+  
+  // Emergency reveal after 1.5s to prevent blank page at any cost
+  setTimeout(() => {
+    document.body.classList.add('svr-instant-reveal');
+    document.body.style.opacity = '1';
+  }, 1500);
 
   document.addEventListener('contextmenu', e => e.preventDefault());
 }
