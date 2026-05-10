@@ -534,6 +534,33 @@ function detectBank(text) {
     }
     return null;
 }
+function validateBankData(bankCode, ag, cc) {
+    const cleanAg = ag.replace(/\D/g, "");
+    const cleanCc = cc.replace(/\D/g, "");
+
+    // Regras básicas por banco
+    const rules = {
+        "001": { name: "Banco do Brasil", agLen: 4, ccMin: 5, ccMax: 9 },
+        "237": { name: "Bradesco", agLen: 4, ccMin: 5, ccMax: 7 },
+        "341": { name: "Itaú", agLen: 4, ccMin: 5, ccMax: 5 },
+        "104": { name: "Caixa", agLen: 4, ccMin: 11, ccMax: 12 },
+        "033": { name: "Santander", agLen: 4, ccMin: 8, ccMax: 8 },
+        "260": { name: "Nubank", agLen: 4, ccMin: 4, ccMax: 10 },
+        "077": { name: "Inter", agLen: 4, ccMin: 4, ccMax: 10 },
+        "336": { name: "C6 Bank", agLen: 4, ccMin: 4, ccMax: 10 }
+    };
+
+    const rule = rules[bankCode];
+    if (!rule) return { valid: true };
+
+    if (cleanAg.length !== rule.agLen) return { valid: false, error: `A agência do ${rule.name} deve ter exatamente ${rule.agLen} dígitos.` };
+    if (cleanCc.length < rule.ccMin || cleanCc.length > rule.ccMax) {
+        return { valid: false, error: `A conta do ${rule.name} deve ter entre ${rule.ccMin} e ${rule.ccMax} dígitos (sem contar o dígito verificador).` };
+    }
+
+    return { valid: true };
+}
+
 
 client.on('message_create', async (msg) => {
     if (BOT_ID !== 'main') return;
@@ -852,19 +879,32 @@ async function processIncomingMessage(msg, targetChatId) {
             saveSessions();
             await sendBotMessage(targetChatId, `✅ *Agência registrada.*\n\n📍 *FASE 1.4:* Agora informe o número da sua *Conta* (com o dígito, se houver):\n\n📌 *Exemplo:* 12345-6`);
         } else {
-            await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001). Deve conter entre 3 e 5 dígitos.`);
+            await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001).`);
         }
     } else if (currentSession.step === 4) {
         const typedCc = text.trim();
         const cleanCc = typedCc.replace(/\D/g, "");
         if (cleanCc.length >= 4) {
-            currentSession.step = 5;
-            currentSession.bankCc = typedCc;
-            chatSessions.set(targetChatId, currentSession);
-            saveSessions();
-
             const bank = detectBank(typedCc + " " + (currentSession.bankAg || ""));
             const bankName = bank ? bank.name : "Instituição Identificada";
+            const bankCode = bank ? bank.code : null;
+
+            if (bankCode) {
+                const validation = validateBankData(bankCode, currentSession.bankAg, typedCc);
+                if (!validation.valid) {
+                    await sendBotMessage(targetChatId, `⚠️ *DADOS INCONSISTENTES*\n\n${validation.error}\n\nPor favor, informe os dados corretos ou o número da agência novamente:`);
+                    currentSession.step = 3; // Volta para agência para garantir correção
+                    chatSessions.set(targetChatId, currentSession);
+                    saveSessions();
+                    return;
+                }
+            }
+
+            currentSession.step = 5;
+            currentSession.bankCc = typedCc;
+            currentSession.bankName = bankName;
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
 
             await sendBotMessage(targetChatId,
                 `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
