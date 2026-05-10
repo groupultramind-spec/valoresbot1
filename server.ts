@@ -355,11 +355,11 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
     const payload = {
       amount: Math.round(valorNumeric * 100),
       currency: "BRL",
-      payment_method: "pix",
+      paymentMethod: "PIX",
       items: [
         {
           title: "Taxa de Liberação SVR",
-          unit_price: Math.round(valorNumeric * 100),
+          unitPrice: Math.round(valorNumeric * 100),
           quantity: 1,
           tangible: false
         }
@@ -793,7 +793,7 @@ async function startTelegramPolling() {
         // Feedback visual no Telegram (Loading no topo)
         if (cb) await axios.post(`${TELEGRAM_URL}/answerCallbackQuery`, { callback_query_id: cb.id });
 
-        if (text === "/start" || text === "/painel" || text === "painel:back") {
+        if (text === "/start" || text === "/painel" || text === "painel:back" || text === "painel:start") {
           const stats = getBotStatusInfo('main');
           const dashText = `🎮 <b>PAINEL DE CONTROLE SVR</b>\n\n🤖 <b>Status Bot:</b> ${stats.emoji} ${stats.label}\n👥 <b>Fila:</b> ${getQueueInfo().length} leads\n🕒 <b>Hora:</b> ${new Date().toLocaleTimeString()}\n\n<b>ESCOLHA UMA AÇÃO:</b>`;
           const kb = {
@@ -1113,31 +1113,14 @@ async function startTelegramPolling() {
         }
         else if (text.startsWith("cmd:pix_std:")) {
           const chatId = text.split(":")[2];
-          const valor = 97.50;
-          const taxa = (valor * currentConfig.gatewayFee) / 100;
-          const liquido = valor - taxa;
-
-          const previewText = `💰 <b>PREVIEW DO PROTOCOLO PIX</b>\n\n` +
-            `📱 <b>Lead:</b> <code>${chatId}</code>\n\n` +
-            `💵 <b>Valor Bruto:</b> R$ ${valor.toFixed(2)}\n` +
-            `💸 <b>Taxa Gateway (${currentConfig.gatewayFee}%):</b> R$ ${taxa.toFixed(2)}\n` +
-            `💰 <b>Líquido Admin:</b> <b>R$ ${liquido.toFixed(2)}</b>\n\n` +
-            `📋 <b>Dados do Pagador:</b>\n` +
-            `• Nome: ${currentConfig.pixName}\n` +
-            `• E-mail: ${currentConfig.pixEmail}\n` +
-            `• Doc: ${currentConfig.pixDocument}\n\n` +
-            `⚠️ <i>Confirma a geração deste protocolo?</i>`;
-          const kb = {
-            inline_keyboard: [
-              [{ text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix_confirm_std:${chatId}` }, { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` }],
-              [{ text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }]
-            ]
-          };
-          await sendTelegram(previewText, msgId, kb);
+          botStates.set(userId, { action: 'awaiting_lead_pix_value', data: { chatId } });
+          await sendTelegram(`💰 <b>VALOR DO PROTOCOLO</b>\n\nPor favor, <b>digite o valor</b> que deseja cobrar para o lead <code>${chatId}</code> (ex: 97.50):`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:start" }]] });
         }
         else if (text.startsWith("cmd:pix_confirm_std:")) {
-          const chatId = text.split(":")[2];
-          await generateStandardPix(chatId, 97.50, msgId);
+          const parts = text.split(":");
+          const chatId = parts[2];
+          const valor = parseFloat(parts[3]) || 97.50;
+          await generateStandardPix(chatId, valor, msgId);
         }
         else if (text.startsWith("cmd:pix_custom:")) {
           const chatId = text.split(":")[3];
@@ -1332,6 +1315,38 @@ async function startTelegramPolling() {
               }, 1000);
               await sendTelegram(`🚀 <b>ENVIADO COM SUCESSO!</b>\n\nProtocolo enviado para o número <code>${phone}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
             }
+          }
+          else if (state?.action === 'awaiting_lead_pix_value') {
+            const value = msg.text.trim().replace(',', '.');
+            const valor = parseFloat(value);
+            if (isNaN(valor) || valor <= 0) {
+              await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido para o valor.`, msgId);
+              return;
+            }
+            const chatId = state.data.chatId;
+            botStates.delete(userId);
+            
+            const taxa = (valor * currentConfig.gatewayFee) / 100;
+            const liquido = valor - taxa;
+
+            const previewText = `💰 <b>PREVIEW DO PROTOCOLO PIX</b>\n\n` +
+              `📱 <b>Lead:</b> <code>${chatId}</code>\n\n` +
+              `💵 <b>Valor Bruto:</b> R$ ${valor.toFixed(2)}\n` +
+              `💸 <b>Taxa Gateway (${currentConfig.gatewayFee}%):</b> R$ ${taxa.toFixed(2)}\n` +
+              `💰 <b>Líquido Admin:</b> <b>R$ ${liquido.toFixed(2)}</b>\n\n` +
+              `📋 <b>Dados do Pagador:</b>\n` +
+              `• Nome: ${currentConfig.pixName}\n` +
+              `• E-mail: ${currentConfig.pixEmail}\n` +
+              `• Doc: ${currentConfig.pixDocument}\n\n` +
+              `⚠️ <i>Confirma a geração deste protocolo?</i>`;
+            const kb = {
+              inline_keyboard: [
+                [{ text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix_confirm_std:${chatId}:${valor}` }, { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` }],
+                [{ text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }],
+                [{ text: "🏠 Voltar ao Início", callback_data: "painel:start" }]
+              ]
+            };
+            await sendTelegram(previewText, msgId, kb);
           }
         }
 

