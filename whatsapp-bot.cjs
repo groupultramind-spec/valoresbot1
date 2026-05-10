@@ -127,8 +127,28 @@ let chatSessions = new Map();
 const processingLock = new Set();
 const internalMessageChats = new Set(); // Guarda chatIds que estão recebendo mensagem do bot agora
 
-// Variável para guardar o ID da mensagem do Telegram que contém o QR Code
-let lastQrMsgId = null;
+// Persistência do ID da última mensagem de QR para evitar duplicatas em restarts
+let lastQrMsgId = 0;
+// Note: BOT_ID is defined later, so we use a function to get the file path or define it later
+function getQrMsgFile() {
+    const id = (process.argv.find(a => a.startsWith('--id=')) || '--id=main').split('=')[1];
+    return `bot-qr-msg-${id}.json`;
+}
+
+try {
+    const file = getQrMsgFile();
+    if (fs.existsSync(file)) {
+        const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+        lastQrMsgId = data.msgId || 0;
+    }
+} catch (e) { }
+
+function saveQrMsgId(msgId) {
+    lastQrMsgId = msgId;
+    try {
+        fs.writeFileSync(getQrMsgFile(), JSON.stringify({ msgId }));
+    } catch (e) { }
+}
 
 async function sendBotMessage(chatId, text, options = {}) {
     internalMessageChats.add(chatId);
@@ -322,23 +342,6 @@ console.log(`🤖 [BOT] Iniciando instância: ${BOT_ID} | Status: ${STATUS_FILE}
 let lastQrNotification = 0;
 let isBotReady = false;
 
-// Persistir o ID da última mensagem de QR para evitar duplicatas em restarts
-let lastQrMsgId = 0;
-const QR_MSG_FILE = `bot-qr-msg-${BOT_ID}.json`;
-try {
-    if (fs.existsSync(QR_MSG_FILE)) {
-        const data = JSON.parse(fs.readFileSync(QR_MSG_FILE, 'utf-8'));
-        lastQrMsgId = data.msgId || 0;
-    }
-} catch (e) { }
-
-function saveQrMsgId(msgId) {
-    lastQrMsgId = msgId;
-    try {
-        fs.writeFileSync(QR_MSG_FILE, JSON.stringify({ msgId }));
-    } catch (e) { }
-}
-
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
     puppeteer: {
@@ -421,7 +424,7 @@ client.on('ready', async () => {
             });
             console.log('✅ [TELEGRAM] Mensagem de QR Code atualizada para sucesso.');
             // Limpa o arquivo para o próximo uso
-            try { fs.unlinkSync(QR_MSG_FILE); } catch(e) {}
+            try { fs.unlinkSync(getQrMsgFile()); } catch(e) {}
             lastQrMsgId = 0;
         } catch (e) {
             console.error('❌ [TELEGRAM] Erro ao editar caption:', e.message);
