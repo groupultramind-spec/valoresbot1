@@ -98,10 +98,10 @@ const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
 // --- LOCK DE PROCESSAMENTO POR LEAD ---
 // Evita que duas mensagens simultâneas do mesmo lead causem respostas duplicadas
 const processingLock = new Set();
-let isInternalMessage = false;
+const internalMessageChats = new Set(); // Guarda chatIds que estão recebendo mensagem do bot agora
 
 async function sendBotMessage(chatId, text, options = {}) {
-    isInternalMessage = true;
+    internalMessageChats.add(chatId);
     try {
         const res = await client.sendMessage(chatId, text, options);
         return res;
@@ -109,8 +109,8 @@ async function sendBotMessage(chatId, text, options = {}) {
         console.error(`❌ [ERRO] Falha ao enviar mensagem para ${chatId}:`, e.message);
         throw e;
     } finally {
-        // Pequeno delay para garantir que o evento 'message_create' seja processado com a flag ativa
-        setTimeout(() => { isInternalMessage = false; }, 1000);
+        // Delay maior para garantir que o evento 'message_create' seja processado
+        setTimeout(() => { internalMessageChats.delete(chatId); }, 3000);
     }
 }
 
@@ -564,7 +564,9 @@ client.on('message_create', async (msg) => {
     }
 
     // --- ADMIN DIGITA MANUALMENTE → ASSUME ATENDIMENTO ---
-    if (!currentSession || currentSession.mode !== 'bot' || isInternalMessage) return;
+    // Se o bot ou admin enviou uma mensagem, mas NÃO foi via sendBotMessage,
+    // significa que o Admin interveio manualmente no WhatsApp.
+    if (!currentSession || currentSession.mode !== 'bot' || internalMessageChats.has(targetChatId)) return;
 
     const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
     if (sessionAge > 30000) {
@@ -600,6 +602,7 @@ client.on('message_create', async (msg) => {
 // =============================================================
 client.on('message', async (msg) => {
     if (BOT_ID !== 'main') return;
+    if (msg.fromMe) return; // Segurança extra para não processar mensagens enviadas (loop)
 
     // msg.from = sempre o remetente (o lead). Nunca é o bot.
     const targetChatId = msg.from;
