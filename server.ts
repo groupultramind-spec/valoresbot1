@@ -156,6 +156,10 @@ async function sendSuccessEmail(leadEmail: string, leadName: string) {
   }
 }
 
+app.get("/api/config", (req, res) => {
+  res.json({ whatsappNumber: currentConfig.whatsappNumber });
+});
+
 async function getGatewayBalance() {
   try {
     const secret = process.env.SVR_CORE_S_AUTH;
