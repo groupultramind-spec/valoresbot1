@@ -322,6 +322,23 @@ console.log(`🤖 [BOT] Iniciando instância: ${BOT_ID} | Status: ${STATUS_FILE}
 let lastQrNotification = 0;
 let isBotReady = false;
 
+// Persistir o ID da última mensagem de QR para evitar duplicatas em restarts
+let lastQrMsgId = 0;
+const QR_MSG_FILE = `bot-qr-msg-${BOT_ID}.json`;
+try {
+    if (fs.existsSync(QR_MSG_FILE)) {
+        const data = JSON.parse(fs.readFileSync(QR_MSG_FILE, 'utf-8'));
+        lastQrMsgId = data.msgId || 0;
+    }
+} catch (e) { }
+
+function saveQrMsgId(msgId) {
+    lastQrMsgId = msgId;
+    try {
+        fs.writeFileSync(QR_MSG_FILE, JSON.stringify({ msgId }));
+    } catch (e) { }
+}
+
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
     puppeteer: {
@@ -331,6 +348,7 @@ const client = new Client({
 });
 
 client.on('qr', async (qr) => {
+    if (isBotReady) return;
     console.log('\n📱 [QR CODE] Escaneie com o WhatsApp:\n');
     qrcode.generate(qr, { small: true });
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
@@ -352,36 +370,21 @@ client.on('qr', async (qr) => {
         const caption = `📲 <b>QR CODE — ${slotLabel}</b>\n\nEscaneie com o WhatsApp para conectar o bot.\n\n⚠️ <b>Atenção:</b> Se o QR expirar ou não carregar, clique no botão abaixo para gerar um novo.\n\n⏳ Gerado em: ${new Date().toLocaleTimeString('pt-BR')}`;
         const kb = { inline_keyboard: [[{ text: "🔄 Gerar Novo QR Code", callback_data: "cmd:refresh_qr" }]] };
 
-        if (lastQrMsgId) {
-            // Tenta editar a foto existente (Telegram API para editMessageMedia é complexa, vamos apenas enviar uma nova e apagar a velha ou apenas enviar nova)
-            // Para simplicidade e garantir que o admin veja, vamos enviar uma nova se o refresh foi pedido
-            const form = new FormData();
-            form.append('chat_id', CHAT_ID);
-            form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
-            form.append('caption', caption, { contentType: 'text/plain' });
-            form.append('parse_mode', 'HTML');
-            form.append('reply_markup', JSON.stringify(kb));
+        const form = new FormData();
+        form.append('chat_id', CHAT_ID);
+        form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
+        form.append('caption', caption, { contentType: 'text/plain' });
+        form.append('parse_mode', 'HTML');
+        form.append('reply_markup', JSON.stringify(kb));
 
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
-                headers: form.getHeaders(),
-                timeout: 15000
-            });
-            if (res.data?.result) lastQrMsgId = res.data.result.message_id;
-        } else {
-            const form = new FormData();
-            form.append('chat_id', CHAT_ID);
-            form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
-            form.append('caption', caption, { contentType: 'text/plain' });
-            form.append('parse_mode', 'HTML');
-            form.append('reply_markup', JSON.stringify(kb));
-
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
-                headers: form.getHeaders(),
-                timeout: 15000
-            });
-            if (res.data?.result) lastQrMsgId = res.data.result.message_id;
+        const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
+            headers: form.getHeaders(),
+            timeout: 15000
+        });
+        if (res.data?.result) {
+            saveQrMsgId(res.data.result.message_id);
+            console.log('✅ [TELEGRAM] QR Code enviado/atualizado. ID:', lastQrMsgId);
         }
-        console.log('✅ [TELEGRAM] QR Code enviado/atualizado. ID:', lastQrMsgId);
     } catch (e) {
         console.error('❌ [TELEGRAM] Erro ao enviar QR Code:', e.message);
     }
@@ -399,25 +402,26 @@ client.on('ready', async () => {
     } catch (e) { }
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'CONNECTED', adminName, ts: Date.now() }));
     
-    const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
-    const successText = `✅ <b>${slotLabel} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
-
+    const caption = `✅ <b>${BOT_ID.toUpperCase()} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
     if (lastQrMsgId) {
+        // Tenta editar a mensagem do QR para a de sucesso
         try {
-            // Atualiza o caption da foto do QR Code com a mensagem de sucesso
             await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
                 chat_id: CHAT_ID,
                 message_id: lastQrMsgId,
-                caption: successText,
+                caption,
                 parse_mode: 'HTML'
             });
             console.log('✅ [TELEGRAM] Mensagem de QR Code atualizada para sucesso.');
+            // Limpa o arquivo para o próximo uso
+            try { fs.unlinkSync(QR_MSG_FILE); } catch(e) {}
+            lastQrMsgId = 0;
         } catch (e) {
             console.error('❌ [TELEGRAM] Erro ao editar caption:', e.message);
-            notifyTelegram(successText);
+            notifyTelegram(caption);
         }
     } else {
-        notifyTelegram(successText);
+        notifyTelegram(caption);
     }
 });
 
