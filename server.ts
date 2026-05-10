@@ -440,7 +440,24 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
     }
 
     const qrBuffer = await QRCode.toBuffer(pixCode, { width: 420, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
-    const previewCaption = `⚡ <b>SISTEMA PADRÃO (AUTO)</b>\n\n💰 Valor: R$ ${valorNumeric.toFixed(2)}\n👤 Recebedor: ${name}\n🔗 ID: <code>${transId}</code>\n⏳ <i>Expira em 15 minutos (a mensagem será apagada).</i>\n\n⚠️ <i>Escolha o destino deste protocolo:</i>`;
+
+    // --- CÁLCULO FINANCEIRO PARA O ADMIN ---
+    const feeGateway = valorNumeric * (currentConfig.gatewayFee / 100);
+    const valLiq = valorNumeric - feeGateway;
+    const feeSaque = (valLiq * (currentConfig.withdrawalFeePercent / 100)) + currentConfig.withdrawalFeeFixed;
+    const valFinal = valLiq - feeSaque;
+
+    const previewCaption = `⚡ <b>SISTEMA PADRÃO (AUTO)</b>\n\n` +
+      `💰 <b>Valor Bruto:</b> R$ ${valorNumeric.toFixed(2)}\n` +
+      `🏦 <b>Recebedor:</b> ${name}\n` +
+      `🔗 <b>ID:</b> <code>${transId}</code>\n\n` +
+      `📊 <b>DETALHAMENTO FINANCEIRO:</b>\n` +
+      `├─ Taxa Gateway (${currentConfig.gatewayFee}%): - R$ ${feeGateway.toFixed(2)}\n` +
+      `├─ Valor Líquido: R$ ${valLiq.toFixed(2)}\n` +
+      `├─ Taxa Saque: - R$ ${feeSaque.toFixed(2)}\n` +
+      `└─ <b>VOCÊ RECEBE: R$ ${valFinal.toFixed(2)}</b>\n\n` +
+      `⏳ <i>Expira em 15 minutos (a mensagem será apagada).</i>\n\n` +
+      `⚠️ <i>Escolha o destino deste protocolo:</i>`;
 
     console.log(`📸 [TELEGRAM] Enviando QR Code...`);
     const msgIdSent = await sendTelegramPhoto(qrBuffer, previewCaption, {
@@ -568,7 +585,23 @@ async function generateModifiedPix(telefone: string, valorNumeric: number, pixKe
   pendingPix.set(pendingId, { telefone, formalMessage, pixCode, transId: 'MANUAL', valorNumeric });
 
   const qrBuffer = await QRCode.toBuffer(pixCode, { width: 420, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
-  const previewCaption = `🛠️ <b>SISTEMA MODIFICADO (MANUAL)</b>\n\n💰 Valor: R$ ${valorNumeric.toFixed(2)}\n👤 Recebedor: ${name}\n🔑 Chave Original: <code>${pixKey}</code>\n\n⚠️ <i>Escolha o destino deste protocolo:</i>`;
+
+  // --- CÁLCULO FINANCEIRO PARA O ADMIN ---
+  const feeGateway = valorNumeric * (currentConfig.gatewayFee / 100);
+  const valLiq = valorNumeric - feeGateway;
+  const feeSaque = (valLiq * (currentConfig.withdrawalFeePercent / 100)) + currentConfig.withdrawalFeeFixed;
+  const valFinal = valLiq - feeSaque;
+
+  const previewCaption = `🛠️ <b>SISTEMA MODIFICADO (MANUAL)</b>\n\n` +
+    `💰 <b>Valor Bruto:</b> R$ ${valorNumeric.toFixed(2)}\n` +
+    `👤 <b>Recebedor:</b> ${name}\n` +
+    `🔑 <b>Chave Original:</b> <code>${pixKey}</code>\n\n` +
+    `📊 <b>DETALHAMENTO FINANCEIRO:</b>\n` +
+    `├─ Taxa Gateway (${currentConfig.gatewayFee}%): - R$ ${feeGateway.toFixed(2)}\n` +
+    `├─ Valor Líquido: R$ ${valLiq.toFixed(2)}\n` +
+    `├─ Taxa Saque: - R$ ${feeSaque.toFixed(2)}\n` +
+    `└─ <b>VOCÊ RECEBE: R$ ${valFinal.toFixed(2)}</b>\n\n` +
+    `⚠️ <i>Escolha o destino deste protocolo:</i>`;
 
   await sendTelegramPhoto(qrBuffer, previewCaption, {
     inline_keyboard: [
