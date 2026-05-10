@@ -83,7 +83,7 @@ async function askAI(prompt, userMessage) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
         const response = await axios.post(url, {
             contents: [{ parts: [{ text: `${prompt}\n\n"${userMessage}"` }] }]
-        });
+        }, { timeout: 15000 }); // Adicionado timeout de 15s
         return response.data.candidates[0].content.parts[0].text || null;
     } catch (e) {
         console.error('❌ [IA] Erro ao chamar Gemini:', e.message);
@@ -109,8 +109,8 @@ async function sendBotMessage(chatId, text, options = {}) {
         console.error(`❌ [ERRO] Falha ao enviar mensagem para ${chatId}:`, e.message);
         throw e;
     } finally {
-        // Delay maior para garantir que o evento 'message_create' seja processado
-        setTimeout(() => { internalMessageChats.delete(chatId); }, 3000);
+        // Delay menor para ser mais responsivo à intervenção do admin
+        setTimeout(() => { internalMessageChats.delete(chatId); }, 2000);
     }
 }
 
@@ -180,12 +180,12 @@ async function notifyTelegram(html, messageId, replyMarkup) {
         if (messageId) {
             const payload = { chat_id: CHAT_ID, message_id: messageId, text: html, parse_mode: 'HTML' };
             if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, payload);
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, payload, { timeout: 10000 });
             return res.data.result?.message_id || messageId;
         } else {
             const payload = { chat_id: CHAT_ID, text: html, parse_mode: 'HTML' };
             if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, payload);
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, payload, { timeout: 10000 });
             return res.data.result?.message_id || null;
         }
     } catch (e) {
@@ -580,33 +580,36 @@ client.on('message_create', async (msg) => {
     // --- ADMIN DIGITA MANUALMENTE → ASSUME ATENDIMENTO ---
     // Se o bot ou admin enviou uma mensagem, mas NÃO foi via sendBotMessage,
     // significa que o Admin interveio manualmente no WhatsApp.
-    if (!currentSession || currentSession.mode !== 'bot' || internalMessageChats.has(targetChatId)) return;
+    // Agora permite assumir tanto em modo 'bot' quanto 'waiting'.
+    if (!currentSession || (currentSession.mode !== 'bot' && currentSession.mode !== 'waiting') || internalMessageChats.has(targetChatId)) return;
 
-    const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
-    if (sessionAge > 30000) {
-        // Preserva dados do lead ao assumir
-        chatSessions.set(targetChatId, {
-            mode: 'human',
-            humanStep: 1,
-            name: currentSession.name || null,
-            birthDate: currentSession.birthDate || null,
-            docType: currentSession.docType || 'CPF'
-        });
-        saveSessions();
-        console.log(`👤 [ADMIN] Assumiu atendimento de: ${targetChatId}`);
+    // Removido o delay de 30s (sessionAge) para permitir que o admin assuma imediatamente.
+    console.log(`👤 [ADMIN] Assumiu atendimento de: ${targetChatId}`);
 
-        const { text: txtAssume, reply_markup: rmAssume } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, 1);
-        await notifyTelegram(txtAssume, currentSession.tgMsgId, rmAssume);
+    // Preserva dados do lead ao assumir
+    const updatedSession = {
+        ...currentSession, // Preserva tgMsgId, userId, expectedData, etc.
+        mode: 'human',
+        humanStep: 1,
+        name: currentSession.name || null,
+        birthDate: currentSession.birthDate || null,
+        docType: currentSession.docType || 'CPF'
+    };
 
-        setTimeout(async () => {
-            try {
-                await sendBotMessage(targetChatId, MENSAGEM_OPERADOR_ASSUME);
-                console.log(`📨 [ADMIN] Mensagem formal enviada ao lead: ${targetChatId}`);
-            } catch (e) {
-                console.error(`❌ [ADMIN] Erro ao enviar mensagem formal:`, e.message);
-            }
-        }, 1500);
-    }
+    chatSessions.set(targetChatId, updatedSession);
+    saveSessions();
+
+    const { text: txtAssume, reply_markup: rmAssume } = buildCadastroMessage(targetChatId, updatedSession.name, updatedSession.birthDate, 'human', updatedSession.docType, 1);
+    await notifyTelegram(txtAssume, updatedSession.tgMsgId, rmAssume);
+
+    setTimeout(async () => {
+        try {
+            await sendBotMessage(targetChatId, MENSAGEM_OPERADOR_ASSUME);
+            console.log(`📨 [ADMIN] Mensagem formal enviada ao lead: ${targetChatId}`);
+        } catch (e) {
+            console.error(`❌ [ADMIN] Erro ao enviar mensagem formal:`, e.message);
+        }
+    }, 1000);
 });
 
 // =============================================================
@@ -655,7 +658,7 @@ async function processIncomingMessage(msg, targetChatId) {
     fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
 
     const currentSession = chatSessions.get(targetChatId);
-    console.log(`📩 [MSG] De: ${targetChatId} | Sessão: ${currentSession?.mode || 'nova'} | Texto: "${text.substring(0, 60)}"`);
+    console.log(`📩 [MSG] De: ${targetChatId} | Modo: ${currentSession?.mode || 'NOVO'} | Step: ${currentSession?.step || 'N/A'} | Texto: "${text.substring(0, 60)}"`);
 
     // --- LEAD NA FILA DE ESPERA ---
     if (currentSession && currentSession.mode === 'waiting') {
