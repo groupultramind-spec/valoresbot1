@@ -138,7 +138,18 @@ function saveQrMsgId(msgId) {
 async function sendBotMessage(chatId, text, options = {}) {
     internalMessageChats.add(chatId);
     try {
-        const res = await client.sendMessage(chatId, text, options);
+        // Resolve o ID correto do número para evitar erro "No LID for user"
+        // Isso é necessário para números que o bot nunca contactou antes
+        let sendTo = chatId;
+        try {
+            const rawNum = chatId.split('@')[0];
+            const numberId = await client.getNumberId(rawNum);
+            if (numberId && numberId._serialized) {
+                sendTo = numberId._serialized;
+            }
+        } catch (_) { /* usa chatId original se não conseguir resolver */ }
+
+        const res = await client.sendMessage(sendTo, text, options);
         return res;
     } catch (e) {
         console.error(`❌ [ERRO] Falha ao enviar mensagem para ${chatId}:`, e.message);

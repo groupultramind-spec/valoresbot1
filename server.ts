@@ -690,15 +690,32 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
     return res.data.result.message_id;
   } catch (err: any) {
     const errMessage = err.response?.data?.description || err.message;
-    console.error(`❌ [TELEGRAM] Erro: ${errMessage}`);
-    // Se falhar porque o texto não mudou, simplesmente ignore. Não envie nova mensagem.
-    if (errMessage.includes('message is not modified')) {
-      return messageId;
+
+    // Sem mudança de conteúdo — ignorar silenciosamente
+    if (errMessage.includes('message is not modified')) return messageId ?? null;
+
+    // Mensagem é uma foto (QR Code) — tenta editar a legenda (caption)
+    const isPhotoMsg = errMessage.includes('there is no text in the message') ||
+                       errMessage.includes("message can't be edited");
+    if (isPhotoMsg && messageId) {
+      try {
+        const res = await axios.post(`${TELEGRAM_URL}/editMessageCaption`, {
+          chat_id: CHAT_ID, message_id: messageId, caption: text, parse_mode: 'HTML',
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+        });
+        return res.data.result?.message_id || messageId;
+      } catch (_) {
+        return sendTelegram(text, undefined, replyMarkup);
+      }
     }
-    // Se for outro erro de edição (ex: msg apagada), envia nova
-    if (messageId && !errMessage.includes('message is not modified')) {
+
+    // Qualquer outro erro de edição: envia nova mensagem
+    if (messageId) {
+      console.warn(`⚠️ [TELEGRAM] Não foi possível editar msg ${messageId}, enviando nova.`);
       return sendTelegram(text, undefined, replyMarkup);
     }
+
+    console.error(`❌ [TELEGRAM] Erro ao enviar: ${errMessage}`);
     return null;
   }
 }
