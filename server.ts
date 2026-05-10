@@ -832,7 +832,7 @@ async function startTelegramPolling() {
         lastUpdateId = update.update_id;
         const cb = update.callback_query;
         const msg = update.message || cb?.message;
-        const userId = msg?.from?.id || cb?.from?.id;
+        const userId = cb ? cb.from.id : msg?.from?.id;
         if (!userId || (CHAT_ID && String(msg?.chat?.id) !== String(CHAT_ID))) continue;
 
         const text = (cb ? cb.data : msg?.text || "").toLowerCase();
