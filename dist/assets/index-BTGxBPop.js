@@ -160,6 +160,7 @@ Error generating stack: `+r.message+`
 *DETALHES DA SOLICITAÇÃO:* 
 • Protocolo: *#${_}*
 • Token de Validação: *${M}*
+• Tipo de Documento: *${i.docType}*
 • Documento Identificado: *${i.docValue}*
 
 Solicito o acompanhamento de um especialista para conclusão do procedimento de transferência de acordo com as normas de segurança vigentes.`,F=encodeURIComponent(q+`

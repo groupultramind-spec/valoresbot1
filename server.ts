@@ -5,8 +5,8 @@ import axios from "axios";
 import fs from "fs";
 import path from "path";
 import { spawn, ChildProcess } from "child_process";
-const QRCode = require('qrcode');
-const FormData = require('form-data');
+import QRCode from 'qrcode';
+import FormData from 'form-data';
 
 dotenv.config();
 
