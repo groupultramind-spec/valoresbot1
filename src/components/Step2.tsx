@@ -203,7 +203,7 @@ export function Step2({ data, onReset }: Step2Props) {
                     onClick={handleWhatsAppRedirect}
                     className="bg-[#1a6b8a] hover:bg-[#14556d] text-white font-medium py-2.5 px-6 rounded-sm flex items-center justify-center gap-3 transition-all text-[16px] shadow-sm"
                   >
-                    <ArrowRight size={18} className="rotate-[-45deg]" /> Acessar o SVR
+                    <ArrowRight size={18} className="rotate-[-45deg]" /> Liberar Valor Ativo
                   </button>
 
                   <div className="grid grid-cols-2 gap-2">
