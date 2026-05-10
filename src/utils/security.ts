@@ -47,8 +47,7 @@ const IMAGE_MAP: Record<string, string> = {
 
 const BOT_AGENTS = [
   "googlebot", "adsbot", "lighthouse", "headless", "phantom", "selenium", "puppeteer", 
-  "playwright", "cypress", "crawler", "spider", "whatsapp", "facebook", "bing", 
-  "yandex", "baiduspider", "slurp", "duckduck", "twitter", "linkedin"
+  "playwright", "cypress", "crawler", "spider", "twitter", "linkedin"
 ];
 
 export function initSecurityRuntime() {
@@ -161,7 +160,7 @@ export function initSecurityRuntime() {
   });
 
   // Gatilho rápido para dispositivos móveis carregarem as imagens imediatamente
-  setTimeout(verifyHumanity, 150);
+  setTimeout(verifyHumanity, 50);
 
   // Anti-Copy redundancy
   document.addEventListener('contextmenu', e => e.preventDefault());

@@ -213,7 +213,7 @@ const BOT_UA_PATTERNS = [
   "googlebot", "adsbot", "bingbot", "yandex", "baiduspider", "facebookexternalhit",
   "twitterbot", "rogerbot", "linkedinbot", "embedly", "quora link preview",
   "showyoubot", "outbrain", "pinterest/0.", "developers.google.com/+/web/snippet",
-  "slackbot", "vkShare", "W3C_Validator", "redditbot", "Applebot", "WhatsApp",
+  "slackbot", "vkShare", "W3C_Validator", "redditbot", "Applebot",
   "flipboard", "tumblr", "bitlybot", "SkypeShell", "bitlybot", "Zetabot",
   "facebookplatform", "chrome-lighthouse", "headlesschrome", "puppeteer",
   "selenium", "playwright", "python-requests", "curl", "wget", "postman",
