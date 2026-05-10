@@ -95,16 +95,30 @@ async function askAI(prompt, userMessage) {
 const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
 const QUEUE_FILE = path.join(process.cwd(), 'waiting-queue.json');
 
+// Pegamos o ID do bot agora para saber qual pasta de sessão apagar
+const botIdArgStart = process.argv.find(a => a.startsWith('--id='));
+const START_BOT_ID = botIdArgStart ? botIdArgStart.split('=')[1] : 'main';
+const AUTH_FOLDER = path.join(process.cwd(), '.wwebjs_auth', `session-${START_BOT_ID}`);
+
 try {
+    // Limpa dados de leads
     if (fs.existsSync(SESSIONS_FILE)) {
         fs.unlinkSync(SESSIONS_FILE);
-        console.log('🗑️ [SISTEMA] Sessões resetadas para novo ciclo.');
+        console.log('🗑️ [SISTEMA] Sessões (leads) resetadas para novo ciclo.');
     }
     if (fs.existsSync(QUEUE_FILE)) {
         fs.unlinkSync(QUEUE_FILE);
-        console.log('🗑️ [SISTEMA] Fila resetada para novo ciclo.');
+        console.log('🗑️ [SISTEMA] Fila de leads resetada.');
     }
-} catch (e) { console.error('Erro ao resetar arquivos:', e.message); }
+    
+    // Limpa sessão do WhatsApp para forçar novo QR Code
+    if (fs.existsSync(AUTH_FOLDER)) {
+        fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+        console.log(`🗑️ [SISTEMA] Sessão WhatsApp (${START_BOT_ID}) limpa. Novo QR será gerado.`);
+    }
+} catch (e) { 
+    console.error('⚠️ [SISTEMA] Erro ao resetar dados:', e.message); 
+}
 
 let chatSessions = new Map();
 
