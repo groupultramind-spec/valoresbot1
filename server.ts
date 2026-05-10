@@ -18,9 +18,13 @@ const port = parseInt(process.env.PORT || "80", 10);
 
 // CORS - Moved to the top for global coverage
 const corsOptions = {
-  origin: "*",
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow all origins but reflect the specific one to satisfy credential requirements
+    callback(null, true);
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+  credentials: true,
   optionsSuccessStatus: 204,
 };
 app.use(cors(corsOptions));
@@ -28,7 +32,11 @@ app.options("*", cors(corsOptions));
 
 // Extra headers for absolute certainty
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+  res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
   next();

