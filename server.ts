@@ -961,7 +961,7 @@ async function startTelegramPolling() {
           const dashText = `🎮 <b>PAINEL DE CONTROLE SVR</b>\n\n🤖 <b>Status Bot:</b> ${stats.emoji} ${stats.label}\n👤 <b>Atendentes Online:</b> ${attendantsOnline}\n👥 <b>Fila:</b> ${getQueueInfo().length} leads\n🕒 <b>Hora:</b> ${new Date().toLocaleTimeString()}\n\n<b>ESCOLHA UMA AÇÃO:</b>`;
           const kb = {
             inline_keyboard: [
-              [{ text: "📊 Status Detalhado", callback_data: "painel:status" }, { text: "👥 Ver Fila", callback_data: "painel:fila" }],
+              [{ text: "📊 Status Detalhado", callback_data: "painel:status" }, { text: "👥 Gerenciar Leads", callback_data: "painel:fila" }],
               [{ text: "💰 Financeiro (Saque)", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
               [{ text: "💰 Gerar PIX (Último)", callback_data: "cmd:last_pix" }, { text: "🛠️ Configurar PIX", callback_data: "painel:config_pix" }],
               [{ text: "📱 Configurar WhatsApp", callback_data: "painel:whatsapp_auth" }, { text: "🔄 Reiniciar Bot", callback_data: "painel:reiniciar:slot:main" }]
@@ -988,10 +988,41 @@ async function startTelegramPolling() {
         }
         else if (text === "painel:fila") {
           const queue = getQueueInfo();
-          let txt = "👥 <b>FILA DE LEADS</b>\n\n";
-          if (queue.length === 0) txt += "<i>Ninguém na fila agora.</i>";
-          else queue.slice(0, 10).forEach((l, i) => txt += `${i + 1}. 📱 ${l.chatId} (${l.step})\n`);
-          await sendTelegram(txt, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+          let txt = "👥 <b>LISTA DE LEADS (FILA)</b>\n\n";
+          let btns = [];
+          
+          if (queue.length === 0) {
+            txt += "<i>Ninguém na fila agora.</i>";
+          } else {
+            txt += `Atualmente existem <b>${queue.length}</b> leads aguardando.\n\nEscolha um lead abaixo para gerenciar:`;
+            queue.slice(0, 15).forEach((l: any) => {
+              const phone = l.chatId.split('@')[0];
+              btns.push([{ text: `📱 ${phone} (${l.name || 'Sem Nome'})`, callback_data: `painel:lead_control:${l.chatId}` }]);
+            });
+          }
+          
+          btns.push([{ text: "⬅️ Voltar", callback_data: "painel:back" }]);
+          await sendTelegram(txt, msgId, { inline_keyboard: btns });
+        }
+        else if (text.startsWith("painel:lead_control:")) {
+          const chatId = text.split(":")[2];
+          const phone = chatId.split('@')[0];
+          
+          // Salva como último lead para facilitar geração de PIX rápida
+          fs.writeFileSync('last-lead.json', JSON.stringify({ chatId }));
+
+          const txt = `👤 <b>CONTROLE DO LEAD: ${phone}</b>\n\n` +
+            `Escolha uma ação para enviar ao WhatsApp do lead:`;
+          
+          const kb = {
+            inline_keyboard: [
+              [{ text: "🟢 Liberar Etapa 2", callback_data: `etapa:2:${chatId}` }, { text: "🔐 Liberar Etapa 3", callback_data: `etapa:3:${chatId}` }],
+              [{ text: "💳 Liberar Etapa 4", callback_data: `etapa:4:${chatId}` }, { text: "✨ Finalizar (Etapa 5)", callback_data: `etapa:5:${chatId}` }],
+              [{ text: "💰 GERAR PIX (COBRAR)", callback_data: `cmd:last_pix` }],
+              [{ text: "⬅️ Voltar para Lista", callback_data: "painel:fila" }]
+            ]
+          };
+          await sendTelegram(txt, msgId, kb);
         }
         else if (text === "cmd:ping") {
           await sendTelegram("✅ <b>SISTEMA OPERACIONAL</b>\n\nLatência: 42ms\nBanco de Dados: OK\nWhatsApp: OK", msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
