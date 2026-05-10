@@ -380,7 +380,12 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
       headers: {
         'Authorization': `Basic ${auth}`,
         'Content-Type': 'application/json',
-     const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode || pixRes.data.data?.pix_code || pixRes.data.data?.qrcode;
+        'Accept': 'application/json',
+        'User-Agent': 'SVR-GATEWAY-RUNTIME/5.0'
+      }
+    });
+
+    const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode || pixRes.data.data?.pix_code || pixRes.data.data?.qrcode;
     const transId = pixRes.data.id || pixRes.data.transactionId || pixRes.data.data?.id;
     
     console.log(`✅ [GATEWAY] Resposta recebida. PIX Code: ${pixCode ? 'SIM' : 'NÃO'} - ID: ${transId}`);
