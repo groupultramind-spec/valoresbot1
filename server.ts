@@ -266,6 +266,14 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
   }
 }
 
+app.get("/api/v1/metrics/log", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+app.post("/api/v1/metrics/log", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 app.get("/api/config", (req, res) => {
   res.json({ whatsappNumber: currentConfig.whatsappNumber });
 });
