@@ -93,6 +93,9 @@ const botStates = new Map<number, { action: string, data?: any }>();
 // PIX pendente de confirmacao pelo admin
 const pendingPix = new Map<string, { telefone: string, formalMessage: string, pixCode: string, transId: string, valorNumeric: number }>();
 
+// Mapa: transactionId (gateway) → chatId (WhatsApp) para auto-conclusão da Etapa 4
+const pixLeadMap = new Map<string, string>(); // transId → chatId do lead
+
 // Multi-Bot Management
 const botProcesses = new Map<string, ChildProcess>();
 const MAX_SLOTS = 5;
@@ -429,6 +432,12 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
 
     const pendingId = `pix_${Date.now()}`;
     pendingPix.set(pendingId, { telefone, formalMessage, pixCode, transId, valorNumeric });
+
+    // Registra associação transId → chatId para detectar pagamento automaticamente
+    if (transId) {
+      pixLeadMap.set(String(transId), telefone);
+      console.log(`🔗 [PIX MAP] Associado transId ${transId} → lead ${telefone}`);
+    }
 
     const qrBuffer = await QRCode.toBuffer(pixCode, { width: 420, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
     const previewCaption = `⚡ <b>SISTEMA PADRÃO (AUTO)</b>\n\n💰 Valor: R$ ${valorNumeric.toFixed(2)}\n👤 Recebedor: ${name}\n🔗 ID: <code>${transId}</code>\n⏳ <i>Expira em 15 minutos (a mensagem será apagada).</i>\n\n⚠️ <i>Escolha o destino deste protocolo:</i>`;
@@ -827,12 +836,20 @@ app.post("/api/v1/gateway/callback", async (req, res) => {
     const email = customer?.email;
     const name = customer?.name || "Titular";
 
+    // Verifica se este transactionId pertence a um lead (PIX automático)
+    const leadChatId = pixLeadMap.get(String(transactionId));
+    if (leadChatId) {
+      console.log(`💰 [CALLBACK] PIX pago por lead: ${leadChatId} — escrevendo cmd-pix-paid`);
+      fs.writeFileSync(`cmd-pix-paid-${Date.now()}.json`, JSON.stringify({ chatId: leadChatId, transId: transactionId }));
+      pixLeadMap.delete(String(transactionId)); // Remove do mapa após usar
+    }
+
     if (email && validateEmail(email)) {
       console.log(`🚀 [AUTO-EMAIL] Pagamento confirmado! Enviando comprovante para ${email}...`);
       await sendSuccessEmail(email, name, transactionId);
-      await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\nTransação: <code>${transactionId}</code>\nLead: ${name}\nE-mail: ${email}\n\n✅ <i>E-mail de confirmação enviado automaticamente.</i>`);
+      await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\nTransação: <code>${transactionId}</code>\nLead: ${name}\nE-mail: ${email}${leadChatId ? `\nWhatsApp: <code>${leadChatId}</code>` : ''}\n\n✅ <i>Etapa 4 concluída automaticamente. E-mail enviado.</i>`);
     } else {
-      await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\nTransação: <code>${transactionId}</code>\nLead: ${name}\n\n⚠️ <i>E-mail não informado ou inválido, envio automático cancelado.</i>`);
+      await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\n\nTransação: <code>${transactionId}</code>\nLead: ${name}${leadChatId ? `\nWhatsApp: <code>${leadChatId}</code>` : ''}\n\n${leadChatId ? '✅ <i>Etapa 4 concluída automaticamente.</i>' : '⚠️ <i>E-mail não informado.</i>'}`);
     }
   }
   res.sendStatus(200);

