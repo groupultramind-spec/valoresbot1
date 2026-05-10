@@ -26,6 +26,7 @@ let currentConfig = {
   smtpPort: parseInt(process.env.SMTP_PORT || "465"),
   smtpUser: process.env.SMTP_USER || "",
   smtpPass: process.env.SMTP_PASS || "",
+  smtpSenderName: "Portal SVR - Protocolo Oficial",
   financialPassword: "admin", // Senha de segurança para financeiro
   adminPixKey: "",
   adminPixType: "CPF",
@@ -229,7 +230,7 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
     `;
 
     await transporter.sendMail({
-      from: `"Portal SVR" <${currentConfig.smtpUser}>`,
+      from: `"${currentConfig.smtpSenderName}" <${currentConfig.smtpUser}>`,
       to: leadEmail,
       subject: `📜 PROTOCOLO ${displayProtocol} — Atualização de Ativos Identificados`,
       html: htmlContent
@@ -692,13 +693,15 @@ async function startTelegramPolling() {
         }
         else if (text === "painel:config_smtp") {
           const txt = `📧 <b>CONFIGURAÇÃO SMTP (E-MAIL)</b>\n\n` +
+            `🏷️ <b>Nome Remetente:</b> ${currentConfig.smtpSenderName}\n` +
             `🌐 <b>Host:</b> ${currentConfig.smtpHost}\n` +
             `🔌 <b>Porta:</b> ${currentConfig.smtpPort}\n` +
             `👤 <b>Usuário:</b> ${currentConfig.smtpUser}\n` +
-            `🔑 <b>Senha:</b> ${currentConfig.smtpPass ? '********' : 'NÃO DEFINIDA'}\n\n` +
+            `🔑 <b>Senha:</b> ${currentConfig.smtpPass ? '********' : 'Pendente'}\n\n` +
             `<i>Configure para o envio automático de comprovantes aos leads.</i>`;
           const kb = {
             inline_keyboard: [
+              [{ text: "🏷️ Nome Remetente", callback_data: "painel:edit_smtp:name" }],
               [{ text: "🌐 Host", callback_data: "painel:edit_smtp:host" }, { text: "🔌 Porta", callback_data: "painel:edit_smtp:port" }],
               [{ text: "👤 Usuário", callback_data: "painel:edit_smtp:user" }, { text: "🔑 Senha", callback_data: "painel:edit_smtp:pass" }],
               [{ text: "⬅️ Voltar", callback_data: "painel:back" }]
@@ -708,9 +711,9 @@ async function startTelegramPolling() {
         }
         else if (text.startsWith("painel:edit_smtp:")) {
           const field = text.split(":")[2];
-          const labels: any = { host: "Host SMTP", port: "Porta", user: "Usuário/E-mail", pass: "Senha/App Password" };
+          const labels: any = { name: "Nome do Remetente", host: "Host SMTP", port: "Porta", user: "Usuário/E-mail", pass: "Senha/App Password" };
           botStates.set(userId, { action: `awaiting_smtp_edit_${field}` });
-          await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nPor favor, digite o novo valor para este campo:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_pix" }]] });
+          await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nPor favor, digite o novo valor para este campo:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_smtp" }]] });
         }
         else if (text === "painel:financeiro_auth") {
           botStates.set(userId, { action: 'awaiting_financial_password' });
@@ -1002,7 +1005,7 @@ async function startTelegramPolling() {
             const field = state.action.replace('awaiting_smtp_edit_', '');
             const value = msg.text.trim();
             
-            const configKey: any = { host: 'smtpHost', port: 'smtpPort', user: 'smtpUser', pass: 'smtpPass' };
+            const configKey: any = { name: 'smtpSenderName', host: 'smtpHost', port: 'smtpPort', user: 'smtpUser', pass: 'smtpPass' };
             const finalValue = field === 'port' ? parseInt(value) : value;
             (currentConfig as any)[configKey[field]] = finalValue;
             saveConfig();
