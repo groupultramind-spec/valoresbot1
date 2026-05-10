@@ -849,7 +849,7 @@ async function startTelegramPolling() {
               [{ text: "📊 Status Detalhado", callback_data: "painel:status" }, { text: "👥 Ver Fila", callback_data: "painel:fila" }],
               [{ text: "💰 Financeiro (Saque)", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
               [{ text: "💰 Gerar PIX (Último)", callback_data: "cmd:last_pix" }, { text: "🛠️ Configurar PIX", callback_data: "painel:config_pix" }],
-              [{ text: "🔄 Reiniciar Bot", callback_data: "painel:reiniciar:slot:main" }]
+              [{ text: "📱 Configurar WhatsApp", callback_data: "painel:whatsapp_auth" }, { text: "🔄 Reiniciar Bot", callback_data: "painel:reiniciar:slot:main" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
@@ -872,20 +872,31 @@ async function startTelegramPolling() {
           let btns = [];
           for (let i = 1; i <= MAX_SLOTS; i++) {
             const id = i === 1 ? 'main' : `parceiro${i}`;
-            btns.push([{ text: `⚙️ Configurar Slot ${i}`, callback_data: `painel:manage:${id}` }]);
+            const label = i === 1 ? 'Perfil 1 (Admin/Main)' : `Atendente ${i}`;
+            btns.push([{ text: `⚙️ Configurar ${label}`, callback_data: `painel:manage:${id}` }]);
           }
           btns.push([{ text: "⬅️ Voltar", callback_data: "painel:back" }]);
-          await sendTelegram(`🤖 <b>GESTÃO DE PERFIS</b>\n\nEscolha um slot para configurar:`, msgId, { inline_keyboard: btns });
+          await sendTelegram(`🤖 <b>GESTÃO DE PERFIS (WHATSAPP)</b>\n\nEscolha um slot para configurar:`, msgId, { inline_keyboard: btns });
         }
         else if (text.startsWith("painel:manage:")) {
           const id = text.split(":")[2];
-          await sendTelegram(`⚙️ <b>GERENCIAR: ${id === 'main' ? 'Perfil 1' : id}</b>\n\nEscolha uma ação de sistema:`, msgId, {
+          await sendTelegram(`⚙️ <b>GERENCIAR: ${id === 'main' ? 'Perfil 1 (Admin)' : 'Atendente ' + id.replace('parceiro','')}</b>\n\nEscolha uma ação de sistema:`, msgId, {
             inline_keyboard: [
-              [{ text: "📲 Gerar Novo QR Code", callback_data: `generate_qr:${id}` }],
+              [{ text: "📲 Conectar / Gerar QR Code", callback_data: `generate_qr:${id}` }],
               [{ text: "🔄 Reiniciar Instância", callback_data: `painel:reiniciar:slot:${id}` }],
+              [{ text: "🔌 Desconectar (Apagar)", callback_data: `painel:desconectar:slot:${id}` }],
               [{ text: "⬅️ Voltar", callback_data: "painel:slots" }]
             ]
           });
+        }
+        else if (text.startsWith("painel:desconectar:slot:")) {
+          const id = text.split(":")[3];
+          stopBot(id);
+          const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${id}`);
+          if (fs.existsSync(sessionPath)) {
+            try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (e) { }
+          }
+          await sendTelegram(`✅ <b>DESCONECTADO!</b>\n\nA sessão do slot <b>${id}</b> foi apagada.\nVocê pode conectar um novo número agora.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:slots" }]] });
         }
         else if (text.startsWith("painel:reiniciar:slot:")) {
           const id = text.split(":")[3];
@@ -1035,6 +1046,10 @@ async function startTelegramPolling() {
         else if (text === "painel:financeiro_auth") {
           botStates.set(userId, { action: 'awaiting_financial_password' });
           await sendTelegram(`🔐 <b>ACESSO RESTRITO</b>\n\nPor favor, informe a <b>Senha Financeira</b> para acessar o saldo e saques:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+        }
+        else if (text === "painel:whatsapp_auth") {
+          botStates.set(userId, { action: 'awaiting_whatsapp_password' });
+          await sendTelegram(`🔐 <b>SEGURANÇA EXIGIDA</b>\n\nPor favor, informe a <b>Senha de Segurança</b> (a mesma do financeiro) para gerenciar o WhatsApp:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
         }
         else if (text === "painel:financeiro_menu") {
           const balance = await getGatewayBalance();
@@ -1275,13 +1290,12 @@ async function startTelegramPolling() {
             botStates.delete(userId);
             await sendTelegram(`✅ <b>CONTA ATUALIZADA!</b>\n\nO campo <b>${field}</b> foi salvo.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_saque" }]] });
           }
-          else if (state?.action === 'awaiting_financial_password') {
+          else if (state?.action === 'awaiting_financial_password' || state?.action === 'awaiting_whatsapp_password') {
             if (msg.text === currentConfig.financialPassword) {
+              const action = state.action;
               botStates.delete(userId);
-              // Trigger menu financeiro
-              const fakeMsg = { ...msg, text: 'painel:financeiro_menu' };
-              // Emula o clique no botão de menu financeiro
-              return;
+              const target = action === 'awaiting_financial_password' ? 'painel:financeiro_menu' : 'painel:slots';
+              await sendTelegram(`✅ <b>Acesso Liberado!</b>\n\nClique no botão abaixo para prosseguir:`, msgId, { inline_keyboard: [[{ text: "➡️ Acessar Painel", callback_data: target }]] });
             } else {
               await sendTelegram(`❌ <b>SENHA INCORRETA</b>\n\nTente novamente ou cancele:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
             }
