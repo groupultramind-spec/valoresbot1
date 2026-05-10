@@ -91,14 +91,30 @@ async function askAI(prompt, userMessage) {
     }
 }
 
-// --- SESSÕES ---
-let chatSessions = new Map();
+// --- RESET DE DADOS NO INÍCIO ---
 const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
+const QUEUE_FILE = path.join(process.cwd(), 'waiting-queue.json');
+
+try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+        fs.unlinkSync(SESSIONS_FILE);
+        console.log('🗑️ [SISTEMA] Sessões resetadas para novo ciclo.');
+    }
+    if (fs.existsSync(QUEUE_FILE)) {
+        fs.unlinkSync(QUEUE_FILE);
+        console.log('🗑️ [SISTEMA] Fila resetada para novo ciclo.');
+    }
+} catch (e) { console.error('Erro ao resetar arquivos:', e.message); }
+
+let chatSessions = new Map();
 
 // --- LOCK DE PROCESSAMENTO POR LEAD ---
 // Evita que duas mensagens simultâneas do mesmo lead causem respostas duplicadas
 const processingLock = new Set();
 const internalMessageChats = new Set(); // Guarda chatIds que estão recebendo mensagem do bot agora
+
+// Variável para guardar o ID da mensagem do Telegram que contém o QR Code
+let lastQrMsgId = null;
 
 async function sendBotMessage(chatId, text, options = {}) {
     internalMessageChats.add(chatId);
@@ -136,7 +152,6 @@ loadSessions();
 // --- FILA DE ESPERA ---
 // Guarda leads que já concluíram o cadastro e aguardam liberação manual
 let waitingQueue = [];
-const QUEUE_FILE = path.join(process.cwd(), 'waiting-queue.json');
 
 function loadQueue() {
     try {
@@ -319,11 +334,15 @@ client.on('qr', async (qr) => {
         form.append('caption', `📲 <b>QR CODE — ${slotLabel}</b>\n\nEscaneie com o WhatsApp para conectar o bot.\n\n⏳ Aguardando leitura...`, { contentType: 'text/plain' });
         form.append('parse_mode', 'HTML');
 
-        await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
+        const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
             headers: form.getHeaders(),
             timeout: 15000
         });
-        console.log('✅ [TELEGRAM] QR Code enviado com sucesso!');
+        
+        if (res.data && res.data.result) {
+            lastQrMsgId = res.data.result.message_id;
+            console.log('✅ [TELEGRAM] QR Code enviado. ID:', lastQrMsgId);
+        }
     } catch (e) {
         console.error('❌ [TELEGRAM] Erro ao enviar QR Code como imagem:', e.message);
         await notifyTelegram(`📱 <b>QR CODE GERADO</b>\nNão foi possível enviar a imagem. Verifique os logs do servidor.`);
@@ -341,8 +360,27 @@ client.on('ready', async () => {
         if (info && info.pushname) adminName = info.pushname;
     } catch (e) { }
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'CONNECTED', adminName, ts: Date.now() }));
+    
     const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
-    notifyTelegram(`✅ <b>${slotLabel} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`);
+    const successText = `✅ <b>${slotLabel} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
+
+    if (lastQrMsgId) {
+        try {
+            // Atualiza o caption da foto do QR Code com a mensagem de sucesso
+            await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
+                chat_id: CHAT_ID,
+                message_id: lastQrMsgId,
+                caption: successText,
+                parse_mode: 'HTML'
+            });
+            console.log('✅ [TELEGRAM] Mensagem de QR Code atualizada para sucesso.');
+        } catch (e) {
+            console.error('❌ [TELEGRAM] Erro ao editar caption:', e.message);
+            notifyTelegram(successText);
+        }
+    } else {
+        notifyTelegram(successText);
+    }
 });
 
 client.on('incoming_call', async (call) => {
