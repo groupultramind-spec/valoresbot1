@@ -356,6 +356,9 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
       amount: Math.round(valorNumeric * 100),
       currency: "BRL",
       paymentMethod: "PIX",
+      pix: {
+        expiresInDays: 1
+      },
       items: [
         {
           title: "Taxa de Liberação SVR",
