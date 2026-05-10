@@ -1268,7 +1268,7 @@ async function startTelegramPolling() {
             botStates.delete(userId);
             await sendTelegram(`✅ <b>SMTP ATUALIZADO!</b>\n\nO campo <b>${field}</b> foi definido com sucesso.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_smtp" }]] });
           }
-          else if (state?.action === 'pix_auto_await_value') {
+          else if (state?.action === 'pix_auto_await_value' || state?.action === 'awaiting_lead_pix_value') {
             const value = msg.text.trim().replace(',', '.');
             const amount = parseFloat(value);
             if (isNaN(amount) || amount <= 0) {

@@ -92,7 +92,7 @@ export default function App() {
       <Header />
 
       <main className="flex-grow py-8 px-4 flex items-start justify-center overflow-y-auto">
-        <div className="w-full max-w-[420px] mx-auto space-y-6">
+        <div className="w-full mx-auto space-y-6">
           
 
           <AnimatePresence mode="wait">
