@@ -583,14 +583,28 @@ async function showPixManualMenu(userId: number, messageId?: number) {
 function resetBotSession(id: string) {
   stopBot(id);
   const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${id}`);
-  if (fs.existsSync(sessionPath)) {
-    try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch (e) { }
-  }
   const qrMsgFile = path.join(process.cwd(), `bot-qr-msg-${id}.json`);
-  if (fs.existsSync(qrMsgFile)) {
-    try { fs.unlinkSync(qrMsgFile); } catch (e) { }
-  }
-  startBot(id);
+
+  const attemptReset = (retries = 10) => {
+    try {
+      if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+      }
+      if (fs.existsSync(qrMsgFile)) {
+        fs.unlinkSync(qrMsgFile);
+      }
+      startBot(id);
+    } catch (e) {
+      if (retries > 0) {
+        setTimeout(() => attemptReset(retries - 1), 500);
+      } else {
+        console.log(`⚠️ [SISTEMA] Falha ao apagar sessão após tentativas. Reiniciando de qualquer forma.`);
+        startBot(id);
+      }
+    }
+  };
+
+  setTimeout(attemptReset, 500); // Give initial 500ms for process to close
 }
 
 if (fs.existsSync(configPath)) {
