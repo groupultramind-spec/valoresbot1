@@ -672,7 +672,10 @@ async function sendTelegramPhoto(buffer: Buffer, caption: string, replyMarkup?: 
     if (replyMarkup) form.append('reply_markup', JSON.stringify(replyMarkup));
     const res = await axios.post(`${TELEGRAM_URL}/sendPhoto`, form, { headers: form.getHeaders() });
     return res.data.result?.message_id || null;
-  } catch (e: any) { return null; }
+  } catch (e: any) { 
+    console.error(`❌ [TELEGRAM] Erro sendPhoto:`, e.response?.data || e.message);
+    return null; 
+  }
 }
 
 app.post("/api/v1/session/start", async (req, res) => {
@@ -1269,15 +1272,20 @@ async function startTelegramPolling() {
             await sendTelegram(`✅ <b>SMTP ATUALIZADO!</b>\n\nO campo <b>${field}</b> foi definido com sucesso.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_smtp" }]] });
           }
           else if (state?.action === 'pix_auto_await_value' || state?.action === 'awaiting_lead_pix_value') {
-            const value = msg.text.trim().replace(',', '.');
-            const amount = parseFloat(value);
+            let cleanVal = msg.text.trim();
+            const parts = cleanVal.split(',');
+            if (parts.length > 1) {
+                cleanVal = parts.slice(0, -1).join('').replace(/\./g, '') + '.' + parts[parts.length - 1];
+            }
+            const amount = parseFloat(cleanVal);
             if (isNaN(amount) || amount <= 0) {
-              await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido para o valor.`, msgId);
+              await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido para o valor (ex: 97.50).`, undefined);
               return;
             }
             const chatId = state.data.chatId;
             botStates.delete(userId);
-            await generateStandardPix(chatId, amount, msgId);
+            await sendTelegram(`⏳ <b>Gerando protocolo de R$ ${amount.toFixed(2)}...</b>\nAguarde um momento.`, undefined);
+            await generateStandardPix(chatId, amount, undefined);
           }
           else if (state?.action?.startsWith('pix_preauto_edit_')) {
             const field = state.action.replace('pix_preauto_edit_', '');
