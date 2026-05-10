@@ -79,7 +79,8 @@ export function Step2({ data, onReset }: Step2Props) {
 
         const userId = localStorage.getItem('svr_user_id') || "N/A";
         const protocol = `SVR-${userId.toUpperCase()}`;
-        const token = btoa(data.docValue).substring(0, 12).toUpperCase();
+        // UTF-8 safe base64 encoding for the token
+        const token = btoa(unescape(encodeURIComponent(data.docValue))).substring(0, 12).toUpperCase();
 
         const header = `*SOLICITAÇÃO DE RESGATE - PROTOCOLO DE SEGURANÇA*`;
         const body = `Prezados, venho por meio desta formalizar o requerimento de liberação de ativos vinculados ao meu documento conforme os protocolos do sistema.\n\n` +
