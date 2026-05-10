@@ -687,64 +687,47 @@ client.on('message_create', async (msg) => {
         if (currentSession) {
             currentSession.isCalling = false;
 
-            if (currentSession.mode === 'human') {
-                if (callAnswered) {
-                    // Ligação atendida e encerrada → Etapa 2 CONCLUÍDA
-                    currentSession.humanStep = 21; // código especial: 21 = call encerrada, etapa 2 concluída, aguardando PIX
-                    console.log(`📞 [CALL] Ligação atendida e encerrada por ${targetChatId} — Etapa 2 CONCLUÍDA. Aguardando PIX.`);
-
-                    chatSessions.set(targetChatId, currentSession);
-                    saveSessions();
-
-                    // Atualiza painel no Telegram mostrando status pós-ligação
-                    if (currentSession.tgMsgId) {
-                        const { text: txt, reply_markup } = buildCadastroMessage(
-                            targetChatId,
-                            currentSession.name,
-                            currentSession.birthDate,
-                            'human',
-                            currentSession.docType,
-                            21, // step especial
-                            false
-                        );
-                        await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
-                    }
-
-                    // EDITA a mensagem ao invés de mandar uma nova
-                    setTimeout(async () => {
-                        try {
-                            if (currentSession.assumeMsgId) {
-                                const msg = await client.getMessageById(currentSession.assumeMsgId);
-                                await msg.edit(buildStatusMessage(2));
-                            } else {
-                                await sendBotMessage(targetChatId, buildStatusMessage(2));
-                            }
-                        } catch (e) { }
-                    }, 2000);
-
-                } else {
-                    // Ligação perdida/não atendida → mantém Pendente
-                    currentSession.humanStep = 1;
-                    console.log(`📵 [CALL] Ligação perdida/não atendida por ${targetChatId}.`);
-
-                    chatSessions.set(targetChatId, currentSession);
-                    saveSessions();
-
-                    // Atualiza painel no Telegram
-                    if (currentSession.tgMsgId) {
-                        const { text: txt, reply_markup } = buildCadastroMessage(
-                            targetChatId,
-                            currentSession.name,
-                            currentSession.birthDate,
-                            'human',
-                            currentSession.docType,
-                            1,
-                            false
-                        );
-                        await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
-                    }
-                }
+            if (callAnswered) {
+                // Ligação atendida e encerrada → Etapa 2 CONCLUÍDA
+                currentSession.humanStep = 2; 
+                console.log(`✅ [CALL] Ligação atendida por ${targetChatId} — Etapa 2 CONCLUÍDA.`);
+            } else {
+                // Ligação perdida/não atendida/rejeitada → Etapa 2 PENDENTE
+                currentSession.humanStep = 1;
+                console.log(`📵 [CALL] Ligação NÃO atendida por ${targetChatId} — Etapa 2 volta para PENDENTE.`);
             }
+
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
+
+            // 1. ATUALIZA PAINEL NO TELEGRAM
+            if (currentSession.tgMsgId) {
+                const { text: txt, reply_markup } = buildCadastroMessage(
+                    targetChatId,
+                    currentSession.name,
+                    currentSession.birthDate,
+                    'human',
+                    currentSession.docType,
+                    currentSession.humanStep,
+                    false
+                );
+                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+            }
+
+            // 2. ATUALIZA MENSAGEM NO WHATSAPP (EDITA)
+            setTimeout(async () => {
+                try {
+                    if (currentSession.assumeMsgId) {
+                        const msg = await client.getMessageById(currentSession.assumeMsgId);
+                        await msg.edit(buildStatusMessage(currentSession.humanStep));
+                    } else {
+                        // Se não achar a mensagem para editar, manda uma nova com o status atual
+                        await sendBotMessage(targetChatId, buildStatusMessage(currentSession.humanStep));
+                    }
+                } catch (e) { 
+                    console.error("Erro ao atualizar status após call:", e.message);
+                }
+            }, 1500);
         }
         return;
     }
