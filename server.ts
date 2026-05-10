@@ -124,6 +124,20 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
     // Logo camuflada do sistema
     const logoUrl = "https://portalsvr.shardweb.app/assets/logos/asset_g_mark.png"; 
 
+    // Geração de mensagem automática para o WhatsApp
+    const isDefaultWhatsapp = currentConfig.whatsappNumber === (process.env.WHATSAPP_NUMBER || "5511971730325");
+    let waMessage = "";
+    
+    if (isDefaultWhatsapp) {
+      // Mensagem para o bot principal (Foco em antecipação)
+      waMessage = `Olá, gostaria de solicitar a antecipação da liberação dos meus ativos vinculados ao protocolo ${displayProtocol}. Nome: ${leadName}.`;
+    } else {
+      // Mensagem para outro setor (Foco em acompanhamento oficial)
+      waMessage = `Prezados, sou ${leadName} e possuo o protocolo de segurança ${displayProtocol}. Fui redirecionado para este canal oficial para acompanhamento da fase de transição de ativos identificados no sistema SVR.`;
+    }
+    
+    const waLink = `https://wa.me/${currentConfig.whatsappNumber}?text=${encodeURIComponent(waMessage)}`;
+
     const htmlContent = `
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -197,7 +211,7 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
                 <table align="center" border="0" cellpadding="0" cellspacing="0">
                     <tr>
                         <td align="center" bgcolor="#1b668d" style="border-radius: 3px;">
-                            <a href="https://wa.me/${currentConfig.whatsappNumber}" target="_blank" style="font-size: 14px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 12px 35px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;">Acompanhar Liberação</a>
+                            <a href="${waLink}" target="_blank" style="font-size: 14px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 12px 35px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;">Acompanhar Liberação</a>
                         </td>
                     </tr>
                 </table>
