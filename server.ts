@@ -410,9 +410,88 @@ async function startTelegramPolling() {
           resetBotSession(id);
           await sendTelegram(`📲 <b>GERANDO QR CODE...</b>\n\nO processo foi iniciado para <b>${id}</b>. Aguarde o QR nos logs ou Telegram.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
-        // ... Logica de PIX continua com as correções de edição ...
+        else if (text.startsWith("cmd:pix:")) {
+          const chatId = text.split(":")[2];
+          const kb = {
+            inline_keyboard: [
+              [{ text: "⚡ Protocolo Padrão (Auto)", callback_data: `cmd:pix_std:${chatId}` }],
+              [{ text: "🛠️ Protocolo Customizado (Manual)", callback_data: `cmd:pix_custom:${chatId}` }],
+              [{ text: "⬅️ Voltar", callback_data: "painel:back" }]
+            ]
+          };
+          await sendTelegram(`💰 <b>GERAR PROTOCOLO PIX</b>\n\nLead: <code>${chatId}</code>\n\nEscolha o tipo de protocolo a ser gerado:`, msgId, kb);
+        }
+        else if (text.startsWith("cmd:pix_std:")) {
+          const chatId = text.split(":")[3];
+          await generateStandardPix(chatId, 97.50, msgId);
+        }
+        else if (text.startsWith("cmd:pix_custom:")) {
+          const chatId = text.split(":")[3];
+          botStates.set(userId, { action: 'awaiting_pix_key', data: { chatId } });
+          await sendTelegram(`🛠️ <b>PROTOCOLO CUSTOMIZADO</b>\n\nPor favor, <b>digite a Chave PIX</b> (ou copie e cole o código) que será usada para este lead:\n\n<i>Aguardando sua mensagem...</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+        }
+        else if (text.startsWith("etapa:")) {
+          const parts = text.split(":");
+          const num = parseInt(parts[1]);
+          const chatId = parts[2];
+          fs.writeFileSync(`cmd-etapa-${Date.now()}.json`, JSON.stringify({ etapa: num, chatId }));
+          await sendTelegram(`✅ <b>SOLICITAÇÃO ENVIADA</b>\n\nComando para liberar <b>Etapa ${num}</b> enviado para o lead <code>${chatId}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+        }
+        else if (text.startsWith("pix_dest:")) {
+          const parts = text.split(":");
+          const dest = parts[1];
+          const pendingId = parts[2];
+          const pix = pendingPix.get(pendingId);
+          
+          if (!pix) {
+            await sendTelegram("❌ <b>ERRO:</b> Protocolo expirado ou não encontrado.", msgId);
+            continue;
+          }
+
+          if (dest === 'lead') {
+            fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: pix.telefone, message: pix.formalMessage }));
+            // Envia o código logo em seguida
+            setTimeout(() => {
+                fs.writeFileSync(`cmd-send-${Date.now()+1}.json`, JSON.stringify({ to: pix.telefone, message: pix.pixCode }));
+            }, 1000);
+            await sendTelegram(`🚀 <b>ENVIADO AO LEAD!</b>\n\nO protocolo foi enviado com sucesso para <code>${pix.telefone}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+          } else if (dest === 'copy') {
+            await sendTelegram(`📋 <b>HASH PIX (COPIAR):</b>\n\n<code>${pix.pixCode}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+          } else if (dest === 'phone') {
+             botStates.set(userId, { action: 'awaiting_target_phone', data: { pendingId } });
+             await sendTelegram(`📱 <b>ENVIAR PARA OUTRO NÚMERO</b>\n\nPor favor, digite o número de telefone (com DDD) para o qual deseja enviar este PIX:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+          }
+        }
+        else if (!cb && msg?.text) {
+          // Processa inputs de texto para estados do bot
+          const state = botStates.get(userId);
+          if (state?.action === 'awaiting_pix_key') {
+            const key = msg.text.trim();
+            const chatId = state.data.chatId;
+            botStates.delete(userId);
+            await generateModifiedPix(chatId, 97.50, key);
+          }
+          else if (state?.action === 'awaiting_target_phone') {
+            const phone = msg.text.replace(/\D/g, '');
+            const pendingId = state.data.pendingId;
+            const pix = pendingPix.get(pendingId);
+            botStates.delete(userId);
+            if (pix) {
+               const target = phone.includes('@c.us') ? phone : `${phone}@c.us`;
+               fs.writeFileSync(`cmd-send-${Date.now()}.json`, JSON.stringify({ to: target, message: pix.formalMessage }));
+               setTimeout(() => {
+                   fs.writeFileSync(`cmd-send-${Date.now()+1}.json`, JSON.stringify({ to: target, message: pix.pixCode }));
+               }, 1000);
+               await sendTelegram(`🚀 <b>ENVIADO COM SUCESSO!</b>\n\nProtocolo enviado para o número <code>${phone}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+            }
+          }
+        }
+
       }
-    } catch (e) { await new Promise(r => setTimeout(r, 5000)); }
+    } catch (e: any) { 
+      console.error("❌ [TELEGRAM POLLING ERROR]:", e.message);
+      await new Promise(r => setTimeout(r, 5000)); 
+    }
   }
 }
 
@@ -430,7 +509,7 @@ function getBotStatusInfo(id: string) {
 
 function getQueueInfo() {
   try {
-    if (fs.existsSync('bot-queue.json')) return JSON.parse(fs.readFileSync('bot-queue.json', 'utf-8'));
+    if (fs.existsSync('waiting-queue.json')) return JSON.parse(fs.readFileSync('waiting-queue.json', 'utf-8'));
   } catch (e) { }
   return [];
 }
