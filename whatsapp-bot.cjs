@@ -335,31 +335,55 @@ client.on('qr', async (qr) => {
     qrcode.generate(qr, { small: true });
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
 
-    // Evita spam de QR Code no Telegram (envia apenas a cada 60s)
-    if (Date.now() - lastQrNotification < 60000) return;
-    lastQrNotification = Date.now();
+    const REFRESH_FLAG = 'refresh-qr.json';
+    const isRefreshRequested = fs.existsSync(REFRESH_FLAG);
+
+    // Só envia se for a primeira vez OU se o admin pediu refresh
+    if (lastQrMsgId && !isRefreshRequested) return;
+    
+    if (isRefreshRequested) {
+        try { fs.unlinkSync(REFRESH_FLAG); } catch(e) {}
+    }
 
     try {
         const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
         const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
-        const form = new FormData();
-        form.append('chat_id', CHAT_ID);
-        form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
-        form.append('caption', `📲 <b>QR CODE — ${slotLabel}</b>\n\nEscaneie com o WhatsApp para conectar o bot.\n\n⏳ Aguardando leitura...`, { contentType: 'text/plain' });
-        form.append('parse_mode', 'HTML');
-
-        const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
-            headers: form.getHeaders(),
-            timeout: 15000
-        });
         
-        if (res.data && res.data.result) {
-            lastQrMsgId = res.data.result.message_id;
-            console.log('✅ [TELEGRAM] QR Code enviado. ID:', lastQrMsgId);
+        const caption = `📲 <b>QR CODE — ${slotLabel}</b>\n\nEscaneie com o WhatsApp para conectar o bot.\n\n⚠️ <b>Atenção:</b> Se o QR expirar ou não carregar, clique no botão abaixo para gerar um novo.\n\n⏳ Gerado em: ${new Date().toLocaleTimeString('pt-BR')}`;
+        const kb = { inline_keyboard: [[{ text: "🔄 Gerar Novo QR Code", callback_data: "cmd:refresh_qr" }]] };
+
+        if (lastQrMsgId) {
+            // Tenta editar a foto existente (Telegram API para editMessageMedia é complexa, vamos apenas enviar uma nova e apagar a velha ou apenas enviar nova)
+            // Para simplicidade e garantir que o admin veja, vamos enviar uma nova se o refresh foi pedido
+            const form = new FormData();
+            form.append('chat_id', CHAT_ID);
+            form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
+            form.append('caption', caption, { contentType: 'text/plain' });
+            form.append('parse_mode', 'HTML');
+            form.append('reply_markup', JSON.stringify(kb));
+
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
+                headers: form.getHeaders(),
+                timeout: 15000
+            });
+            if (res.data?.result) lastQrMsgId = res.data.result.message_id;
+        } else {
+            const form = new FormData();
+            form.append('chat_id', CHAT_ID);
+            form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
+            form.append('caption', caption, { contentType: 'text/plain' });
+            form.append('parse_mode', 'HTML');
+            form.append('reply_markup', JSON.stringify(kb));
+
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
+                headers: form.getHeaders(),
+                timeout: 15000
+            });
+            if (res.data?.result) lastQrMsgId = res.data.result.message_id;
         }
+        console.log('✅ [TELEGRAM] QR Code enviado/atualizado. ID:', lastQrMsgId);
     } catch (e) {
-        console.error('❌ [TELEGRAM] Erro ao enviar QR Code como imagem:', e.message);
-        await notifyTelegram(`📱 <b>QR CODE GERADO</b>\nNão foi possível enviar a imagem. Verifique os logs do servidor.`);
+        console.error('❌ [TELEGRAM] Erro ao enviar QR Code:', e.message);
     }
 });
 
@@ -747,12 +771,18 @@ async function processIncomingMessage(msg, targetChatId) {
         let expectedData = null;
         if (userId) {
             try {
+                // Tenta buscar da API (que agora tem persistência)
                 const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`, {
                     headers: API_HEADERS,
-                    timeout: 5000
+                    timeout: 8000
                 });
-                expectedData = res.data;
-            } catch (e) { }
+                if (res.status === 200 && res.data) {
+                    expectedData = res.data;
+                    console.log(`✅ [SINC] Dados recuperados da API para userId: ${userId}`);
+                }
+            } catch (e) {
+                console.warn(`⚠️ [SINC] Falha ao buscar da API (${userId}). Tentando base local...`);
+            }
         }
 
         const { text: txtInit, reply_markup } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data', docType);
