@@ -287,6 +287,9 @@ const STATUS_FILE = `bot-status-${BOT_ID}.json`;
 
 console.log(`🤖 [BOT] Iniciando instância: ${BOT_ID} | Status: ${STATUS_FILE}`);
 
+let lastQrNotification = 0;
+let isBotReady = false;
+
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
     puppeteer: {
@@ -299,6 +302,10 @@ client.on('qr', async (qr) => {
     console.log('\n📱 [QR CODE] Escaneie com o WhatsApp:\n');
     qrcode.generate(qr, { small: true });
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
+
+    // Evita spam de QR Code no Telegram (envia apenas a cada 60s)
+    if (Date.now() - lastQrNotification < 60000) return;
+    lastQrNotification = Date.now();
 
     try {
         const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
@@ -321,6 +328,9 @@ client.on('qr', async (qr) => {
 });
 
 client.on('ready', async () => {
+    if (isBotReady) return; // Evita múltiplas notificações de conexão
+    isBotReady = true;
+
     console.log('✅ [BOT] WhatsApp conectado e pronto!');
     let adminName = BOT_ID === 'main' ? 'Perfil 1' : BOT_ID;
     try {
@@ -352,6 +362,7 @@ client.on('incoming_call', async (call) => {
 
 client.on('disconnected', (reason) => {
     console.log('⚠️ [BOT] Desconectado:', reason);
+    isBotReady = false;
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', reason, ts: Date.now() }));
 });
 
