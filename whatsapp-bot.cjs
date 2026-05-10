@@ -81,6 +81,10 @@ async function askAI(prompt, userMessage) {
 let chatSessions = new Map();
 const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
 
+// --- LOCK DE PROCESSAMENTO POR LEAD ---
+// Evita que duas mensagens simultâneas do mesmo lead causem respostas duplicadas
+const processingLock = new Set();
+
 function loadSessions() {
     try {
         if (fs.existsSync(SESSIONS_FILE)) {
@@ -259,25 +263,82 @@ client.on('disconnected', (reason) => {
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', reason, ts: Date.now() }));
 });
 
+// =============================================================
+// HANDLER 1: 'message_create' — SOMENTE para detectar quando o
+// admin digita manualmente e assume o atendimento de um lead.
+// NÃO processa mensagens recebidas aqui para evitar confusão.
+// =============================================================
 client.on('message_create', async (msg) => {
-    // ✅ Apenas o Slot 1 (main) processa mensagens com IA e atendimento.
+    if (BOT_ID !== 'main') return;
+    // Só nos interessa quando o admin (nós mesmos) envia manualmente
+    if (!msg.fromMe) return;
+
+    // msg.to = número do destinatário (o lead)
+    const targetChatId = msg.to;
+    if (!targetChatId) return;
+
+    const currentSession = chatSessions.get(targetChatId);
+    if (!currentSession || currentSession.mode !== 'bot') return;
+
+    // Só assume se a sessão tiver mais de 30s (evita conflito com respostas automáticas)
+    const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
+    if (sessionAge > 30000) {
+        chatSessions.set(targetChatId, { mode: 'human' });
+        saveSessions();
+        console.log(`👤 [ADMIN] Assumiu atendimento de: ${targetChatId}`);
+        notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO PELO ADMIN</b>\nLead: <code>${targetChatId}</code>\n<i>O bot foi desativado para este contato.</i>`);
+    }
+});
+
+// =============================================================
+// HANDLER 2: 'message' — SOMENTE mensagens RECEBIDAS (incoming).
+// Este evento NÃO dispara para mensagens que o bot envia,
+// eliminando o risco de processar a própria resposta.
+// =============================================================
+client.on('message', async (msg) => {
     if (BOT_ID !== 'main') return;
 
+    // msg.from = sempre o remetente (o lead). Nunca é o bot.
+    const targetChatId = msg.from;
+    if (!targetChatId) return;
+
+    // Ignora mensagens de grupos (apenas individuais)
+    if (targetChatId.includes('@g.us')) return;
+
+    // LOCK: se já estamos processando uma mensagem deste lead, ignorar
+    if (processingLock.has(targetChatId)) {
+        console.log(`⏳ [LOCK] Mensagem de ${targetChatId} ignorada — já processando.`);
+        return;
+    }
+    processingLock.add(targetChatId);
+
+    try {
+        await processIncomingMessage(msg, targetChatId);
+    } catch (e) {
+        console.error(`❌ [ERRO] Falha ao processar mensagem de ${targetChatId}:`, e.message);
+    } finally {
+        // Libera o lock após 2s para evitar spam mas permitir próximas mensagens
+        setTimeout(() => processingLock.delete(targetChatId), 2000);
+    }
+});
+
+// =============================================================
+// FUNÇÃO PRINCIPAL DE PROCESSAMENTO DE MENSAGEM RECEBIDA
+// Centraliza toda a lógica para evitar duplicação e facilitar
+// a depuração do fluxo de cada lead individualmente.
+// =============================================================
+async function processIncomingMessage(msg, targetChatId) {
     const text = (msg.body || "").trim();
     const isTrigger = text.toUpperCase().includes('SOLICITAÇÃO DE RESGATE');
 
-    const targetChatId = msg.fromMe ? msg.to : msg.from;
-    if (!targetChatId) return;
-
-    if (!msg.fromMe) {
-        fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
-    }
+    // Registra o último lead que enviou mensagem (para o comando /pix)
+    fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
 
     const currentSession = chatSessions.get(targetChatId);
+    console.log(`📩 [MSG] De: ${targetChatId} | Sessão: ${currentSession?.mode || 'nova'} | Texto: "${text.substring(0, 60)}"`);
 
     // --- LEAD NA FILA DE ESPERA ---
-    // Se o lead já está aguardando (modo 'waiting'), responder sobre o status
-    if (!msg.fromMe && currentSession && currentSession.mode === 'waiting') {
+    if (currentSession && currentSession.mode === 'waiting') {
         const pos = getQueuePosition(targetChatId);
         const chat = await msg.getChat();
         await chat.sendStateTyping();
@@ -294,16 +355,9 @@ client.on('message_create', async (msg) => {
         return;
     }
 
-    // --- MUDANÇA DE MODO (admin envia mensagem → assume atendimento) ---
-    if (msg.fromMe) {
-        if (currentSession && currentSession.mode === 'bot') {
-            const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
-            if (sessionAge > 15000) {
-                chatSessions.set(targetChatId, { mode: 'human' });
-                saveSessions();
-                notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO</b>\nLead: <code>${targetChatId}</code>`);
-            }
-        }
+    // --- LEAD EM ATENDIMENTO HUMANO — bot silencioso ---
+    if (currentSession && currentSession.mode === 'human') {
+        console.log(`🤫 [HUMANO] Lead ${targetChatId} em atendimento manual. Bot silencioso.`);
         return;
     }
 
@@ -524,7 +578,7 @@ client.on('message_create', async (msg) => {
             await msg.reply(aiReply || fallback);
         }
     }
-});
+}
 
 // --- WATCHER DE COMANDOS EXTERNOS (TELEGRAM -> WHATSAPP) ---
 setInterval(async () => {
