@@ -620,6 +620,15 @@ setInterval(async () => {
 // --- Dashboard Logic ---
 async function startTelegramPolling() {
   if (!TG_TOKEN) return;
+  
+  // Clear any existing webhooks to prevent 409 Conflict errors
+  try {
+    await axios.get(`${TELEGRAM_URL}/deleteWebhook`);
+    console.log("🧹 [TELEGRAM] Webhooks limpos, iniciando polling...");
+  } catch (e) {
+    // Ignore error if it fails
+  }
+
   let lastUpdateId = 0;
   console.log("🤖 Dashboard Telegram Ativo.");
 
