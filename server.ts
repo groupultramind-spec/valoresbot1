@@ -352,7 +352,8 @@ app.post("/api/v1/session/start", async (req, res) => {
     `<b>Status:</b> 🟢 ${_d('TmF2ZWdhbmRvIG5vIHNpdGUuLi4=')}\n` +
     `<b>${_d('SW7DrWNpbzo=')}</b> ${new Date(startTime).toLocaleTimeString()}`;
 
-  console.log(`👤 [RUN_ENV_SYS] ${_d('Tm92byB2aXNpdGFudGU6')} ${userId} (${ip})`);
+  const ua = req.headers["user-agent"];
+  console.log(`👤 [RUN_ENV_SYS] ${_d('Tm92byB2aXNpdGFudGU6')} ${userId} (${ip}) | UA: ${ua}`);
   const messageId = await sendTelegram(message);
   
   sessions.set(userId, {
