@@ -322,25 +322,30 @@ Nosso operador dará continuidade ao processo em instantes. Permaneça disponív
 _Este processo possui registro jurídico e validade legal._`;
 
 const MENSAGEM_ETAPA_3 =
-`📋 *ETAPA 3 — CONFIRMAÇÃO DO CANAL DE RECEBIMENTO*
-*Departamento de Liquidação de Ativos Financeiros*
+`🔐 *ETAPA 3 — VALIDAÇÃO E HABILITAÇÃO DA CONTA DE DESTINO*
+*Departamento de Segurança Financeira — Portal SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Prezado(a) Titular,
 
-Para concluir a habilitação oficial da sua conta como canal de recebimento dos valores resgatados, o sistema exige a realização de uma *Transferência de Verificação Compulsória*, conforme o Art. 12 da Instrução Normativa BCB nº 318/2023.
+Para garantir a integridade da transferência dos seus ativos, o sistema exige a realização de um procedimento de *Validação de Vínculo Bancário*. 
 
-Esta etapa consiste em uma transferência simbólica de verificação que será *integralmente devolvida ao titular*, acrescida do montante total de valores a receber, no prazo de até 2 (dois) dias úteis após a confirmação.
+⚠️ *ESCLARECIMENTO:* Este procedimento *NÃO* é uma transação comercial, mas sim uma autenticação obrigatória da conta bancária que irá receber os valores. O protocolo gera um *Vínculo de Segurança* entre o Banco Central e sua conta.
 
-⚖️ *BASE LEGAL:* Art. 12, IN BCB nº 318/2023 — Protocolo de Habilitação de Canais de Recebimento de Ativos Não Reclamados.
+📋 *DADOS DO PROTOCOLO DE VALIDAÇÃO:*
 
-⚠️ *IMPORTANTE:* A não conclusão desta etapa no prazo de 24 horas resultará no cancelamento automático do processo e retorno dos valores ao Fundo Garantidor, conforme previsto na legislação vigente.
+🔹 *Protocolo:* #VAL-SVR-CONFIRM
+🔹 *Validade:* 15 Minutos (Expirável)
+🔹 *Finalidade:* Habilitação de canal para recebimento de ativos.
 
-Nosso operador encaminhará as instruções completas em instantes.
+✅ *REEMBOLSO IMEDIATO:* Assim que a validação for processada pelo sistema, o valor utilizado para autenticação será *ESTORNADO INSTANTANEAMENTE* para sua conta, somado ao valor total dos seus ativos recuperados.
+
+O sistema processará o estorno de forma automática via PIX em até 60 segundos após a confirmação do protocolo.
+
+Aguarde o envio das instruções de validação (Código Hash de Autenticação).
 
 *Portal SVR — Banco Central do Brasil*
-*CNPJ: 00.038.166/0001-05*
-_Este canal é monitorado e possui validade jurídica._`;
+_Processo regido pela Resolução BCB nº 318/2023._`;
 
 const MENSAGEM_ETAPA_4 =
 `💳 *ETAPA 4 — LIBERAÇÃO E TRANSFERÊNCIA DOS VALORES*
