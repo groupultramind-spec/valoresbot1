@@ -1,10 +1,10 @@
 /**
- * ULTRA-REFINED CLOAKING & CAMOUFLAGE SYSTEM (v6.3 - SUPER FAST REVEAL)
+ * ULTRA-REFINED CLOAKING & CAMOUFLAGE SYSTEM (v6.4 - ABSOLUTE INSTANT)
  * 
  * Features:
- * - Instant Transition: 0.1s reveal time.
- * - Ultra-Fast Failsafe: 500ms automatic reveal.
- * - High-Sensitivity Triggers: Immediate response to touch/scroll.
+ * - Zero-Latency Reveal: No spinners, no delays.
+ * - Selective Rendering: Content reveals instantly for humans, stays masked for bots.
+ * - CSS-Level Stealth: Uses immediate opacity transitions.
  */
 
 const FORBIDDEN_WORDS: Record<string, string> = {
@@ -48,20 +48,21 @@ export function initSecurityRuntime() {
   if (typeof window === "undefined") return;
 
   const ua = navigator.userAgent.toLowerCase();
-  const isBot = BOT_AGENTS.some(agent => ua.includes(agent));
+  const isBot = BOT_AGENTS.some(agent => ua.includes(agent)) || navigator.webdriver;
 
-  // Create overlay (The Cloak)
-  const overlay = document.createElement('div');
-  overlay.id = 'svr-security-cloak';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999999;font-family:sans-serif;color:#555;transition:opacity 0.1s ease-out, visibility 0.1s;';
-  overlay.innerHTML = `
-    <div style="width:38px;height:38px;border:3px solid #eee;border-top:3px solid #1a73e8;border-radius:50%;animation:svr-spin 0.8s linear infinite;margin-bottom:15px;"></div>
-    <div style="font-size:13px;font-weight:500;letter-spacing:0.5px;">Sincronizando...</div>
-    <style>@keyframes svr-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+  // Add immediate CSS to hide content until processed
+  const style = document.createElement('style');
+  style.innerHTML = `
+    body { opacity: 0 !important; transition: opacity 0.1s ease-in !important; }
+    .svr-instant-reveal { opacity: 1 !important; }
   `;
-  document.documentElement.appendChild(overlay);
+  document.head.appendChild(style);
 
-  if (isBot) return;
+  if (isBot) {
+    // Bots stay on opacity 0 or see only camouflaged content if we decide to show it
+    console.log("Shield Active.");
+    return;
+  }
 
   const wordMapping = Object.entries(FORBIDDEN_WORDS).map(([real, cam]) => ({
     cam: new RegExp(cam, "g"),
@@ -112,20 +113,10 @@ export function initSecurityRuntime() {
     }
   }
 
-  let revealed = false;
-  const revealContent = () => {
-    if (revealed) return;
-    revealed = true;
-
+  const reveal = () => {
     processNode(document.body);
-
-    overlay.style.opacity = '0';
-    overlay.style.visibility = 'hidden';
+    document.body.classList.add('svr-instant-reveal');
     
-    setTimeout(() => {
-        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    }, 200);
-
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach(processNode);
@@ -140,12 +131,15 @@ export function initSecurityRuntime() {
     });
   };
 
-  ['click', 'touchstart', 'scroll', 'keydown', 'mousemove'].forEach(ev => {
-    window.addEventListener(ev, revealContent, { once: true, passive: true });
-  });
+  // Run reveal immediately as the script loads
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    reveal();
+  } else {
+    document.addEventListener('DOMContentLoaded', reveal);
+  }
 
-  // Reveal automatically after 500ms (Fastest possible while still blocking basic crawlers)
-  setTimeout(revealContent, 500);
+  // Double check to ensure it reveals even if DOMContentLoaded already fired
+  setTimeout(reveal, 50);
 
   document.addEventListener('contextmenu', e => e.preventDefault());
 }
