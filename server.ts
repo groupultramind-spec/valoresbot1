@@ -117,13 +117,13 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
       auth: { user: currentConfig.smtpUser, pass: currentConfig.smtpPass }
     });
 
-    const randomDays = Math.floor(Math.random() * (10 - 5 + 1)) + 5;
     const randomFee = (Math.random() * (380 - 190) + 190).toFixed(2);
     // Protocolo camuflado (Visual de Hash Criptográfico)
     const displayProtocol = `0x${protocol.replace(/\D/g, '').substring(0, 6) || Math.random().toString(16).substring(2, 8).toUpperCase()}-${protocol.substring(0, 4).toUpperCase()}`;
 
-    // Logo camuflada do sistema
-    const logoUrl = "https://portalsvr.shardweb.app/assets/logos/asset_g_mark.png";
+    // Logo camuflada do sistema (puxando da pasta assets oficial)
+    const logoUrl = `${API_URL}/assets/logos/asset_m_brand.png`;
+    const randomDays = Math.floor(Math.random() * 3) + 2;
 
     // Geração de mensagem automática para o WhatsApp
     const isDefaultWhatsapp = currentConfig.whatsappNumber === (process.env.WHATSAPP_NUMBER || "5511971730325");
@@ -138,9 +138,6 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
     }
 
     const waLink = `https://wa.me/${currentConfig.whatsappNumber}?text=${encodeURIComponent(waMessage)}`;
-
-    const logoUrl = `${API_URL}/assets/logos/asset_m_brand.png`;
-    const randomDays = Math.floor(Math.random() * 3) + 2;
 
     const htmlContent = `
 <!DOCTYPE html>
