@@ -360,7 +360,12 @@ client.on('qr', async (qr) => {
                         `⏳ <b>Gerado às:</b> ${now.toLocaleTimeString('pt-BR')}\n` +
                         `⚠️ <b>Expira às:</b> ${expiresAt.toLocaleTimeString('pt-BR')} (Válido por 45s)\n\n` +
                         `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
-        const kb = { inline_keyboard: [[{ text: "🔄 Gerar Novo QR Code", callback_data: "cmd:refresh_qr" }]] };
+        const kb = { 
+            inline_keyboard: [
+                [{ text: "🔄 Gerar Novo QR Code", callback_data: "cmd:refresh_qr" }],
+                [{ text: "📱 Mudar Número WhatsApp", callback_data: "painel:change_whatsapp_num" }]
+            ] 
+        };
 
         const form = new FormData();
         form.append('chat_id', CHAT_ID);

