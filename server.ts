@@ -675,9 +675,16 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
     const res = await axios.post(url, payload);
     return res.data.result.message_id;
   } catch (err: any) {
-    console.error(`❌ [TELEGRAM] Erro: ${err.response?.data?.description || err.message}`);
-    // Se falhar a edição (ex: mensagem igual), tenta enviar nova
-    if (messageId) return sendTelegram(text, undefined, replyMarkup);
+    const errMessage = err.response?.data?.description || err.message;
+    console.error(`❌ [TELEGRAM] Erro: ${errMessage}`);
+    // Se falhar porque o texto não mudou, simplesmente ignore. Não envie nova mensagem.
+    if (errMessage.includes('message is not modified')) {
+      return messageId;
+    }
+    // Se for outro erro de edição (ex: msg apagada), envia nova
+    if (messageId && !errMessage.includes('message is not modified')) {
+      return sendTelegram(text, undefined, replyMarkup);
+    }
     return null;
   }
 }

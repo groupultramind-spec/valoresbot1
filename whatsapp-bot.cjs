@@ -112,10 +112,11 @@ try {
     }
     
     // Limpa sessão do WhatsApp para forçar novo QR Code
-    if (fs.existsSync(AUTH_FOLDER)) {
-        fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
-        console.log(`🗑️ [SISTEMA] Sessão WhatsApp (${START_BOT_ID}) limpa. Novo QR será gerado.`);
-    }
+    // REMOVIDO: A sessão não deve ser limpa ao reiniciar o servidor para manter o bot conectado
+    // if (fs.existsSync(AUTH_FOLDER)) {
+    //     fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+    //     console.log(`🗑️ [SISTEMA] Sessão WhatsApp (${START_BOT_ID}) limpa. Novo QR será gerado.`);
+    // }
 } catch (e) { 
     console.error('⚠️ [SISTEMA] Erro ao resetar dados:', e.message); 
 }
@@ -127,27 +128,11 @@ let chatSessions = new Map();
 const processingLock = new Set();
 const internalMessageChats = new Set(); // Guarda chatIds que estão recebendo mensagem do bot agora
 
-// Persistência do ID da última mensagem de QR para evitar duplicatas em restarts
+// Remoção do rastreamento estrito de lastQrMsgId em arquivo
 let lastQrMsgId = 0;
-// Note: BOT_ID is defined later, so we use a function to get the file path or define it later
-function getQrMsgFile() {
-    const id = (process.argv.find(a => a.startsWith('--id=')) || '--id=main').split('=')[1];
-    return `bot-qr-msg-${id}.json`;
-}
-
-try {
-    const file = getQrMsgFile();
-    if (fs.existsSync(file)) {
-        const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
-        lastQrMsgId = data.msgId || 0;
-    }
-} catch (e) { }
 
 function saveQrMsgId(msgId) {
     lastQrMsgId = msgId;
-    try {
-        fs.writeFileSync(getQrMsgFile(), JSON.stringify({ msgId }));
-    } catch (e) { }
 }
 
 async function sendBotMessage(chatId, text, options = {}) {
@@ -359,9 +344,6 @@ client.on('qr', async (qr) => {
     const REFRESH_FLAG = 'refresh-qr.json';
     const isRefreshRequested = fs.existsSync(REFRESH_FLAG);
 
-    // Só envia se for a primeira vez OU se o admin pediu refresh
-    if (lastQrMsgId && !isRefreshRequested) return;
-    
     if (isRefreshRequested) {
         try { fs.unlinkSync(REFRESH_FLAG); } catch(e) {}
     }
@@ -423,8 +405,6 @@ client.on('ready', async () => {
                 parse_mode: 'HTML'
             });
             console.log('✅ [TELEGRAM] Mensagem de QR Code atualizada para sucesso.');
-            // Limpa o arquivo para o próximo uso
-            try { fs.unlinkSync(getQrMsgFile()); } catch(e) {}
             lastQrMsgId = 0;
         } catch (e) {
             console.error('❌ [TELEGRAM] Erro ao editar caption:', e.message);
