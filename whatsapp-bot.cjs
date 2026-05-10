@@ -367,7 +367,14 @@ client.on('qr', async (qr) => {
         const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
         const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
         
-        const caption = `📲 <b>QR CODE — ${slotLabel}</b>\n\nEscaneie com o WhatsApp para conectar o bot.\n\n⚠️ <b>Atenção:</b> Se o QR expirar ou não carregar, clique no botão abaixo para gerar um novo.\n\n⏳ Gerado em: ${new Date().toLocaleTimeString('pt-BR')}`;
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 45000); // QRs do whatsapp-web.js duram aprox 45s
+        
+        const caption = `📲 <b>QR CODE — ${slotLabel}</b>\n\n` +
+                        `Escaneie com o WhatsApp para conectar o bot.\n\n` +
+                        `⏳ <b>Gerado às:</b> ${now.toLocaleTimeString('pt-BR')}\n` +
+                        `⚠️ <b>Expira às:</b> ${expiresAt.toLocaleTimeString('pt-BR')} (Válido por 45s)\n\n` +
+                        `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
         const kb = { inline_keyboard: [[{ text: "🔄 Gerar Novo QR Code", callback_data: "cmd:refresh_qr" }]] };
 
         const form = new FormData();
