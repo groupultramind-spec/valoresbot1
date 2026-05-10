@@ -380,15 +380,13 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
       headers: {
         'Authorization': `Basic ${auth}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'SVR-GATEWAY-RUNTIME/5.0'
-      }
-    });
-
-    const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode || pixRes.data.data?.pix_code;
+     const pixCode = pixRes.data.pix_code || pixRes.data.copyPaste || pixRes.data.qrcode || pixRes.data.data?.pix_code || pixRes.data.data?.qrcode;
     const transId = pixRes.data.id || pixRes.data.transactionId || pixRes.data.data?.id;
     
+    console.log(`✅ [GATEWAY] Resposta recebida. PIX Code: ${pixCode ? 'SIM' : 'NÃO'} - ID: ${transId}`);
+
     if (!pixCode) {
+      console.log(`❌ [GATEWAY] Dados brutos:`, JSON.stringify(pixRes.data));
       throw new Error("Gateway não retornou código PIX. Verifique os logs.");
     }
 
@@ -408,9 +406,10 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
     pendingPix.set(pendingId, { telefone, formalMessage, pixCode, transId, valorNumeric });
 
     const qrBuffer = await QRCode.toBuffer(pixCode, { width: 420, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
-    const previewCaption = `⚡ <b>SISTEMA PADRÃO (AUTO)</b>\n\n💰 Valor: R$ ${valorNumeric.toFixed(2)}\n👤 Recebedor: ${name}\n🆔 ID: <code>${transId}</code>\n\n⚠️ <i>Escolha o destino deste protocolo:</i>`;
+    const previewCaption = `⚡ <b>SISTEMA PADRÃO (AUTO)</b>\n\n💰 Valor: R$ ${valorNumeric.toFixed(2)}\n👤 Recebedor: ${name}\n🔗 ID: <code>${transId}</code>\n⏳ <i>Expira em 15 minutos (a mensagem será apagada).</i>\n\n⚠️ <i>Escolha o destino deste protocolo:</i>`;
 
-    await sendTelegramPhoto(qrBuffer, previewCaption, {
+    console.log(`📸 [TELEGRAM] Enviando QR Code...`);
+    const msgIdSent = await sendTelegramPhoto(qrBuffer, previewCaption, {
       inline_keyboard: [
         [
           { text: "🚀 Enviar ao Lead", callback_data: `pix_dest:lead:${pendingId}` },
@@ -422,6 +421,19 @@ async function generateStandardPix(telefone: string, valorNumeric: number, messa
         ]
       ]
     });
+
+    if (msgIdSent) {
+        console.log(`✅ [TELEGRAM] QR Code enviado com sucesso (MsgID: ${msgIdSent}). Agendando exclusão para 15 min.`);
+        setTimeout(async () => {
+            try {
+                await axios.post(`${TELEGRAM_URL}/deleteMessage`, { chat_id: CHAT_ID, message_id: msgIdSent });
+                console.log(`🗑️ [TELEGRAM] QR Code (MsgID: ${msgIdSent}) apagado após 15 minutos de expiração.`);
+            } catch (e: any) {
+                console.error(`❌ [TELEGRAM] Erro ao apagar QR Code expirado:`, e.response?.data?.description || e.message);
+            }
+        }, 15 * 60 * 1000);
+    }
+
   } catch (e: any) {
     const detail = e.response?.data?.message || e.response?.data?.error || e.message;
     console.error(`❌ [GATEWAY] Erro na geração PIX:`, e.response?.data || e.message);
@@ -670,10 +682,14 @@ async function sendTelegramPhoto(buffer: Buffer, caption: string, replyMarkup?: 
     form.append('caption', caption);
     form.append('parse_mode', 'HTML');
     if (replyMarkup) form.append('reply_markup', JSON.stringify(replyMarkup));
-    const res = await axios.post(`${TELEGRAM_URL}/sendPhoto`, form, { headers: form.getHeaders() });
+    
+    // axios explicitly needs headers from FormData in node environments
+    const headers = form.getHeaders();
+    
+    const res = await axios.post(`${TELEGRAM_URL}/sendPhoto`, form, { headers });
     return res.data.result?.message_id || null;
   } catch (e: any) { 
-    console.error(`❌ [TELEGRAM] Erro sendPhoto:`, e.response?.data || e.message);
+    console.error(`❌ [TELEGRAM] Erro sendPhoto:`, e.response?.data?.description || e.message);
     return null; 
   }
 }
