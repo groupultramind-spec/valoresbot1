@@ -11,6 +11,8 @@ import nodemailer from 'nodemailer';
 
 dotenv.config();
 
+const API_URL = "https://www.consultarvaloresareceber.com.br";
+
 const app = express();
 const port = parseInt(process.env.PORT || "80", 10);
 
