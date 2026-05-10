@@ -289,6 +289,26 @@ app.post("/api/v1/metrics/log", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+// Endpoint de contagem real de atendentes conectados (bots com status CONNECTED)
+app.get("/api/v1/attendants", (req, res) => {
+  let connected = 0;
+  const details: { id: string; name: string; status: string }[] = [];
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    const id = i === 1 ? 'main' : `parceiro${i}`;
+    try {
+      const statusPath = path.join(process.cwd(), `bot-status-${id}.json`);
+      if (fs.existsSync(statusPath)) {
+        const data = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+        if (data.status === 'CONNECTED') {
+          connected++;
+          details.push({ id, name: data.adminName || id, status: 'CONNECTED' });
+        }
+      }
+    } catch (_) {}
+  }
+  res.json({ connected, details });
+});
+
 app.get("/api/config", (req, res) => {
   res.json({ whatsappNumber: currentConfig.whatsappNumber });
 });
@@ -874,7 +894,19 @@ async function startTelegramPolling() {
 
         if (text === "/start" || text === "/painel" || text === "painel:back" || text === "painel:start") {
           const stats = getBotStatusInfo('main');
-          const dashText = `🎮 <b>PAINEL DE CONTROLE SVR</b>\n\n🤖 <b>Status Bot:</b> ${stats.emoji} ${stats.label}\n👥 <b>Fila:</b> ${getQueueInfo().length} leads\n🕒 <b>Hora:</b> ${new Date().toLocaleTimeString()}\n\n<b>ESCOLHA UMA AÇÃO:</b>`;
+          // Conta atendentes REALMENTE conectados
+          let attendantsOnline = 0;
+          for (let i = 1; i <= MAX_SLOTS; i++) {
+            const id = i === 1 ? 'main' : `parceiro${i}`;
+            try {
+              const statusPath = path.join(process.cwd(), `bot-status-${id}.json`);
+              if (fs.existsSync(statusPath)) {
+                const d = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+                if (d.status === 'CONNECTED') attendantsOnline++;
+              }
+            } catch (_) {}
+          }
+          const dashText = `🎮 <b>PAINEL DE CONTROLE SVR</b>\n\n🤖 <b>Status Bot:</b> ${stats.emoji} ${stats.label}\n👤 <b>Atendentes Online:</b> ${attendantsOnline}\n👥 <b>Fila:</b> ${getQueueInfo().length} leads\n🕒 <b>Hora:</b> ${new Date().toLocaleTimeString()}\n\n<b>ESCOLHA UMA AÇÃO:</b>`;
           const kb = {
             inline_keyboard: [
               [{ text: "📊 Status Detalhado", callback_data: "painel:status" }, { text: "👥 Ver Fila", callback_data: "painel:fila" }],
@@ -886,8 +918,21 @@ async function startTelegramPolling() {
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
         }
         else if (text === "painel:status") {
-          const online = Array.from(sessions.values()).filter(s => !s.converted).length;
-          await sendTelegram(`📊 <b>STATUS DETALHADO</b>\n\n👥 <b>Online agora:</b> ${online}\n✅ <b>Conversões:</b> ${Array.from(sessions.values()).filter(s => s.converted).length}\n🕒 <b>Uptime:</b> ${Math.floor(process.uptime() / 60)} min\n\n<i>Atualizado agora.</i>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+          // Conta atendentes REALMENTE conectados (bots com status CONNECTED)
+          let attendantsOnline = 0;
+          for (let i = 1; i <= MAX_SLOTS; i++) {
+            const id = i === 1 ? 'main' : `parceiro${i}`;
+            try {
+              const statusPath = path.join(process.cwd(), `bot-status-${id}.json`);
+              if (fs.existsSync(statusPath)) {
+                const data = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+                if (data.status === 'CONNECTED') attendantsOnline++;
+              }
+            } catch (_) {}
+          }
+          const siteVisitors = Array.from(sessions.values()).filter(s => !s.converted).length;
+          const conversions = Array.from(sessions.values()).filter(s => s.converted).length;
+          await sendTelegram(`📊 <b>STATUS DETALHADO</b>\n\n👤 <b>Atendentes Conectados:</b> ${attendantsOnline}\n🌐 <b>Visitantes no Site:</b> ${siteVisitors}\n✅ <b>Conversões:</b> ${conversions}\n🕒 <b>Uptime:</b> ${Math.floor(process.uptime() / 60)} min\n\n<i>Atualizado agora.</i>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
         else if (text === "painel:fila") {
           const queue = getQueueInfo();
