@@ -513,6 +513,9 @@ async function startTelegramPolling() {
         }
 
         let command = text.split("@")[0].trim().toLowerCase();
+        if (cb && cb.data.startsWith("cmd:pix:")) {
+          command = "/pix";
+        }
 
         if (command === "/ping" || command === "/teste") {
           await sendTelegram("🏓 <b>PONG!</b>\nO sistema de notificações e controle está operacional.");
@@ -585,19 +588,25 @@ async function startTelegramPolling() {
           continue;
         }
 
-        if (command.startsWith("/pix")) {
+        if (command === "/pix") {
           const parts = text.split(" ");
-          const valorInput = parts[1];
+          let valorInput = parts[1];
           let telefone = parts[2];
 
-          if (!valorInput) {
+          // Se veio via callback cmd:pix:CHATID
+          if (cb && cb.data.startsWith("cmd:pix:")) {
+            telefone = cb.data.split(":")[2];
+            valorInput = "97.50"; // Valor padrão sugerido
+          }
+
+          if (!valorInput && !cb) {
             await sendTelegram("❌ Use: <code>/pix [valor] [telefone]</code>");
             continue;
           }
 
-          const valorNumeric = parseFloat(valorInput.replace(',', '.'));
+          const valorNumeric = parseFloat((valorInput || "97.50").replace(',', '.'));
           
-          if (!telefone) {
+          if (!telefone && !cb) {
             try {
               if (fs.existsSync('last-lead.json')) {
                 const lastLeadData = JSON.parse(fs.readFileSync('last-lead.json', 'utf-8'));
@@ -655,7 +664,7 @@ async function startTelegramPolling() {
 
         // --- Estado: Aguardando Chave PIX Manual ---
         const userState = botStates.get(userId);
-        if (userState?.action === 'awaiting_manual_pix' && !command) {
+        if (userState?.action === 'awaiting_manual_pix' && !text.startsWith("/")) {
           const pixKey = text.trim();
           if (!validatePixKey(pixKey)) {
             await sendTelegram("❌ <b>Chave PIX inválida!</b> Tente novamente ou cancele enviando /start.");

