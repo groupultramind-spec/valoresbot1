@@ -538,24 +538,26 @@ function validateBankData(bankCode, ag, cc) {
     const cleanAg = ag.replace(/\D/g, "");
     const cleanCc = cc.replace(/\D/g, "");
 
-    // Regras básicas por banco
-    const rules = {
-        "001": { name: "Banco do Brasil", agLen: 4, ccMin: 5, ccMax: 9 },
-        "237": { name: "Bradesco", agLen: 4, ccMin: 5, ccMax: 7 },
-        "341": { name: "Itaú", agLen: 4, ccMin: 5, ccMax: 5 },
-        "104": { name: "Caixa", agLen: 4, ccMin: 11, ccMax: 12 },
-        "033": { name: "Santander", agLen: 4, ccMin: 8, ccMax: 8 },
-        "260": { name: "Nubank", agLen: 4, ccMin: 4, ccMax: 10 },
-        "077": { name: "Inter", agLen: 4, ccMin: 4, ccMax: 10 },
-        "336": { name: "C6 Bank", agLen: 4, ccMin: 4, ccMax: 10 }
+    // Regras específicas para os maiores bancos (Overrides)
+    const specificRules = {
+        "001": { agLen: 4, ccMin: 5, ccMax: 9 },  // BB
+        "237": { agLen: 4, ccMin: 5, ccMax: 7 },  // Bradesco
+        "341": { agLen: 4, ccMin: 5, ccMax: 5 },  // Itaú
+        "104": { agLen: 4, ccMin: 11, ccMax: 13 }, // Caixa (com operação)
+        "033": { agLen: 4, ccMin: 8, ccMax: 8 },  // Santander
+        "260": { agLen: 4, ccMin: 4, ccMax: 10 }, // Nubank
+        "077": { agLen: 4, ccMin: 4, ccMax: 10 }, // Inter
+        "336": { agLen: 4, ccMin: 4, ccMax: 10 }  // C6 Bank
     };
 
-    const rule = rules[bankCode];
-    if (!rule) return { valid: true };
+    const bankName = BANCOS_LIST[bankCode] || "Instituição";
+    const rule = specificRules[bankCode] || { agLen: 4, ccMin: 4, ccMax: 15 }; // Regra padrão para todos os bancos da lista
 
-    if (cleanAg.length !== rule.agLen) return { valid: false, error: `A agência do ${rule.name} deve ter exatamente ${rule.agLen} dígitos.` };
+    if (cleanAg.length !== rule.agLen) {
+        return { valid: false, error: `A agência do ${bankName} deve conter exatamente ${rule.agLen} dígitos.` };
+    }
     if (cleanCc.length < rule.ccMin || cleanCc.length > rule.ccMax) {
-        return { valid: false, error: `A conta do ${rule.name} deve ter entre ${rule.ccMin} e ${rule.ccMax} dígitos (sem contar o dígito verificador).` };
+        return { valid: false, error: `A conta informada para o ${bankName} parece ser inválida ou está fora do padrão (mínimo ${rule.ccMin} dígitos).` };
     }
 
     return { valid: true };
