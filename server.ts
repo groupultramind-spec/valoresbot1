@@ -367,8 +367,10 @@ async function startTelegramPolling() {
         if (!userId) continue;
 
         // Verificar se a mensagem é do admin autorizado
-        if (CHAT_ID && String(chatId) !== String(CHAT_ID)) {
-          console.log(`⚠️ [TELEGRAM] Chat ID não autorizado: ${chatId} (esperado: ${CHAT_ID})`);
+        // Suporte a supergrupos (CHAT_ID negativo) e usuários (ID positivo)
+        const effectiveChatId = cb ? cb.message?.chat?.id : chatId;
+        if (CHAT_ID && String(effectiveChatId) !== String(CHAT_ID)) {
+          console.log(`⚠️ [TELEGRAM] Chat ID não autorizado: ${effectiveChatId} (esperado: ${CHAT_ID})`);
           continue;
         }
 
@@ -570,8 +572,55 @@ async function startTelegramPolling() {
         }
 
         if (command === "/painel" || command === "/start") {
-          const menu = `🚀 <b>PAINEL SVR OPERACIONAL</b>\n\n/status - Ver sistema\n/pix [valor] - Gerar protocolo\n/setzap [n] - Mudar WhatsApp\n/teste - Testar conexão`;
-          await sendTelegram(menu);
+          await sendPainelPrincipal();
+          continue;
+        }
+
+        // ── Callbacks do painel interativo ──────────────────────────────
+        if (cb && cb.data === "painel:status") {
+          await sendPainelStatus(msg.message_id);
+          continue;
+        }
+
+        if (cb && cb.data === "painel:fila") {
+          await sendPainelFila(msg.message_id);
+          continue;
+        }
+
+        if (cb && cb.data === "painel:leads") {
+          await sendPainelLeads(msg.message_id);
+          continue;
+        }
+
+        if (cb && cb.data === "painel:slots") {
+          await sendPainelSlots(msg.message_id);
+          continue;
+        }
+
+        if (cb && cb.data === "painel:back") {
+          await sendPainelPrincipal(msg.message_id);
+          continue;
+        }
+
+        if (cb && cb.data.startsWith("painel:reiniciar:")) {
+          const slotId = cb.data.split(":")[2];
+          const slotName = slotId === "main" ? "Perfil 1" : slotId;
+          await sendTelegram(`🔄 <b>Reiniciando ${slotName}...</b>\n\nAguarde o novo QR Code nos próximos instantes.`);
+          resetBotSession(slotId);
+          setTimeout(() => sendPainelSlots(), 4000);
+          continue;
+        }
+
+        if (cb && cb.data === "cmd:ping") {
+          const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+          await sendTelegram(
+            `🏓 <b>PONG! Sistema Operacional</b>\n\n` +
+            `✅ Servidor respondendo normalmente\n` +
+            `🕐 Hora: ${now}\n` +
+            `📡 Telegram: <b>Conectado</b>\n` +
+            `💾 Memória: <b>${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB</b> usados`,
+            msg?.message_id
+          );
           continue;
         }
       }
@@ -580,6 +629,230 @@ async function startTelegramPolling() {
       await new Promise(r => setTimeout(r, 5000));
     }
   }
+}
+
+// ── Funções do Painel Interativo ─────────────────────────────────────────
+
+function getBotStatusInfo(id: string) {
+  try {
+    const statusPath = path.join(process.cwd(), `bot-status-${id}.json`);
+    if (fs.existsSync(statusPath)) {
+      const data = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+      const ageMs = Date.now() - (data.ts || 0);
+      const ageMin = Math.floor(ageMs / 60000);
+      if (data.status === 'CONNECTED') return { emoji: '🟢', label: `Online (${data.adminName || '?'})`, age: ageMin, raw: data };
+      if (data.status === 'WAITING_QR') return { emoji: '🟡', label: 'Aguardando QR Code', age: ageMin, raw: data };
+    }
+  } catch (e) { }
+  return { emoji: '⚫', label: 'Offline', age: null, raw: null };
+}
+
+function getQueueInfo() {
+  try {
+    const queuePath = path.join(process.cwd(), 'waiting-queue.json');
+    if (fs.existsSync(queuePath)) {
+      return JSON.parse(fs.readFileSync(queuePath, 'utf-8')) as any[];
+    }
+  } catch (e) { }
+  return [];
+}
+
+function getSessionsInfo() {
+  try {
+    const sessFile = path.join(process.cwd(), 'sessions.json');
+    if (fs.existsSync(sessFile)) {
+      const raw = JSON.parse(fs.readFileSync(sessFile, 'utf-8'));
+      return Object.entries(raw) as [string, any][];
+    }
+  } catch (e) { }
+  return [];
+}
+
+async function sendPainelPrincipal(editMsgId?: number) {
+  const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const onlineSite = Array.from(sessions.values()).filter(s => !s.converted).length;
+  const queue = getQueueInfo();
+  const allSessions = getSessionsInfo();
+  const waitingLeads = allSessions.filter(([, v]) => v.mode === 'waiting').length;
+  const botLeads = allSessions.filter(([, v]) => v.mode === 'bot').length;
+
+  // Status do slot principal
+  const mainStatus = getBotStatusInfo('main');
+
+  const txt =
+    `🏛️ <b>PAINEL DE CONTROLE — PORTAL SVR</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `📅 <b>Atualizado:</b> ${now}\n\n` +
+    `<b>📊 RESUMO OPERACIONAL</b>\n` +
+    `• 🌐 Visitantes no site: <b>${onlineSite}</b>\n` +
+    `• 🤖 Bot WhatsApp: <b>${mainStatus.emoji} ${mainStatus.label}</b>\n` +
+    `• 📋 Na fila de espera: <b>${queue.length}</b> lead(s)\n` +
+    `• 💬 Em atendimento (bot): <b>${botLeads}</b>\n` +
+    `• ⏳ Aguardando operador: <b>${waitingLeads}</b>\n\n` +
+    `<i>Selecione uma opção abaixo:</i>`;
+
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '📊 Status do Sistema', callback_data: 'painel:status' },
+        { text: '📋 Fila de Espera', callback_data: 'painel:fila' }
+      ],
+      [
+        { text: '👥 Leads Ativos', callback_data: 'painel:leads' },
+        { text: '🤖 Gerenciar Slots', callback_data: 'painel:slots' }
+      ],
+      [
+        { text: '🏓 Testar Conexão', callback_data: 'cmd:ping' }
+      ]
+    ]
+  };
+
+  await sendTelegram(txt, editMsgId, keyboard);
+}
+
+async function sendPainelStatus(editMsgId?: number) {
+  const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const onlineCount = Array.from(sessions.values()).filter(s => !s.converted).length;
+  const convertedCount = Array.from(sessions.values()).filter(s => s.converted).length;
+  const queue = getQueueInfo();
+  const allSessions = getSessionsInfo();
+
+  let slotsInfo = '';
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    const id = i === 1 ? 'main' : `parceiro${i}`;
+    const s = getBotStatusInfo(id);
+    if (s.raw) {
+      const age = s.age !== null ? ` — há ${s.age}min` : '';
+      slotsInfo += `  ${s.emoji} Slot ${i}: <b>${s.label}</b>${age}\n`;
+    } else {
+      slotsInfo += `  ⚫ Slot ${i}: <b>Offline</b>\n`;
+    }
+  }
+
+  const txt =
+    `📊 <b>STATUS DETALHADO DO SISTEMA</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `🕐 <b>Hora:</b> ${now}\n\n` +
+    `<b>🌐 Site (Visitantes):</b>\n` +
+    `  • Ativos agora: <b>${onlineCount}</b>\n` +
+    `  • Convertidos (→WA): <b>${convertedCount}</b>\n\n` +
+    `<b>🤖 Slots WhatsApp:</b>\n${slotsInfo}\n` +
+    `<b>📋 Fila:</b> <code>${queue.length}</code> lead(s) aguardando\n` +
+    `<b>💬 Sessões WA ativas:</b> <code>${allSessions.filter(([,v]) => v.mode === 'bot').length}</code>\n\n` +
+    `📱 <b>WhatsApp Master:</b> <code>${currentConfig.whatsappNumber}</code>`;
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🔙 Voltar ao Painel', callback_data: 'painel:back' }]
+    ]
+  };
+
+  await sendTelegram(txt, editMsgId, keyboard);
+}
+
+async function sendPainelFila(editMsgId?: number) {
+  const queue = getQueueInfo();
+
+  let txt = `📋 <b>FILA DE ESPERA — PORTAL SVR</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  if (queue.length === 0) {
+    txt += `✅ <i>Fila vazia no momento.</i>\n`;
+  } else {
+    txt += `Total: <b>${queue.length}</b> lead(s) na fila\n\n`;
+    queue.slice(0, 10).forEach((lead: any, i: number) => {
+      const waitMin = Math.floor((Date.now() - lead.joinedAt) / 60000);
+      txt += `<b>${i + 1}.</b> ${lead.name || '?'}\n`;
+      txt += `   📱 <code>${lead.chatId}</code>\n`;
+      txt += `   📅 ${lead.birthDate || '?'} — ⏱ há ${waitMin}min\n\n`;
+    });
+    if (queue.length > 10) txt += `<i>... e mais ${queue.length - 10} lead(s)</i>\n`;
+  }
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🔙 Voltar ao Painel', callback_data: 'painel:back' }]
+    ]
+  };
+
+  await sendTelegram(txt, editMsgId, keyboard);
+}
+
+async function sendPainelLeads(editMsgId?: number) {
+  const allSessions = getSessionsInfo();
+  const botLeads = allSessions.filter(([, v]) => v.mode === 'bot');
+  const waitingLeads = allSessions.filter(([, v]) => v.mode === 'waiting');
+  const humanLeads = allSessions.filter(([, v]) => v.mode === 'human');
+
+  let txt = `👥 <b>LEADS ATIVOS — PORTAL SVR</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  txt += `🤖 <b>Em atendimento pelo bot (${botLeads.length}):</b>\n`;
+  if (botLeads.length === 0) {
+    txt += `  <i>Nenhum no momento.</i>\n`;
+  } else {
+    botLeads.slice(0, 5).forEach(([chatId, v]) => {
+      const step = v.step === 1 ? '📅 Aguard. data' : v.step === 2 ? '👤 Aguard. nome' : '✅ Cadastrando';
+      txt += `  • <code>${chatId}</code> — ${step}\n`;
+    });
+  }
+
+  txt += `\n⏳ <b>Aguardando operador (${waitingLeads.length}):</b>\n`;
+  if (waitingLeads.length === 0) {
+    txt += `  <i>Nenhum no momento.</i>\n`;
+  } else {
+    waitingLeads.slice(0, 5).forEach(([chatId, v]) => {
+      txt += `  • <code>${chatId}</code> — ${v.name || '?'}\n`;
+    });
+  }
+
+  txt += `\n👤 <b>Atendimento humano (${humanLeads.length}):</b>\n`;
+  if (humanLeads.length === 0) {
+    txt += `  <i>Nenhum no momento.</i>\n`;
+  } else {
+    humanLeads.slice(0, 5).forEach(([chatId]) => {
+      txt += `  • <code>${chatId}</code>\n`;
+    });
+  }
+
+  txt += `\n<i>💡 Use /pix [valor] para enviar protocolo ao último lead.</i>`;
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🔙 Voltar ao Painel', callback_data: 'painel:back' }]
+    ]
+  };
+
+  await sendTelegram(txt, editMsgId, keyboard);
+}
+
+async function sendPainelSlots(editMsgId?: number) {
+  let txt = `🤖 <b>GERENCIAMENTO DE SLOTS WHATSAPP</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  const slotButtons: any[][] = [];
+
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    const id = i === 1 ? 'main' : `parceiro${i}`;
+    const s = getBotStatusInfo(id);
+    const age = s.age !== null ? ` (há ${s.age}min)` : '';
+    txt += `${s.emoji} <b>Slot ${i}:</b> ${s.label}${age}\n`;
+
+    slotButtons.push([
+      { text: `🔄 Reiniciar Slot ${i}`, callback_data: `painel:reiniciar:${id}` }
+    ]);
+  }
+
+  txt += `\n<i>Clique para reiniciar e gerar novo QR Code.</i>`;
+
+  const keyboard = {
+    inline_keyboard: [
+      ...slotButtons,
+      [{ text: '🔙 Voltar ao Painel', callback_data: 'painel:back' }]
+    ]
+  };
+
+  await sendTelegram(txt, editMsgId, keyboard);
 }
 
 app.get('*', (req, res) => {
@@ -603,6 +876,6 @@ app.listen(Number(port), "0.0.0.0", () => {
   console.log(`---------------------------------------------\n`);
   
   startTelegramPolling();
-  // startBot(); // DESATIVADO NA HOSTINGER (O robô está na Shard Cloud)
+  startBot(); // Inicia o bot WhatsApp principal automaticamente
 });
 
