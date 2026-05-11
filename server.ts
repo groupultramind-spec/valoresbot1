@@ -1384,13 +1384,15 @@ async function startTelegramPolling() {
           fs.writeFileSync(`cmd-etapa-${Date.now()}.json`, JSON.stringify({ etapa: num, chatId }));
           await sendTelegram(`✅ <b>SOLICITAÇÃO ENVIADA</b>\n\nComando para liberar <b>Etapa ${num}</b> enviado para o lead <code>${chatId}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
-        else if (text === "cmd:refresh_qr") {
-          resetBotSession('main');
-          await sendTelegram(`🔄 <b>SOLICITAÇÃO RECEBIDA</b>\n\nGerando novo QR Code para o robô... Aguarde alguns segundos.`, msgId);
+        else if (text.startsWith("cmd:refresh_qr")) {
+          const id = text.split(":")[2] || 'main';
+          resetBotSession(id);
+          await sendTelegram(`🔄 <b>SOLICITAÇÃO RECEBIDA</b>\n\nGerando novo QR Code para o slot <b>${id}</b>... Aguarde alguns segundos.`, msgId);
         }
-        else if (text === "painel:change_whatsapp_num") {
-          botStates.set(userId, { action: 'awaiting_whatsapp_new_number' });
-          await sendTelegram(`📱 <b>ALTERAR NÚMERO WHATSAPP</b>\n\nPor favor, digite o novo número de WhatsApp do bot (com DDI e DDD, ex: 5511999999999):\n\n<i>O bot será reiniciado com este número, gerando um novo QR Code.</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+        else if (text.startsWith("painel:change_whatsapp_num")) {
+          const id = text.split(":")[2] || 'main';
+          botStates.set(userId, { action: 'awaiting_whatsapp_new_number', data: { slotId: id } });
+          await sendTelegram(`📱 <b>ALTERAR NÚMERO WHATSAPP (${id})</b>\n\nPor favor, digite o novo número de WhatsApp do bot (com DDI e DDD, ex: 5511999999999):\n\n<i>O bot será reiniciado com este número, gerando um novo QR Code.</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
         }
         else if (text.startsWith("pix_dest:")) {
           const parts = text.split(":");
@@ -1498,12 +1500,13 @@ async function startTelegramPolling() {
             }
             currentConfig.whatsappNumber = newNumber;
             saveConfig();
+            const slotId = state.data?.slotId || 'main';
             botStates.delete(userId);
             
-            await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o bot principal será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+            await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
             
-            // Reinicia o bot principal
-            resetBotSession('main');
+            // Reinicia o bot específico
+            resetBotSession(slotId);
           }
           else if (state?.action === 'pix_auto_await_value' || state?.action === 'awaiting_lead_pix_value') {
             let cleanVal = msg.text.trim();
@@ -1620,5 +1623,16 @@ function getQueueInfo() {
 }
 
 startBot('main');
+
+// Auto-start outras instâncias que já possuem sessão salva
+for (let i = 2; i <= MAX_SLOTS; i++) {
+  const id = `parceiro${i}`;
+  const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${id}`);
+  if (fs.existsSync(sessionPath)) {
+    console.log(`[SISTEMA] Auto-iniciando sessão existente para: ${id}`);
+    startBot(id);
+  }
+}
+
 startTelegramPolling();
 app.listen(port, "0.0.0.0", () => console.log(`🚀 Backend rodando na porta ${port}`));

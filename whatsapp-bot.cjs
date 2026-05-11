@@ -343,6 +343,7 @@ console.log(`🤖 [BOT] Iniciando instância: ${BOT_ID} | Status: ${STATUS_FILE}
 
 let lastQrNotification = 0;
 let isBotReady = false;
+let qrSentToTelegram = false;
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
@@ -365,6 +366,11 @@ client.on('qr', async (qr) => {
         try { fs.unlinkSync(REFRESH_FLAG); } catch (e) { }
     }
 
+    if (qrSentToTelegram) {
+        return; // Avoid spamming Telegram with QRs every time the event fires
+    }
+    qrSentToTelegram = true;
+
     try {
         const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
         const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
@@ -379,8 +385,8 @@ client.on('qr', async (qr) => {
             `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
         const kb = {
             inline_keyboard: [
-                [{ text: "🔄 Gerar Novo QR Code", callback_data: "cmd:refresh_qr" }],
-                [{ text: "📱 Mudar Número WhatsApp", callback_data: "painel:change_whatsapp_num" }]
+                [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
+                [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }]
             ]
         };
 
