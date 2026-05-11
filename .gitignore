@@ -12,3 +12,24 @@ bot-status*.json
 *.zip
 deploy_*/
 backup_*/
+*.json
+!package.json
+!tsconfig.json
+!bancos.json
+!config.json
+!visitor-sessions.json
+!stats.json
+!sessions.json
+!waiting-queue.json
+!last-lead.json
+!bot-status*.json
+
+# Excluir dados persistentes do repositório
+visitor-sessions.json
+stats.json
+sessions.json
+waiting-queue.json
+last-lead.json
+bot-status*.json
+cmd-*.json
+refresh-qr.json

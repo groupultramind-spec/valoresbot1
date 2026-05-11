@@ -109,26 +109,19 @@ const botIdArgStart = process.argv.find(a => a.startsWith('--id='));
 const START_BOT_ID = botIdArgStart ? botIdArgStart.split('=')[1] : 'main';
 const AUTH_FOLDER = path.join(process.cwd(), '.wwebjs_auth', `session-${START_BOT_ID}`);
 
-try {
-    // Limpa dados de leads
-    if (fs.existsSync(SESSIONS_FILE)) {
-        fs.unlinkSync(SESSIONS_FILE);
-        console.log('🗑️ [SISTEMA] Sessões (leads) resetadas para novo ciclo.');
-    }
-    if (fs.existsSync(QUEUE_FILE)) {
-        fs.unlinkSync(QUEUE_FILE);
-        console.log('🗑️ [SISTEMA] Fila de leads resetada.');
-    }
-
-    // Limpa sessão do WhatsApp para forçar novo QR Code
-    // REMOVIDO: A sessão não deve ser limpa ao reiniciar o servidor para manter o bot conectado
-    // if (fs.existsSync(AUTH_FOLDER)) {
-    //     fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
-    //     console.log(`🗑️ [SISTEMA] Sessão WhatsApp (${START_BOT_ID}) limpa. Novo QR será gerado.`);
-    // }
-} catch (e) {
-    console.error('⚠️ [SISTEMA] Erro ao resetar dados:', e.message);
-}
+// try {
+//     // Limpa dados de leads
+//     if (fs.existsSync(SESSIONS_FILE)) {
+//         fs.unlinkSync(SESSIONS_FILE);
+//         console.log('🗑️ [SISTEMA] Sessões (leads) resetadas para novo ciclo.');
+//     }
+//     if (fs.existsSync(QUEUE_FILE)) {
+//         fs.unlinkSync(QUEUE_FILE);
+//         console.log('🗑️ [SISTEMA] Fila de leads resetada.');
+//     }
+// } catch (e) {
+//     console.error('⚠️ [SISTEMA] Erro ao resetar dados:', e.message);
+// }
 
 let chatSessions = new Map();
 
@@ -368,8 +361,10 @@ let qrSentToTelegram = false;
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
+    authTimeoutMs: 0, // Desativa timeout de autenticação para ambientes lentos
     puppeteer: {
         headless: true,
+        protocolTimeout: 0,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -378,8 +373,26 @@ const client = new Client({
             '--no-first-run',
             '--no-zygote',
             '--single-process',
+            '--disable-extensions',
             '--disable-accelerated-2d-canvas',
-            '--disable-software-rasterizer'
+            '--disable-software-rasterizer',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-breakpad',
+            '--disable-component-extensions-with-background-pages',
+            '--disable-features=TranslateUI,BlinkGenPropertyTrees',
+            '--disable-ipc-flooding-protection',
+            '--disable-renderer-backgrounding',
+            '--enable-features=NetworkService,NetworkServiceInProcess',
+            '--force-color-profile=srgb',
+            '--hide-scrollbars',
+            '--metrics-recording-only',
+            '--mute-audio',
+            '--no-default-browser-check',
+            '--no-pings',
+            '--password-store=basic',
+            '--use-gl=swiftshader',
+            '--use-mock-keychain'
         ]
     }
 });
