@@ -1623,16 +1623,5 @@ function getQueueInfo() {
 }
 
 startBot('main');
-
-// Auto-start outras instâncias que já possuem sessão salva
-for (let i = 2; i <= MAX_SLOTS; i++) {
-  const id = `parceiro${i}`;
-  const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${id}`);
-  if (fs.existsSync(sessionPath)) {
-    console.log(`[SISTEMA] Auto-iniciando sessão existente para: ${id}`);
-    startBot(id);
-  }
-}
-
 startTelegramPolling();
 app.listen(port, "0.0.0.0", () => console.log(`🚀 Backend rodando na porta ${port}`));
