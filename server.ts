@@ -307,7 +307,7 @@ app.get("/api/v1/attendants", (req, res) => {
           details.push({ id, name: data.adminName || id, status: 'CONNECTED' });
         }
       }
-    } catch (_) {}
+    } catch (_) { }
   }
   res.json({ connected, details });
 });
@@ -760,7 +760,7 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
 
     // Mensagem é uma foto (QR Code) — tenta editar a legenda (caption)
     const isPhotoMsg = errMessage.includes('there is no text in the message') ||
-                       errMessage.includes("message can't be edited");
+      errMessage.includes("message can't be edited");
     if (isPhotoMsg && messageId) {
       try {
         const res = await axios.post(`${TELEGRAM_URL}/editMessageCaption`, {
@@ -946,16 +946,16 @@ async function startTelegramPolling() {
 
         if (text === "/start" || text === "/painel" || text === "painel:back" || text === "painel:start") {
           const stats = getBotStatusInfo('main');
-          
+
           const allSessions = Array.from(sessions.values());
           const totalVisitors = allSessions.length;
           const now = Date.now();
           const oneDayMs = 24 * 60 * 60 * 1000;
           const oneWeekMs = 7 * oneDayMs;
-          
+
           const visitorsToday = allSessions.filter(s => (now - (s.startTime || 0)) <= oneDayMs).length;
           const visitorsWeek = allSessions.filter(s => (now - (s.startTime || 0)) <= oneWeekMs).length;
-          
+
           const conversions = allSessions.filter(s => s.converted).length;
           const activeNow = allSessions.filter(s => !s.converted && (now - (s.lastHeartbeat || 0) <= 60000)).length;
           const abandoned = totalVisitors - conversions - activeNow;
@@ -1006,7 +1006,7 @@ async function startTelegramPolling() {
             inline_keyboard: [
               [{ text: "📊 Atualizar Métricas", callback_data: "painel:start" }, { text: "👥 Gerenciar Fila", callback_data: "painel:fila" }],
               [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
-              [{ text: "⚡ PIX Rápido (Último)", callback_data: "cmd:last_pix" }, { text: "🛠️ Configurar PIX", callback_data: "painel:config_pix" }],
+              [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Configurações de Saque", callback_data: "painel:config_pix" }],
               [{ text: "📱 Gestão de WhatsApp", callback_data: "painel:slots" }, { text: "🔄 Reiniciar Main", callback_data: "painel:reiniciar:slot:main" }]
             ]
           };
@@ -1023,7 +1023,7 @@ async function startTelegramPolling() {
                 const data = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
                 if (data.status === 'CONNECTED') attendantsOnline++;
               }
-            } catch (_) {}
+            } catch (_) { }
           }
           const siteVisitors = Array.from(sessions.values()).filter(s => !s.converted).length;
           const conversions = Array.from(sessions.values()).filter(s => s.converted).length;
@@ -1033,7 +1033,7 @@ async function startTelegramPolling() {
           const queue = getQueueInfo();
           let txt = "👥 <b>LISTA DE LEADS (FILA)</b>\n\n";
           let btns = [];
-          
+
           if (queue.length === 0) {
             txt += "<i>Ninguém na fila agora.</i>";
           } else {
@@ -1043,20 +1043,20 @@ async function startTelegramPolling() {
               btns.push([{ text: `📱 ${phone} (${l.name || 'Sem Nome'})`, callback_data: `painel:lead_control:${l.chatId}` }]);
             });
           }
-          
+
           btns.push([{ text: "⬅️ Voltar", callback_data: "painel:back" }]);
           await sendTelegram(txt, msgId, { inline_keyboard: btns });
         }
         else if (text.startsWith("painel:lead_control:")) {
           const chatId = text.split(":")[2];
           const phone = chatId.split('@')[0];
-          
+
           // Salva como último lead para facilitar geração de PIX rápida
           fs.writeFileSync('last-lead.json', JSON.stringify({ chatId }));
 
           const txt = `👤 <b>CONTROLE DO LEAD: ${phone}</b>\n\n` +
             `Escolha uma ação para enviar ao WhatsApp do lead:`;
-          
+
           const kb = {
             inline_keyboard: [
               [{ text: "🟢 Liberar Etapa 2", callback_data: `etapa:2:${chatId}` }, { text: "🔐 Liberar Etapa 3", callback_data: `etapa:3:${chatId}` }],
@@ -1545,9 +1545,9 @@ async function startTelegramPolling() {
             saveConfig();
             const slotId = state.data?.slotId || 'main';
             botStates.delete(userId);
-            
+
             await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
-            
+
             // Reinicia o bot específico
             resetBotSession(slotId);
           }
