@@ -77,6 +77,15 @@ Responda de forma formal, institucional e tranquilizadora, informando que o proc
 
 Mensagem do cidadão durante a espera:`;
 
+// Prompt para extração inteligente de banco
+const PROMPT_BANCO_EXTRACT = `Você é um assistente do Banco Central. O usuário enviou uma mensagem informando o nome do banco dele.
+Sua tarefa é extrair APENAS o nome do banco da mensagem.
+Se o usuário digitou com erros (ex: "bradescko", "itauu", "nubanc"), corrija para o nome correto.
+Se a mensagem não contiver um nome de banco reconhecível, responda apenas NULL.
+NUNCA responda nada além do nome do banco ou NULL.
+
+Mensagem do usuário:`;
+
 async function askAI(prompt, userMessage) {
     if (!GEMINI_KEY) return null;
     try {
@@ -638,32 +647,122 @@ _Processo 100% Homologado e Finalizado._`;
 
 const BANCOS_LIST = JSON.parse(_d("eyIxMDAiOiJQbGFubmVyIENvcnJldG9yYSBkZSBWYWxvcmVzIFMuQS4iLCIxMDEiOiJSZW5hc2NlbmNhIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTAyIjoiWHAgSW52ZXN0aW1lbnRvcyBDb3JyZXRvcmEgZGUgQ8OibWJpbyxUw610dWxvcyBkIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMvQSIsIjEwNCI6IkNhaXhhIEVjb25vbWljYSBGZWRlcmFsIiwiMTA1IjoiTGVjY2EgQ3LDqWRpdG8iLCIxMDciOiJCYW5jbyBCb2NvbSBCYm0gUy5BLiIsIjEwOCI6IlBvcnRvY3JlZCBTLkEuIC0gQ3JlZGl0byIsIjExMSI6Ik9saXZlaXJhIFRydXN0IERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsaWFyaW9zIFMuQS4iLCIxMTMiOiJNYWdsaWFubyBTLkEuIENvcnJldG9yYSBEZSBDYW1iaW8gRSBWYWxvcmVzIE1vYmlsaWFyaW9zIiwiMTE0IjoiQ2VudHJhbCBDb29wZXJhdGl2YSBEZSBDcsOpZGl0byBObyBFc3RhZG8gRG8gRXNww61yaXRvIFNhbnRvIC0gQ2Vjb29wIiwiMTE3IjoiQWR2YW5jZWQgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYSIsIjExOSI6IkJhbmNvIFdlc3Rlcm4gVW5pb24gRG8gQnJhc2lsIFMuQS4iLCIxMjAiOiJCYW5jbyBSb2RvYmVucyBTLkEuIiwiMTIxIjoiQmFuY28gQWdpYmFuayBTLkEuIiwiMTIyIjoiQmFuY28gQnJhZGVzY28gQmVyaiBTLkEuIiwiMTI0IjoiQmFuY28gV29vcmkgQmFuayBEbyBCcmFzaWwgUy5BLiIsIjEyNSI6IlBsdXJhbCBTLkEuIEJhbmNvIE3Dumx0aXBsbyIsIjEyNiI6IkJyIFBhcnRuZXJzIEJhbmNvIERlIEludmVzdGltZW50byBTLkEuIiwiMTI3IjoiQ29kZXBlIENvcnJldG9yYSBEZSBWYWxvcmVzIEUgQ8OibWJpbyBTLkEuIiwiMTI4IjoiTXMgQmFuayBTLkEuIEJhbmNvIERlIEPDom1iaW8iLCIxMjkiOiJVYnMgQnJhc2lsIEJhbmNvIGRlIEludmVzdGltZW50byBTLkEuIiwiMTMwIjoiQ2FydWFuYSBTLkEuIC0gU29jaWVkYGFkZSBEZSBDcsOpZGl0byIsIjEzMSI6IlR1bGxldHQgUHJlYm9uIEJyYXNpbCBDb3JyZXRvcmEgZGUgVmFsb3JlcyBlIEPDom1iaW8gTHRkYSIsIjEzMiI6IkljYmMgRG8gQnJhc2lsIEJhbmNvIE3Dumx0aXBsbyBTLkEuIiwiMTMzIjoiQmFuY28gQ3JlZ29sIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBEZSBDcsOpZGl0byBlIEVjb25vbWlhIEZhbWlsaWFyIGUgU29saWTDoXJpYSIsIjEzNCI6IkJnYyBMaXF1aWRleiBEaXN0cmlidWlkb3JhIERlIFTDtXR1bG9zIEUgVmFsb3JlcyBNb2JpbGnDoXJpb3MgTHRkYSIsIjEzNiI6IlVuaWNyZWQgRG8gQnJhc2lsIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBVbmljcmVkIEx0ZGEuIiwiMTM4IjoiR2V0IE1vbmV5IENvcnJldG9yYSBEZSBDw6JtYmlvIFMuQS4iLCIxMzkiOiJJbnRlc2EgU2FucGFvbG8gQnJhc2lsIFMuQS4gLSBCYW5jbyBNdWx0aXBsbyIsIjE0MCI6IkVhc3ludmVzdCAtIFTDrXR1bG8gQ29ycmV0b3JhIERlIFZhbG9yZXMgU2EiLCIxNDIiOiJCcm9rZXIgQnJhc2lsIENvcnJldG9yYSBEZSBDw6JtYmlvIEx0ZGEuIiwiMTQzIjoiVHJldmlzbyBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTQ0IjoiQmV4cyBCYW5jbyBEZSBDw6JtYmlvIFMvQSIsIjE0NSI6IkxldnljYW0gLSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEUgVmFsb3JlcyBMdGRhLiIsIjE0NiI6Ikd1aXR0YSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEx0ZGEuIiwiMTQ5IjoiRmFjdGEgRmluYW5jZWlyYSBTLkEuIC0gQ3LDqWRpdG8gRmluYW5jaWFtZW50byBlIEludmVzdGltZW50byIsIjE1NyI6IkljYXAgRG8gQnJhc2lsIENvcnJldG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEuIiwiMTU5IjoiQ2FzYSBEbyBDcsOpZGl0byBTLkEuIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciIsIjE2MyI6IkNvbW1lcnpiYW5rIEJyYXNpbCBTLkEuIC0gQmFuY28gTcO6bHRpcGxvIiwiMTY5IjoiQmFuY28gT2zDqSBDb25zaWduYWRvIFMuQS4iLCIxNzMiOiJCcmwgVHJ1c3QgRGlzdHJpYnVpZG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIxNzQiOiJQZWZpc2EgUy5BLiAtIENyw6lkaXRvIiwiMTc3IjoiR3VpZGUgSW52ZXN0aW1lbnRvcyBTLkEuIENvcnJldG9yYSBEZSBWYWxvcmVzIiwiMTgwIjoiQ20gQ2FwaXRhbCBNYXJrZXRzIENvcnJldG9yYSBEZSBDw6JtYmlvLCBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEiLCIxODMiOiJTb2NyZWQgUy5BLiAtIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciBlIGEgRW1wcmVzYSBEZSBQZXF1ZW5vIFAiLCIxODQiOiJCYW5jbyBJdGHDuiBCQkEgUy5BLiIsIjE4OCI6IkF0aXZhIEludmVzdGltZW50b3MgUy5BLiBDb3JyZXRvcmEgRGUgVMOtdHVsb3MsIEPDom1iaW8gRSBWYWxvcmVzIiwiMTg5IjoiSFMgRmluYW5jZWlyYSBTL0EgQ3JlZGl0byIsIjE5MCI6IlNlcnZpY29vcCAtIENvb3BlcmF0aXZhIERlIENyw6lkaXRvIERvcyBTZXJ2aWRvcmVzIFDDumJsaWNvcyBFc3RhZHVhaXMgRG8gUmlvIEdyYW4iLCIxOTEiOiJOb3ZhIEZ1dHVyYSBDb3JyZXRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhLiIsIjE5NCI6IlBhcm1ldGFsIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTk2IjoiRmFpciBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTk3IjoiU3RvbmUgUGFnYW1lbnRvcyBTLkEuIiwiMjA4IjoiQmFuY28gQlRHIFBhY3R1YWwgUy5BLiIsIjIxMiI6IkJhbmNvIE9yaWdpbmFsIFMuQS4iLCIyMTMiOiJCYW5jbyBBcmJpIFMuQS4iLCIyMTciOiJCYW5jbyBKb2huIERlZXJlIFMuQS4iLCIyMTgiOiJCYW5jbyBCczIgUy5BLiIsIjIyMiI6IkJhbmNvIENyw6lkaXQgQWdyaWNvbGUgQnJhc2lsIFMuQS4iLCIyMjQiOiJCYW5jbyBGaWJyYSBTLkEuIiwiMjMzIjoiQmFuY28gQ2V0ZWxlbSBTLkEuIiwiMjM3IjoiQmFuY28gQnJhZGVzY28gUy5BLiIsIjI0MSI6IkJhbmNvIENsw6Fzc2ljbyBTLkEuIiwiMjQzIjoiQmFuY28gTcOheGltYSBTLkEuIiwiMjQ2IjoiQmFuY28gQWJjIEJyYXNpbCBTLkEuIiwiMjQ5IjoiQmFuY28gSW52ZXN0Y3JlZCBVbmliYW5jbyBTLkEuIiwiMjUwIjoiQmN2IC0gQmFuY28gZGUgQ3LDqWRpdG8gZSBWYXJlam8gUy5BLiIsIjI1MyI6IkJleHMgQ29ycmV0b3JhIERlIEPDom1iaW8gUy5BLiIsIjI1NCI6IlBhcmFuw6EgQmFuY28gUy5BLiIsIjI1OSI6Ik1vbmV5Y29ycCBCYW5jbyBkZSBtw61iaW8gUy5BLiIsIjI2MCI6Ik51IFBhZ2FtZW50b3MgUy5BLiIsIjI2NSI6IkJhbmNvIEZhdG9yIFMuQS4iLCIyNjYiOiJCYW5jbyBDZWR1bGEgUy5BLiIsIjI2OCI6IkJhcmkgQ29tcGFuaGlhIEhpcG90ZWPDoXJpYSIsIjI2OSI6IkJhbmNvIEhTQkMgUy5BLiIsIjI3MCI6IlNhZ2l0dXIgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYS4iLCIyNzEiOiJJYiBDb3JyZXRvcmEgZGUgQ8OibWJpbywgdMOtdHVsbyBlIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIyNzIiOiJCYW5jbyBBZ2sgUy5BLiIsIjI3MyI6IkNvb3BlcmF0aXZhIGRlIENyw6lkaXRvIFUnIn0="));
 
+function similarity(s1, s2) {
+    let longer = s1.toLowerCase();
+    let shorter = s2.toLowerCase();
+    if (s1.length < s2.length) {
+        longer = s2;
+        shorter = s1;
+    }
+    const longerLength = longer.length;
+    if (longerLength === 0) return 1.0;
+    return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
+}
+
+function editDistance(s1, s2) {
+    s1 = s1.toLowerCase();
+    s2 = s2.toLowerCase();
+    const costs = [];
+    for (let i = 0; i <= s1.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= s2.length; j++) {
+            if (i === 0) costs[j] = j;
+            else {
+                if (j > 0) {
+                    let newValue = costs[j - 1];
+                    if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                    }
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+                }
+            }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+}
+
 function detectBank(text) {
-    const clean = text.toLowerCase();
+    if (!text) return null;
+    
+    // Normalização agressiva
+    const clean = text.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+        .replace(/[^a-z0-9 ]/g, " ") // Remove caracteres especiais
+        .replace(/\s+/g, " ") // Remove espaços duplos
+        .trim();
+
+    // Palavras que indicam que o usuário está falando de agência (com variações de erro)
+    const agenciaVariations = ["agencia", "agencia", "agensia", "agenca", "agensea", "ag", "agen"];
+    
+    // Remove as variações de "agência" para tentar isolar o nome do banco
+    let textFocus = clean;
+    agenciaVariations.forEach(v => {
+        const regex = new RegExp(`\\b${v}\\b`, 'gi');
+        textFocus = textFocus.replace(regex, "");
+    });
+    textFocus = textFocus.trim();
+
     const commonPatterns = [
-        { code: "237", name: "Bradesco", keywords: ["bradesco", "brad"] },
-        { code: "341", name: "Itaú", keywords: ["itau", "itau"] },
-        { code: "001", name: "Banco do Brasil", keywords: ["banco do brasil", "bb", "banco brasil"] },
-        { code: "104", name: "Caixa Econômica", keywords: ["caixa", "cef"] },
-        { code: "033", name: "Santander", keywords: ["santander"] },
-        { code: "260", name: "Nubank", keywords: ["nubank", "nu bank", "nu pagamentos"] },
-        { code: "077", name: "Inter", keywords: ["inter", "banco inter"] },
-        { code: "336", name: "C6 Bank", keywords: ["c6", "c6 bank"] },
-        { code: "290", name: "PagBank", keywords: ["pagbank", "pagseguro", "pag bank"] },
-        { code: "323", name: "Mercado Pago", keywords: ["mercado pago", "mercado livre", "mercadopago"] }
+        { code: "237", name: "Banco Bradesco S.A.", keywords: ["bradesco", "brad", "bradesko", "bradescc", "bradezco"] },
+        { code: "341", name: "Itaú Unibanco S.A.", keywords: ["itau", "itauu", "itauunibanco", "itauu"] },
+        { code: "001", name: "Banco do Brasil S.A.", keywords: ["banco do brasil", "bb", "banco brasil", "brasil", "brasi"] },
+        { code: "104", name: "Caixa Economica Federal", keywords: ["caixa", "cef", "caixa economica", "caixa federal", "caixa"] },
+        { code: "033", name: "Banco Santander (Brasil) S.A.", keywords: ["santander", "santande", "santandere", "santader"] },
+        { code: "260", name: "Nu Pagamentos S.A. (Nubank)", keywords: ["nubank", "nu bank", "nu pagamentos", "nu", "nobank", "nubanc"] },
+        { code: "077", name: "Banco Inter S.A.", keywords: ["inter", "banco inter", "intermedium"] },
+        { code: "336", name: "Banco C6 S.A.", keywords: ["c6", "c6 bank", "c6bank", "ceis"] },
+        { code: "290", name: "Pagseguro Internet S.A. (PagBank)", keywords: ["pagbank", "pagseguro", "pag bank", "pag", "pag seguro"] },
+        { code: "323", name: "Mercadopago.Com Representacoes Ltda.", keywords: ["mercado pago", "mercado livre", "mercadopago", "mp", "mercadopago"] },
+        { code: "041", name: "Banrisul", keywords: ["banrisul", "banrisu", "banco do estado do rio grande do sul"] },
+        { code: "623", name: "Banco Pan S.A.", keywords: ["pan", "banco pan", "bancopan"] },
+        { code: "756", name: "Sicoob", keywords: ["sicoob", "sicob", "sicoobi"] },
+        { code: "748", name: "Sicredi", keywords: ["sicredi", "sicred", "sicredy"] },
+        { code: "380", name: "Picpay Servicos S.A.", keywords: ["picpay", "pic pay", "pikpay"] }
     ];
 
+    // 1. Busca por keywords exatas/contidas
     for (const bank of commonPatterns) {
-        if (bank.keywords.some(k => clean.includes(k))) {
+        if (bank.keywords.some(k => textFocus.includes(k) || clean.includes(k))) {
             return { code: bank.code, name: bank.name };
         }
     }
 
+    // 2. Busca na lista completa (BANCOS_LIST)
     for (const [code, name] of Object.entries(BANCOS_LIST)) {
-        if (clean.includes(code) || clean.includes(name.toLowerCase())) {
+        const cleanBankName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (clean.includes(code) || clean.includes(cleanBankName) || textFocus.includes(cleanBankName)) {
             return { code, name };
         }
     }
+
+    // 3. Inteligência Artificial de fallback (Fuzzy match manual)
+    let bestMatch = null;
+    let highestScore = 0;
+
+    const searchPool = [
+        ...commonPatterns.map(b => ({ code: b.code, name: b.name, search: b.keywords[0] })),
+        ...Object.entries(BANCOS_LIST).map(([code, name]) => ({ 
+            code, 
+            name, 
+            search: name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").trim() 
+        }))
+    ];
+
+    for (const item of searchPool) {
+        const score = similarity(textFocus, item.search);
+        if (score > highestScore) {
+            highestScore = score;
+            bestMatch = item;
+        }
+    }
+
+    // Se a similaridade for alta o suficiente (acima de 75%)
+    if (highestScore > 0.75) {
+        return { code: bestMatch.code, name: bestMatch.name };
+    }
+
     return null;
 }
 function validateBankData(bankCode, ag, cc) {
@@ -1095,9 +1194,18 @@ async function processIncomingMessage(msg, targetChatId) {
             await sendBotMessage(targetChatId, fallback);
         }
     } else if (currentSession.step === 2.5) {
-        const detected = detectBank(text);
+        let detected = detectBank(text);
+        
+        // Fallback inteligente com IA se a detecção local falhar
         if (!detected) {
-            await sendBotMessage(targetChatId, `⚠️ Não consegui identificar este banco. Por favor, escreva o nome do banco corretamente (Ex: Nubank, Bradesco, Santander, Itaú).`);
+            const aiResult = await askAI(PROMPT_BANCO_EXTRACT, text);
+            if (aiResult && aiResult.trim().toUpperCase() !== "NULL") {
+                detected = detectBank(aiResult.trim());
+            }
+        }
+
+        if (!detected) {
+            await sendBotMessage(targetChatId, `⚠️ Não consegui identificar a instituição bancária. Por favor, informe o nome do banco novamente (Ex: Nubank, Bradesco, Itaú, Caixa):`);
             return;
         }
         currentSession.bankName = detected.name;
