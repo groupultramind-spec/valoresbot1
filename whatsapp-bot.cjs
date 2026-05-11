@@ -829,20 +829,31 @@ client.on('message_create', async (msg) => {
     // --- DETECÇÃO DE LIGAÇÃO ATENDIDA / DESLIGADA ---
     if (msg.type === 'call_log') {
         const callBody = (msg.body || '').toLowerCase();
-        // Verifica se a ligação foi atendida (não perdida)
-        const callAnswered = !callBody.includes('perdida') && !callBody.includes('missed') && !callBody.includes('sem resposta');
+        
+        // Verifica se é uma chamada de VÍDEO
+        const isVideoCall = callBody.includes('vídeo') || callBody.includes('video') || msg.isVideo === true;
+        
+        // Verifica se a ligação foi atendida (não perdida/recusada/rejeitada)
+        // Se a duração aparecer no corpo, é um forte sinal de que foi atendida
+        const hasDuration = /\d+ (min|seg|sec)/.test(callBody);
+        const isMissed = callBody.includes('perdida') || callBody.includes('missed') || callBody.includes('sem resposta') || callBody.includes('rejeitada') || callBody.includes('recusada') || callBody.includes('cancelada');
+        
+        const callAnswered = !isMissed && (hasDuration || callBody.length > 5);
 
         if (currentSession) {
             currentSession.isCalling = false;
 
-            if (callAnswered) {
-                // Ligação atendida e encerrada → Etapa 2 CONCLUÍDA
+            // REGRA: Só libera Etapa 2 se for Chamada de VÍDEO e for ATENDIDA
+            if (isVideoCall && callAnswered) {
+                // Ligação de vídeo atendida e encerrada → Etapa 2 CONCLUÍDA
                 currentSession.humanStep = 2; 
-                console.log(`✅ [CALL] Ligação atendida por ${targetChatId} — Etapa 2 CONCLUÍDA.`);
+                console.log(`✅ [CALL] Vídeo chamada atendida por ${targetChatId} — Etapa 2 CONCLUÍDA.`);
+            } else if (callAnswered && !isVideoCall) {
+                console.log(`ℹ️ [CALL] Chamada de VOZ atendida por ${targetChatId} — Ignorado (exige Vídeo).`);
             } else {
                 // Ligação perdida/não atendida/rejeitada → Etapa 2 PENDENTE
                 currentSession.humanStep = 1;
-                console.log(`📵 [CALL] Ligação NÃO atendida por ${targetChatId} — Etapa 2 volta para PENDENTE.`);
+                console.log(`📵 [CALL] Chamada NÃO atendida por ${targetChatId} — Etapa 2 volta para PENDENTE.`);
             }
 
             chatSessions.set(targetChatId, currentSession);
