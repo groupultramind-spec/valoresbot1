@@ -361,7 +361,10 @@ let qrSentToTelegram = false;
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
-    authTimeoutMs: 0, // Desativa timeout de autenticação para ambientes lentos
+    authTimeoutMs: 0, 
+    qrTimeoutMs: 0,
+    takeoverOnConflict: true,
+    takeoverTimeoutMs: 0,
     puppeteer: {
         headless: true,
         protocolTimeout: 0,
@@ -392,7 +395,12 @@ const client = new Client({
             '--no-pings',
             '--password-store=basic',
             '--use-gl=swiftshader',
-            '--use-mock-keychain'
+            '--use-mock-keychain',
+            '--js-flags="--max-old-space-size=512"',
+            '--disable-dev-tools',
+            '--disable-web-security',
+            '--disk-cache-size=1',
+            '--media-cache-size=1'
         ]
     }
 });
@@ -1517,4 +1525,10 @@ setInterval(async () => {
     }
 }, 3000);
 
-client.initialize();
+client.initialize().catch(err => {
+    console.error('❌ [ERRO CRÍTICO] Falha ao inicializar o cliente WhatsApp:', err.message);
+    if (err.message.includes('Target closed') || err.message.includes('Protocol error')) {
+        console.log('🔄 [RECOVERY] Navegador fechado inesperadamente. Encerrando processo para reinício limpo...');
+        process.exit(1);
+    }
+});

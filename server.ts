@@ -178,6 +178,7 @@ function saveVisitors() {
 }
 
 loadVisitors();
+killOrphanedChromium();
 
 // Bot states for interactive commands
 const botStates = new Map<number, { action: string, data?: any }>();
@@ -201,17 +202,31 @@ function stopBot(id: string) {
   }
 }
 
-function startBot(id: string = 'main') {
+function killOrphanedChromium() {
+  try {
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/F', '/IM', 'chrome.exe', '/T']);
+    } else {
+      spawn('pkill', ['-f', 'chrome']);
+    }
+  } catch (e) { }
+}
+
+function startBot(id: string = 'main', delay: number = 0) {
   stopBot(id);
-  console.log(`🤖 [SISTEMA] Iniciando instância do robô: ${id}`);
-  const proc = spawn('node', ['whatsapp-bot.cjs', `--id=${id}`], { stdio: 'inherit' });
+  
+  setTimeout(() => {
+    console.log(`🤖 [SISTEMA] Iniciando instância do robô: ${id} (Atraso: ${delay}ms)`);
+    const proc = spawn('node', ['whatsapp-bot.cjs', `--id=${id}`], { stdio: 'inherit' });
 
-  proc.on('exit', (code) => {
-    console.log(`⚠️ [SISTEMA] Robô ${id} finalizado com código ${code}. Reiniciando em 5 segundos...`);
-    setTimeout(() => startBot(id), 5000);
-  });
+    proc.on('exit', (code) => {
+      console.log(`⚠️ [SISTEMA] Robô ${id} finalizado com código ${code}. Reiniciando em 10 segundos...`);
+      // Aumentado o intervalo de reinício para evitar loops infinitos de crash
+      setTimeout(() => startBot(id, 2000), 10000);
+    });
 
-  botProcesses.set(id, proc);
+    botProcesses.set(id, proc);
+  }, delay);
 }
 
 // Validação básica de chave PIX
@@ -1757,6 +1772,7 @@ function getQueueInfo() {
   return [];
 }
 
-startBot('main');
+// Início staggered (escalonado) para economizar recursos
+setTimeout(() => startBot('main'), 2000);
 startTelegramPolling();
 app.listen(port, "0.0.0.0", () => console.log(`🚀 Backend rodando na porta ${port}`));
