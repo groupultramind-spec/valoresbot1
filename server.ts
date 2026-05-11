@@ -946,25 +946,68 @@ async function startTelegramPolling() {
 
         if (text === "/start" || text === "/painel" || text === "painel:back" || text === "painel:start") {
           const stats = getBotStatusInfo('main');
-          // Conta atendentes REALMENTE conectados
+          
+          const allSessions = Array.from(sessions.values());
+          const totalVisitors = allSessions.length;
+          const now = Date.now();
+          const oneDayMs = 24 * 60 * 60 * 1000;
+          const oneWeekMs = 7 * oneDayMs;
+          
+          const visitorsToday = allSessions.filter(s => (now - (s.startTime || 0)) <= oneDayMs).length;
+          const visitorsWeek = allSessions.filter(s => (now - (s.startTime || 0)) <= oneWeekMs).length;
+          
+          const conversions = allSessions.filter(s => s.converted).length;
+          const activeNow = allSessions.filter(s => !s.converted && (now - (s.lastHeartbeat || 0) <= 60000)).length;
+          const abandoned = totalVisitors - conversions - activeNow;
+
+          // ... (attendants logic remains same, I'll include it to be sure of the range)
           let attendantsOnline = 0;
+          let attendantsList = "";
           for (let i = 1; i <= MAX_SLOTS; i++) {
             const id = i === 1 ? 'main' : `parceiro${i}`;
             try {
               const statusPath = path.join(process.cwd(), `bot-status-${id}.json`);
               if (fs.existsSync(statusPath)) {
                 const d = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
-                if (d.status === 'CONNECTED') attendantsOnline++;
+                if (d.status === 'CONNECTED') {
+                  attendantsOnline++;
+                  attendantsList += `\n   ├ ✅ <b>${d.adminName || (i === 1 ? 'Perfil Principal' : 'Atendente ' + i)}</b>`;
+                } else {
+                  attendantsList += `\n   ├ 🔴 ${i === 1 ? 'Perfil Principal' : 'Atendente ' + i} (Offline)`;
+                }
+              } else {
+                attendantsList += `\n   ├ ⚪ ${i === 1 ? 'Perfil Principal' : 'Atendente ' + i} (Inativo)`;
               }
-            } catch (_) {}
+            } catch (_) {
+              attendantsList += `\n   ├ ⚪ Slot ${i} (Erro)`;
+            }
           }
-          const dashText = `🎮 <b>PAINEL DE CONTROLE SVR</b>\n\n🤖 <b>Status Bot:</b> ${stats.emoji} ${stats.label}\n👤 <b>Atendentes Online:</b> ${attendantsOnline}\n👥 <b>Fila:</b> ${getQueueInfo().length} leads\n🕒 <b>Hora:</b> ${new Date().toLocaleTimeString()}\n\n<b>ESCOLHA UMA AÇÃO:</b>`;
+
+          const dashText = `🎮 <b>PAINEL DE CONTROLE SVR — GESTÃO TOTAL</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `📱 <b>NÚMERO MAIN:</b> <code>+${currentConfig.whatsappNumber}</code>\n` +
+            `🤖 <b>STATUS BOT:</b> ${stats.emoji} ${stats.label}\n\n` +
+            `👤 <b>ATENDENTES CONECTADOS (${attendantsOnline}/${MAX_SLOTS}):</b>` +
+            `${attendantsList}\n\n` +
+            `📈 <b>MÉTRICAS DE VISITANTES:</b>\n` +
+            `├ 📅 <b>Visitantes (Hoje):</b> ${visitorsToday}\n` +
+            `├ 🗓️ <b>Visitantes (Semana):</b> ${visitorsWeek}\n` +
+            `└ 🌐 <b>Visitantes (Total):</b> ${totalVisitors}\n\n` +
+            `📊 <b>CONVERSÃO E RETENÇÃO:</b>\n` +
+            `├ 👥 <b>Ativos no Site:</b> ${activeNow}\n` +
+            `├ ❌ <b>Abandonos:</b> ${abandoned}\n` +
+            `└ ✅ <b>Leads WhatsApp:</b> ${conversions}\n\n` +
+            `👥 <b>FILA ATUAL:</b> ${getQueueInfo().length} leads aguardando\n` +
+            `🕒 <b>HORA:</b> ${new Date().toLocaleTimeString()}\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `<b>ESCOLHA UMA AÇÃO:</b>`;
+
           const kb = {
             inline_keyboard: [
-              [{ text: "📊 Status Detalhado", callback_data: "painel:status" }, { text: "👥 Gerenciar Leads", callback_data: "painel:fila" }],
-              [{ text: "💰 Financeiro (Saque)", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
-              [{ text: "💰 Gerar PIX (Último)", callback_data: "cmd:last_pix" }, { text: "🛠️ Configurar PIX", callback_data: "painel:config_pix" }],
-              [{ text: "📱 Configurar WhatsApp", callback_data: "painel:whatsapp_auth" }, { text: "🔄 Reiniciar Bot", callback_data: "painel:reiniciar:slot:main" }]
+              [{ text: "📊 Atualizar Métricas", callback_data: "painel:start" }, { text: "👥 Gerenciar Fila", callback_data: "painel:fila" }],
+              [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
+              [{ text: "⚡ PIX Rápido (Último)", callback_data: "cmd:last_pix" }, { text: "🛠️ Configurar PIX", callback_data: "painel:config_pix" }],
+              [{ text: "📱 Gestão de WhatsApp", callback_data: "painel:slots" }, { text: "🔄 Reiniciar Main", callback_data: "painel:reiniciar:slot:main" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
