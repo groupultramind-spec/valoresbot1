@@ -998,7 +998,7 @@ async function startTelegramPolling() {
             `├ ❌ <b>Abandonos:</b> ${abandoned}\n` +
             `└ ✅ <b>Leads WhatsApp:</b> ${conversions}\n\n` +
             `👥 <b>FILA ATUAL:</b> ${getQueueInfo().length} leads aguardando\n` +
-            `🕒 <b>HORA:</b> ${new Date().toLocaleTimeString()}\n` +
+            `🕒 <b>HORA:</b> ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `<b>ESCOLHA UMA AÇÃO:</b>`;
 
