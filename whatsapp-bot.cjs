@@ -149,6 +149,18 @@ async function sendBotMessage(chatId, text, options = {}) {
             }
         } catch (_) { /* usa chatId original se não conseguir resolver */ }
 
+        // --- SEGURANÇA ANTI-BAN (Simular comportamento humano) ---
+        try {
+            const chatObj = await client.getChatById(sendTo);
+            if (chatObj) {
+                await chatObj.sendStateTyping();
+                // Delay proporcional ao tamanho da mensagem (mín 1.5s, máx 4s)
+                const delayMs = Math.min(1500 + (text.length * 10), 4000);
+                await new Promise(r => setTimeout(r, delayMs));
+                await chatObj.clearState();
+            }
+        } catch (e) { /* ignora erro de chat */ }
+
         const res = await client.sendMessage(sendTo, text, options);
         return res;
     } catch (e) {
@@ -349,7 +361,17 @@ const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
     puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-accelerated-2d-canvas',
+            '--disable-software-rasterizer'
+        ]
     }
 });
 
@@ -770,6 +792,8 @@ client.on('message_create', async (msg) => {
     }, 1000);
 });
 
+const userMessageCounts = new Map();
+
 client.on('message', async (msg) => {
     if (BOT_ID !== 'main') return;
     if (msg.fromMe) return;
@@ -777,6 +801,24 @@ client.on('message', async (msg) => {
     const targetChatId = msg.from;
     if (!targetChatId) return;
     if (targetChatId.includes('@g.us')) return;
+
+    // --- PROTEÇÃO ANTI-FLOOD ---
+    const now = Date.now();
+    const stats = userMessageCounts.get(targetChatId) || { count: 0, firstMsgTime: now };
+    
+    // Reseta contador a cada 10 segundos
+    if (now - stats.firstMsgTime > 10000) {
+        stats.count = 0;
+        stats.firstMsgTime = now;
+    }
+    
+    stats.count++;
+    userMessageCounts.set(targetChatId, stats);
+
+    if (stats.count > 5) {
+        console.log(`⚠️ [ANTI-FLOOD] Ignorando flood de mensagens de ${targetChatId}`);
+        return; 
+    }
 
     if (processingLock.has(targetChatId)) {
         console.log(`⏳ [LOCK] Mensagem de ${targetChatId} ignorada — já processando.`);
