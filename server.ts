@@ -35,6 +35,24 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
+// Force HTTPS and redirect www to naked domain
+app.use((req, res, next) => {
+  const host = req.headers.host;
+  const isWww = host && host.startsWith('www.');
+  
+  // Detection for various environments (Heroku, ShardCloud, etc)
+  const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+
+  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    if (isWww || !isHttps) {
+      const nakedHost = isWww ? host!.replace(/^www\./, '') : host;
+      console.log(`🛡️ [REDUTOR] Redirecionando ${host} para https://${nakedHost}${req.url}`);
+      return res.redirect(301, `https://${nakedHost}${req.url}`);
+    }
+  }
+  next();
+});
+
 // Extra headers for absolute certainty
 app.use((req, res, next) => {
   const origin = req.headers.origin;
