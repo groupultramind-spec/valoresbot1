@@ -11,7 +11,7 @@
     "dev": "tsx server.ts",
     "build": "vite build",
     "start": "tsx server.ts",
-    "postinstall": "npx puppeteer browsers install chrome"
+    "postinstall": "rm -rf .cache/puppeteer && PUPPETEER_SKIP_DOWNLOAD=false npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
