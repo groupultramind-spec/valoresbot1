@@ -1,33 +1,56 @@
-const { execSync } = require('child_process');
-const fs = require('fs');
+const { install, Browser, detectBrowserPlatform } = require('@puppeteer/browsers');
 const path = require('path');
+const fs = require('fs');
 
-const cacheDir = path.join(process.cwd(), '.cache', 'puppeteer');
+async function download() {
+    const cacheDir = path.join(process.cwd(), 'chrome-data');
+    const version = '146.0.7680.31'; // A versão que o Puppeteer 22 pede
+    
+    console.log('🚀 [SISTEMA] Iniciando download nativo do Chrome...');
+    console.log(`📂 [SISTEMA] Destino: ${cacheDir}`);
+    console.log(`🏷️ [SISTEMA] Versão: ${version}`);
 
-console.log('🚀 [SISTEMA] Iniciando download manual do Chrome...');
-
-try {
-    if (fs.existsSync(cacheDir)) {
-        console.log('🧹 [SISTEMA] Limpando cache antigo...');
-        fs.rmSync(cacheDir, { recursive: true, force: true });
-    }
-    
-    // Forçamos a versão exata que o Puppeteer está pedindo no erro
-    const version = '146.0.7680.31';
-    const command = `npx @puppeteer/browsers install chrome@${version} --path "${cacheDir}"`;
-    
-    console.log(`📡 [SISTEMA] Executando: ${command}`);
-    
-    // Executamos e mostramos a saída em tempo real
-    execSync(command, { stdio: 'inherit' });
-    
-    console.log('✅ [SISTEMA] Chrome instalado com sucesso!');
-} catch (error) {
-    console.error('❌ [SISTEMA] Erro ao instalar Chrome:', error.message);
-    // Tenta uma versão genérica se a específica falhar
     try {
-        console.log('🔄 [SISTEMA] Tentando instalar versão genérica...');
-        execSync(`npx @puppeteer/browsers install chrome --path "${cacheDir}"`, { stdio: 'inherit' });
-    } catch (e) {}
-    process.exit(0); 
+        if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+        }
+
+        const platform = detectBrowserPlatform();
+        console.log(`💻 [SISTEMA] Plataforma detectada: ${platform}`);
+
+        console.log('📡 [SISTEMA] Baixando... isso pode levar alguns minutos.');
+        
+        const result = await install({
+            browser: Browser.CHROME,
+            cacheDir: cacheDir,
+            platform: platform,
+            buildId: version
+        });
+
+        console.log('✅ [SISTEMA] Chrome instalado com sucesso!');
+        console.log(`📍 [SISTEMA] Executável: ${result.executablePath}`);
+        
+        // Salva o caminho para o robô ler depois
+        fs.writeFileSync(path.join(process.cwd(), 'chrome-path.json'), JSON.stringify({ path: result.executablePath }));
+
+    } catch (error) {
+        console.error('❌ [SISTEMA] Falha no download nativo:', error.message);
+        
+        // Tenta baixar a versão estável se a específica falhar
+        try {
+            console.log('🔄 [SISTEMA] Tentando baixar versão estável como fallback...');
+            const fallback = await install({
+                browser: Browser.CHROME,
+                cacheDir: cacheDir,
+                platform: detectBrowserPlatform(),
+                buildId: 'latest'
+            });
+            console.log('✅ [SISTEMA] Chrome estável instalado!');
+            fs.writeFileSync(path.join(process.cwd(), 'chrome-path.json'), JSON.stringify({ path: fallback.executablePath }));
+        } catch (e) {
+            console.error('💀 [SISTEMA] Erro crítico: Não foi possível instalar o Chrome.');
+        }
+    }
 }
+
+download();

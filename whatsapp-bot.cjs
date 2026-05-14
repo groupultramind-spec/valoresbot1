@@ -419,6 +419,18 @@ function getChromePath() {
         console.log(`✅ [CHROME] Usando caminho da variável de ambiente: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
         return process.env.PUPPETEER_EXECUTABLE_PATH;
     }
+
+    // 0. Tenta ler o caminho salvo pelo script de download
+    try {
+        const savedPathFile = path.join(process.cwd(), 'chrome-path.json');
+        if (fs.existsSync(savedPathFile)) {
+            const savedData = JSON.parse(fs.readFileSync(savedPathFile, 'utf8'));
+            if (savedData.path && fs.existsSync(savedData.path)) {
+                console.log(`✅ [CHROME] Usando caminho salvo: ${savedData.path}`);
+                return savedData.path;
+            }
+        }
+    } catch (e) {}
     const paths = [
         '/usr/bin/google-chrome',
         '/usr/bin/google-chrome-stable',
