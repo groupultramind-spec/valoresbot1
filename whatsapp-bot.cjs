@@ -426,7 +426,8 @@ function getChromePath() {
         '/usr/bin/chromium',
         '/snap/bin/chromium',
         '/app/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome',
-        '/app.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome'
+        '/app.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome',
+        path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-146.0.7680.31', 'chrome-linux64', 'chrome')
     ];
     for (const p of paths) {
         if (fs.existsSync(p)) {

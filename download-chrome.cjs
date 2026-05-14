@@ -12,9 +12,9 @@ try {
         fs.rmSync(cacheDir, { recursive: true, force: true });
     }
     
-    // Usamos o utilitário @puppeteer/browsers via npx, mas forçamos um ambiente limpo
-    // Tentamos instalar uma versão específica que sabemos ser compatível
-    const command = `npx @puppeteer/browsers install chrome@latest --path "${cacheDir}"`;
+    // Forçamos a versão exata que o Puppeteer está pedindo no erro
+    const version = '146.0.7680.31';
+    const command = `npx @puppeteer/browsers install chrome@${version} --path "${cacheDir}"`;
     
     console.log(`📡 [SISTEMA] Executando: ${command}`);
     
@@ -24,6 +24,10 @@ try {
     console.log('✅ [SISTEMA] Chrome instalado com sucesso!');
 } catch (error) {
     console.error('❌ [SISTEMA] Erro ao instalar Chrome:', error.message);
-    // Não encerramos com erro para não travar o deploy do site principal
+    // Tenta uma versão genérica se a específica falhar
+    try {
+        console.log('🔄 [SISTEMA] Tentando instalar versão genérica...');
+        execSync(`npx @puppeteer/browsers install chrome --path "${cacheDir}"`, { stdio: 'inherit' });
+    } catch (e) {}
     process.exit(0); 
 }
