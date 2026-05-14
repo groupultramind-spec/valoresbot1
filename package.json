@@ -1,5 +1,5 @@
 {
-  "name": "valoresreceber1",
+  "name": "portalsvr",
   "private": false,
   "version": "0.0.0",
   "engines": {
@@ -11,7 +11,7 @@
     "dev": "tsx server.ts",
     "build": "vite build",
     "start": "tsx server.ts",
-    "postinstall": "rm -rf .cache/puppeteer && npx @puppeteer/browsers install chrome --path .cache/puppeteer"
+    "postinstall": "node download-chrome.cjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
