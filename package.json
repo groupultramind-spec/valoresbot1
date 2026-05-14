@@ -1,6 +1,6 @@
 {
-  "name": "portalsvr",
-  "private": true,
+  "name": "valoresreceber1",
+  "private": false,
   "version": "0.0.0",
   "engines": {
     "node": "20.x"
@@ -11,7 +11,7 @@
     "dev": "tsx server.ts",
     "build": "vite build",
     "start": "tsx server.ts",
-    "postinstall": "npx puppeteer browsers install chrome"
+    "postinstall": "npx puppeteer browsers install chrome || true"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
