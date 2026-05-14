@@ -436,31 +436,45 @@ function getChromePath() {
         }
     }
     
-    // Busca dinâmica na pasta de cache do puppeteer
+    // Busca dinâmica e recursiva na pasta de cache do puppeteer
     try {
         const rootDir = process.cwd();
         const searchDirs = [
-            path.join(rootDir, '.cache', 'puppeteer', 'chrome'),
-            path.join('/', 'app', '.cache', 'puppeteer', 'chrome'),
-            path.join('/', 'app.cache', 'puppeteer', 'chrome')
+            path.join(rootDir, '.cache', 'puppeteer'),
+            path.join('/', 'app', '.cache', 'puppeteer'),
+            path.join('/', 'app.cache', 'puppeteer')
         ];
         
-        for (const cacheDir of searchDirs) {
-            if (fs.existsSync(cacheDir)) {
-                const folders = fs.readdirSync(cacheDir);
-                for (const folder of folders) {
-                    if (folder.startsWith('linux-')) {
-                        const chromePath = path.join(cacheDir, folder, 'chrome-linux64', 'chrome');
-                        if (fs.existsSync(chromePath)) {
-                            console.log(`✅ [CHROME] Encontrado dinamicamente no cache: ${chromePath}`);
-                            return chromePath;
+        for (const baseDir of searchDirs) {
+            if (fs.existsSync(baseDir)) {
+                // Função auxiliar para busca recursiva
+                const findExecutable = (dir) => {
+                    const files = fs.readdirSync(dir);
+                    for (const file of files) {
+                        const fullPath = path.join(dir, file);
+                        if (fs.statSync(fullPath).isDirectory()) {
+                            const found = findExecutable(fullPath);
+                            if (found) return found;
+                        } else if (file === 'chrome' || file === 'chromium' || file === 'chrome.exe') {
+                            // Verifica se é um executável (no Linux)
+                            try {
+                                if (process.platform !== 'win32') fs.accessSync(fullPath, fs.constants.X_OK);
+                                return fullPath;
+                            } catch (e) { }
                         }
                     }
+                    return null;
+                };
+
+                const chromePath = findExecutable(baseDir);
+                if (chromePath) {
+                    console.log(`✅ [CHROME] Encontrado recursivamente em: ${chromePath}`);
+                    return chromePath;
                 }
             }
         }
     } catch (e) {
-        console.log('⚠️ [CHROME] Erro ao buscar no cache:', e.message);
+        console.log('⚠️ [CHROME] Erro na busca recursiva:', e.message);
     }
     
     console.log('⚠️ [CHROME] Usando caminho padrão do puppeteer (pode falhar se não instalado).');
