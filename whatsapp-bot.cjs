@@ -452,8 +452,9 @@ function getChromePath() {
     try {
         const rootDir = process.cwd();
         const searchDirs = [
+            path.join(process.cwd(), 'chrome-data'),
+            path.join('/tmp', 'chrome-data'),
             path.join(rootDir, '.cache', 'puppeteer'),
-            path.join('/', 'app', '.cache', 'puppeteer'),
             path.join('/', 'app.cache', 'puppeteer')
         ];
         

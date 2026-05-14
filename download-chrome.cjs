@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 async function download() {
-    const cacheDir = path.join(process.cwd(), 'chrome-data');
+    const cacheDir = path.join('/tmp', 'chrome-data');
     const version = '146.0.7680.31'; // A versão que o Puppeteer 22 pede
     
     console.log('🚀 [SISTEMA] Iniciando download nativo do Chrome...');
