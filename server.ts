@@ -1923,7 +1923,28 @@ function getQueueInfo() {
   return [];
 }
 
-// Início staggered (escalonado) para economizar recursos
-setTimeout(() => startBot('main'), 2000);
-startTelegramPolling();
-app.listen(port, () => console.log(`🚀 Backend rodando na porta ${port}`));
+// --- INICIALIZAÇÃO CRÍTICA (CHROME) ---
+async function ensureChromeAndStart() {
+    console.log('🚀 [SISTEMA] Verificando disponibilidade do Chrome...');
+    
+    try {
+        const chromePathFile = path.join(process.cwd(), 'chrome-path.json');
+        if (!fs.existsSync(chromePathFile)) {
+            console.log('📡 [SISTEMA] Chrome não encontrado. Iniciando download em tempo real...');
+            // Importação dinâmica para não travar o carregamento inicial
+            const { execSync } = await import('child_process');
+            execSync('node download-chrome.cjs', { stdio: 'inherit' });
+        } else {
+            console.log('✅ [SISTEMA] Chrome já configurado via chrome-path.json');
+        }
+    } catch (e: any) {
+        console.error('⚠️ [SISTEMA] Erro ao tentar baixar o Chrome:', e.message);
+    }
+
+    // Início staggered (escalonado) para economizar recursos
+    setTimeout(() => startBot('main'), 2000);
+    startTelegramPolling();
+    app.listen(port, () => console.log(`🚀 Backend rodando na porta ${port}`));
+}
+
+ensureChromeAndStart();
