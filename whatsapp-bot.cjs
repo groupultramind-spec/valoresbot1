@@ -413,6 +413,25 @@ let lastQrNotification = 0;
 let isBotReady = false;
 let qrSentToTelegram = false;
 
+// 🔍 Detecta automaticamente o caminho do Chrome no Linux (ShardCloud)
+function getChromePath() {
+    const paths = [
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/snap/bin/chromium',
+        '/app/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome'
+    ];
+    for (const p of paths) {
+        if (require('fs').existsSync(p)) {
+            console.log(`✅ [CHROME] Encontrado em: ${p}`);
+            return p;
+        }
+    }
+    console.log('⚠️ [CHROME] Usando caminho padrão do puppeteer.');
+    return undefined; // Deixa puppeteer decidir
+}
+
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
     authTimeoutMs: 0, 
@@ -421,6 +440,7 @@ const client = new Client({
     takeoverTimeoutMs: 0,
     puppeteer: {
         headless: true,
+        executablePath: getChromePath(),
         protocolTimeout: 0,
         args: [
             '--no-sandbox',
