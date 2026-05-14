@@ -460,35 +460,26 @@ const client = new Client({
 });
 
 client.on('qr', async (qr) => {
-    if (isBotReady) return;
+    if (isBotReady || qrSentToTelegram) return;
+    qrSentToTelegram = true;
+
     console.log('\n📱 [QR CODE] Escaneie com o WhatsApp:\n');
     qrcode.generate(qr, { small: true });
     fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
-
-    const REFRESH_FLAG = 'refresh-qr.json';
-    const isRefreshRequested = fs.existsSync(REFRESH_FLAG);
-
-    if (isRefreshRequested) {
-        try { fs.unlinkSync(REFRESH_FLAG); } catch (e) { }
-    }
-
-    if (qrSentToTelegram) {
-        return; // Avoid spamming Telegram with QRs every time the event fires
-    }
-    qrSentToTelegram = true;
 
     try {
         const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
         const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
 
         const now = new Date();
-        const expiresAt = new Date(now.getTime() + 45000); // QRs do whatsapp-web.js duram aprox 45s
+        const expiresAt = new Date(now.getTime() + 45000);
 
         const caption = `📲 <b>QR CODE — ${slotLabel}</b>\n\n` +
             `Escaneie com o WhatsApp para conectar o bot.\n\n` +
             `⏳ <b>Gerado às:</b> ${now.toLocaleTimeString('pt-BR')}\n` +
             `⚠️ <b>Expira às:</b> ${expiresAt.toLocaleTimeString('pt-BR')} (Válido por 45s)\n\n` +
             `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
+        
         const kb = {
             inline_keyboard: [
                 [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
@@ -510,11 +501,33 @@ client.on('qr', async (qr) => {
         });
 
         if (res.data?.result) {
-            saveQrMsgId(res.data.result.message_id);
-            console.log('✅ [TELEGRAM] QR Code enviado/atualizado. ID:', lastQrMsgId);
+            const msgId = res.data.result.message_id;
+            saveQrMsgId(msgId);
+            
+            // 🕒 Timer para marcar como expirado no Telegram
+            setTimeout(async () => {
+                if (!isBotReady) {
+                    try {
+                        await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
+                            chat_id: CHAT_ID,
+                            message_id: msgId,
+                            caption: `❌ <b>QR CODE EXPIRADO — ${slotLabel}</b>\n\nEste código não é mais válido. Clique no botão abaixo para gerar um novo.`,
+                            parse_mode: 'HTML',
+                            reply_markup: JSON.stringify({
+                                inline_keyboard: [
+                                    [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
+                                    [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }]
+                                ]
+                            })
+                        });
+                    } catch (e) { }
+                    qrSentToTelegram = false; // Permite gerar um novo
+                }
+            }, 45000);
         }
     } catch (e) {
         console.error('❌ [TELEGRAM] Erro ao enviar QR Code:', e.message);
+        qrSentToTelegram = false;
     }
 });
 
