@@ -8,6 +8,7 @@
   "type": "module",
   "main": "server.ts",
   "scripts": {
+    "preinstall": "node -e \"require('fs').rmSync('.cache', { recursive: true, force: true })\"",
     "dev": "tsx server.ts",
     "build": "vite build",
     "start": "tsx server.ts",
