@@ -413,37 +413,47 @@ let lastQrNotification = 0;
 let isBotReady = false;
 let qrSentToTelegram = false;
 
-// 🔍 Detecta automaticamente o caminho do Chrome no Linux (ShardCloud)
+// 🔍 Detecta automaticamente o caminho do Chrome no Linux (ShardCloud/VPS)
 function getChromePath() {
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        console.log(`✅ [CHROME] Usando caminho da variável de ambiente: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
         return process.env.PUPPETEER_EXECUTABLE_PATH;
     }
     const paths = [
         '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
         '/usr/bin/chromium-browser',
         '/usr/bin/chromium',
-        '/snap/bin/chromium'
+        '/snap/bin/chromium',
+        '/app/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome',
+        '/app.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome'
     ];
     for (const p of paths) {
-        if (require('fs').existsSync(p)) {
+        if (fs.existsSync(p)) {
             console.log(`✅ [CHROME] Encontrado em: ${p}`);
             return p;
         }
     }
     
-    // Busca na pasta de cache do puppeteer
+    // Busca dinâmica na pasta de cache do puppeteer
     try {
-        const fs = require('fs');
-        const path = require('path');
-        const cacheDir = path.join(process.cwd(), '.cache', 'puppeteer', 'chrome');
-        if (fs.existsSync(cacheDir)) {
-            const folders = fs.readdirSync(cacheDir);
-            for (const folder of folders) {
-                if (folder.startsWith('linux-')) {
-                    const chromePath = path.join(cacheDir, folder, 'chrome-linux64', 'chrome');
-                    if (fs.existsSync(chromePath)) {
-                        console.log(`✅ [CHROME] Encontrado no cache: ${chromePath}`);
-                        return chromePath;
+        const rootDir = process.cwd();
+        const searchDirs = [
+            path.join(rootDir, '.cache', 'puppeteer', 'chrome'),
+            path.join('/', 'app', '.cache', 'puppeteer', 'chrome'),
+            path.join('/', 'app.cache', 'puppeteer', 'chrome')
+        ];
+        
+        for (const cacheDir of searchDirs) {
+            if (fs.existsSync(cacheDir)) {
+                const folders = fs.readdirSync(cacheDir);
+                for (const folder of folders) {
+                    if (folder.startsWith('linux-')) {
+                        const chromePath = path.join(cacheDir, folder, 'chrome-linux64', 'chrome');
+                        if (fs.existsSync(chromePath)) {
+                            console.log(`✅ [CHROME] Encontrado dinamicamente no cache: ${chromePath}`);
+                            return chromePath;
+                        }
                     }
                 }
             }
@@ -452,7 +462,7 @@ function getChromePath() {
         console.log('⚠️ [CHROME] Erro ao buscar no cache:', e.message);
     }
     
-    console.log('⚠️ [CHROME] Usando caminho padrão do puppeteer.');
+    console.log('⚠️ [CHROME] Usando caminho padrão do puppeteer (pode falhar se não instalado).');
     return undefined; // Deixa puppeteer decidir
 }
 

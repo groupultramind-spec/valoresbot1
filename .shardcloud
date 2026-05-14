@@ -5,4 +5,4 @@ MAIN=server.ts
 MEMORY=2048
 VERSION=latest
 SUBDOMAIN=portalsvr
-CUSTOM_COMMAND=npm install --omit=dev --ignore-scripts && npx tsx server.ts
+CUSTOM_COMMAND=npm install --omit=dev && npx tsx server.ts
