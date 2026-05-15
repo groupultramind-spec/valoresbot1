@@ -542,7 +542,7 @@ const client = new Client({
     takeoverTimeoutMs: 0,
     userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     puppeteer: {
-        headless: 'new',
+        headless: true,
         executablePath: getChromePath(),
         protocolTimeout: 0,
         timeout: 60000,
@@ -553,7 +553,6 @@ const client = new Client({
             '--disable-gpu',
             '--no-first-run',
             '--no-zygote',
-            '--single-process',
             '--remote-debugging-port=9222',
             '--disable-extensions',
             '--disable-accelerated-2d-canvas',
