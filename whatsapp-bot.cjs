@@ -492,7 +492,6 @@ function getChromePath() {
             }
         } catch (e) { }
     }
-}
 
 const paths = [
     '/usr/bin/google-chrome-stable',
