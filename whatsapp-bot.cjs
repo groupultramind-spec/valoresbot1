@@ -475,91 +475,91 @@ function getChromePath() {
                         fs.accessSync(savedData.path, fs.constants.X_OK);
                     }
                 } catch (e) {
-                    try { fs.chmodSync(savedData.path, '755'); } catch (_) {}
+                    try { fs.chmodSync(savedData.path, '755'); } catch (_) { }
                 }
                 return savedData.path;
             }
         }
     } catch (e) { }
-        const { execSync } = require('child_process');
-        const commands = ['which google-chrome', 'which google-chrome-stable', 'which chromium', 'which chromium-browser'];
-        for (const cmd of commands) {
-            try {
-                const p = execSync(cmd).toString().trim();
-                if (p && fs.existsSync(p)) {
-                    console.log(`✅ [CHROME] Encontrado via comando '${cmd}': ${p}`);
-                    return p;
-                }
-            } catch (e) { }
-        }
-    }
-
-    const paths = [
-        '/usr/bin/google-chrome-stable',
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium-browser',
-        '/usr/bin/chromium',
-        '/snap/bin/chromium',
-        '/app/.cache/puppeteer',
-        path.join(process.cwd(), 'chrome-data', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome'),
-        path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome')
-    ];
-
-    for (const p of paths) {
+    const { execSync } = require('child_process');
+    const commands = ['which google-chrome', 'which google-chrome-stable', 'which chromium', 'which chromium-browser'];
+    for (const cmd of commands) {
         try {
-            if (fs.existsSync(p)) {
-                if (fs.statSync(p).isDirectory()) {
-                    const found = findInDir(p);
-                    if (found) return found;
-                } else {
-                    console.log(`✅ [CHROME] Encontrado em caminho conhecido: ${p}`);
-                    return p;
-                }
+            const p = execSync(cmd).toString().trim();
+            if (p && fs.existsSync(p)) {
+                console.log(`✅ [CHROME] Encontrado via comando '${cmd}': ${p}`);
+                return p;
             }
         } catch (e) { }
     }
+}
 
-    function findInDir(baseDir) {
-        try {
-            if (!fs.existsSync(baseDir)) return null;
-            const findExecutable = (dir) => {
-                const files = fs.readdirSync(dir);
-                for (const file of files) {
-                    const fullPath = path.join(dir, file);
-                    const stat = fs.statSync(fullPath);
-                    if (stat.isDirectory()) {
-                        const found = findExecutable(fullPath);
-                        if (found) return found;
-                    } else if (file === 'chrome' || file === 'chromium' || file === 'google-chrome') {
-                        if (process.platform !== 'win32') {
-                            try {
-                                fs.accessSync(fullPath, fs.constants.X_OK);
-                                return fullPath;
-                            } catch (e) { }
-                        } else {
+const paths = [
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+    '/app/.cache/puppeteer',
+    path.join(process.cwd(), 'chrome-data', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome'),
+    path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome')
+];
+
+for (const p of paths) {
+    try {
+        if (fs.existsSync(p)) {
+            if (fs.statSync(p).isDirectory()) {
+                const found = findInDir(p);
+                if (found) return found;
+            } else {
+                console.log(`✅ [CHROME] Encontrado em caminho conhecido: ${p}`);
+                return p;
+            }
+        }
+    } catch (e) { }
+}
+
+function findInDir(baseDir) {
+    try {
+        if (!fs.existsSync(baseDir)) return null;
+        const findExecutable = (dir) => {
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+                const fullPath = path.join(dir, file);
+                const stat = fs.statSync(fullPath);
+                if (stat.isDirectory()) {
+                    const found = findExecutable(fullPath);
+                    if (found) return found;
+                } else if (file === 'chrome' || file === 'chromium' || file === 'google-chrome') {
+                    if (process.platform !== 'win32') {
+                        try {
+                            fs.accessSync(fullPath, fs.constants.X_OK);
                             return fullPath;
-                        }
+                        } catch (e) { }
+                    } else {
+                        return fullPath;
                     }
                 }
-                return null;
-            };
-            const found = findExecutable(baseDir);
-            if (found) {
-                console.log(`✅ [CHROME] Encontrado via busca recursiva em ${baseDir}: ${found}`);
-                return found;
             }
-        } catch (e) { }
-        return null;
-    }
+            return null;
+        };
+        const found = findExecutable(baseDir);
+        if (found) {
+            console.log(`✅ [CHROME] Encontrado via busca recursiva em ${baseDir}: ${found}`);
+            return found;
+        }
+    } catch (e) { }
+    return null;
+}
 
-    const foundInChromeData = findInDir(path.join(process.cwd(), 'chrome-data'));
-    if (foundInChromeData) return foundInChromeData;
+const foundInChromeData = findInDir(path.join(process.cwd(), 'chrome-data'));
+if (foundInChromeData) return foundInChromeData;
 
-    const foundInCache = findInDir(path.join(process.cwd(), '.cache', 'puppeteer'));
-    if (foundInCache) return foundInCache;
+const foundInCache = findInDir(path.join(process.cwd(), '.cache', 'puppeteer'));
+if (foundInCache) return foundInCache;
 
-    console.log('⚠️ [CHROME] Nenhum executável encontrado. Puppeteer tentará o padrão.');
-    return undefined;
+console.log('⚠️ [CHROME] Nenhum executável encontrado. Puppeteer tentará o padrão.');
+return undefined;
 }
 
 
