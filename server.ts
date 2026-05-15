@@ -1929,16 +1929,35 @@ async function ensureChromeAndStart() {
     
     try {
         const chromePathFile = path.join(process.cwd(), 'chrome-path.json');
-        if (!fs.existsSync(chromePathFile)) {
-            console.log('📡 [SISTEMA] Chrome não encontrado. Iniciando download em tempo real...');
-            // Importação dinâmica para não travar o carregamento inicial
+        let needsDownload = true;
+
+        if (fs.existsSync(chromePathFile)) {
+            const savedData = JSON.parse(fs.readFileSync(chromePathFile, 'utf8'));
+            if (savedData.path && fs.existsSync(savedData.path)) {
+                console.log(`✅ [SISTEMA] Chrome já configurado e válido em: ${savedData.path}`);
+                needsDownload = false;
+            } else {
+                console.log('⚠️ [SISTEMA] Caminho em chrome-path.json é inválido ou arquivo não existe.');
+            }
+        }
+
+        if (needsDownload) {
+            console.log('📡 [SISTEMA] Chrome não encontrado ou inválido. Iniciando download...');
             const { execSync } = await import('child_process');
-            execSync('node download-chrome.cjs', { stdio: 'inherit' });
-        } else {
-            console.log('✅ [SISTEMA] Chrome já configurado via chrome-path.json');
+            
+            try {
+                execSync('node download-chrome.cjs', { stdio: 'inherit' });
+            } catch (e) {
+                console.error('⚠️ [SISTEMA] Falha ao rodar download-chrome.cjs. Tentando npx como fallback...');
+                try {
+                    execSync('npx @puppeteer/browsers install chrome@stable', { stdio: 'inherit' });
+                } catch (e2) {
+                    console.error('💀 [SISTEMA] Falha total ao instalar Chrome via scripts.');
+                }
+            }
         }
     } catch (e: any) {
-        console.error('⚠️ [SISTEMA] Erro ao tentar baixar o Chrome:', e.message);
+        console.error('⚠️ [SISTEMA] Erro crítico na fase de preparação do Chrome:', e.message);
     }
 
     // Início staggered (escalonado) para economizar recursos
@@ -1948,3 +1967,4 @@ async function ensureChromeAndStart() {
 }
 
 ensureChromeAndStart();
+

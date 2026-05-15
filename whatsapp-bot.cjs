@@ -416,8 +416,10 @@ let qrSentToTelegram = false;
 // 🔍 Detecta automaticamente o caminho do Chrome no Linux (ShardCloud/VPS)
 function getChromePath() {
     if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-        console.log(`✅ [CHROME] Usando caminho da variável de ambiente: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
-        return process.env.PUPPETEER_EXECUTABLE_PATH;
+        if (fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+            console.log(`✅ [CHROME] Usando caminho da variável de ambiente: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+            return process.env.PUPPETEER_EXECUTABLE_PATH;
+        }
     }
 
     // 0. Tenta ler o caminho salvo pelo script de download
@@ -432,59 +434,89 @@ function getChromePath() {
         }
     } catch (e) {}
 
+    // 1. Tenta comandos do sistema (Linux/Mac)
+    if (process.platform !== 'win32') {
+        const { execSync } = require('child_process');
+        const commands = ['which google-chrome', 'which google-chrome-stable', 'which chromium', 'which chromium-browser'];
+        for (const cmd of commands) {
+            try {
+                const p = execSync(cmd).toString().trim();
+                if (p && fs.existsSync(p)) {
+                    console.log(`✅ [CHROME] Encontrado via comando '${cmd}': ${p}`);
+                    return p;
+                }
+            } catch (e) {}
+        }
+    }
+
     const paths = [
         '/usr/bin/google-chrome',
         '/usr/bin/google-chrome-stable',
         '/usr/bin/chromium-browser',
         '/usr/bin/chromium',
         '/snap/bin/chromium',
+        '/app/.cache/puppeteer',
         path.join(process.cwd(), 'chrome-data', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome'),
         path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome')
     ];
 
     for (const p of paths) {
-        if (fs.existsSync(p)) {
-            console.log(`✅ [CHROME] Encontrado em caminho conhecido: ${p}`);
-            return p;
-        }
+        try {
+            if (fs.existsSync(p)) {
+                if (fs.statSync(p).isDirectory()) {
+                    const found = findInDir(p);
+                    if (found) return found;
+                } else {
+                    console.log(`✅ [CHROME] Encontrado em caminho conhecido: ${p}`);
+                    return p;
+                }
+            }
+        } catch (e) {}
     }
     
-    // Busca dinâmica e recursiva na pasta chrome-data
-    try {
-        const searchDirs = [
-            path.join(process.cwd(), 'chrome-data'),
-            path.join(process.cwd(), '.cache', 'puppeteer')
-        ];
-        
-        for (const baseDir of searchDirs) {
-            if (fs.existsSync(baseDir)) {
-                const findExecutable = (dir) => {
-                    const files = fs.readdirSync(dir);
-                    for (const file of files) {
-                        const fullPath = path.join(dir, file);
-                        const stat = fs.statSync(fullPath);
-                        if (stat.isDirectory()) {
-                            const found = findExecutable(fullPath);
-                            if (found) return found;
-                        } else if (file === 'chrome' || file === 'chromium') {
+    function findInDir(baseDir) {
+        try {
+            if (!fs.existsSync(baseDir)) return null;
+            const findExecutable = (dir) => {
+                const files = fs.readdirSync(dir);
+                for (const file of files) {
+                    const fullPath = path.join(dir, file);
+                    const stat = fs.statSync(fullPath);
+                    if (stat.isDirectory()) {
+                        const found = findExecutable(fullPath);
+                        if (found) return found;
+                    } else if (file === 'chrome' || file === 'chromium' || file === 'google-chrome') {
+                        if (process.platform !== 'win32') {
+                            try {
+                                fs.accessSync(fullPath, fs.constants.X_OK);
+                                return fullPath;
+                            } catch (e) {}
+                        } else {
                             return fullPath;
                         }
                     }
-                    return null;
-                };
-
-                const found = findExecutable(baseDir);
-                if (found) {
-                    console.log(`✅ [CHROME] Encontrado via busca recursiva: ${found}`);
-                    return found;
                 }
+                return null;
+            };
+            const found = findExecutable(baseDir);
+            if (found) {
+                console.log(`✅ [CHROME] Encontrado via busca recursiva em ${baseDir}: ${found}`);
+                return found;
             }
-        }
-    } catch (e) {}
+        } catch (e) {}
+        return null;
+    }
+
+    const foundInChromeData = findInDir(path.join(process.cwd(), 'chrome-data'));
+    if (foundInChromeData) return foundInChromeData;
+
+    const foundInCache = findInDir(path.join(process.cwd(), '.cache', 'puppeteer'));
+    if (foundInCache) return foundInCache;
     
     console.log('⚠️ [CHROME] Nenhum executável encontrado. Puppeteer tentará o padrão.');
     return undefined;
 }
+
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
