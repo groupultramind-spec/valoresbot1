@@ -14,3 +14,9 @@ libpangocairo-1.0-0
 libpango-1.0-0
 libxshmfence1
 libgtk-3-0
+libicu-dev
+libgconf-2-4
+libxi6
+libxcursor1
+libxtst6
+libxss1

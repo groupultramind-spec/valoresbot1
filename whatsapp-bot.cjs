@@ -616,7 +616,9 @@ const client = new Client({
             '--disable-threaded-scrolling',
             '--disable-in-process-stack-traces',
             '--no-sandbox',
-            '--disable-setuid-sandbox'
+            '--disable-setuid-sandbox',
+            '--no-zygote',
+            '--single-process'
         ]
     }
 });
