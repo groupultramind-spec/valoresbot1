@@ -426,72 +426,64 @@ function getChromePath() {
         if (fs.existsSync(savedPathFile)) {
             const savedData = JSON.parse(fs.readFileSync(savedPathFile, 'utf8'));
             if (savedData.path && fs.existsSync(savedData.path)) {
-                console.log(`✅ [CHROME] Usando caminho salvo: ${savedData.path}`);
+                console.log(`✅ [CHROME] Usando caminho salvo em chrome-path.json: ${savedData.path}`);
                 return savedData.path;
             }
         }
     } catch (e) {}
+
     const paths = [
         '/usr/bin/google-chrome',
         '/usr/bin/google-chrome-stable',
         '/usr/bin/chromium-browser',
         '/usr/bin/chromium',
         '/snap/bin/chromium',
-        '/app/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome',
-        '/app.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome',
-        path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-146.0.7680.31', 'chrome-linux64', 'chrome')
+        path.join(process.cwd(), 'chrome-data', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome'),
+        path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome')
     ];
+
     for (const p of paths) {
         if (fs.existsSync(p)) {
-            console.log(`✅ [CHROME] Encontrado em: ${p}`);
+            console.log(`✅ [CHROME] Encontrado em caminho conhecido: ${p}`);
             return p;
         }
     }
     
-    // Busca dinâmica e recursiva na pasta de cache do puppeteer
+    // Busca dinâmica e recursiva na pasta chrome-data
     try {
-        const rootDir = process.cwd();
         const searchDirs = [
             path.join(process.cwd(), 'chrome-data'),
-            path.join('/tmp', 'chrome-data'),
-            path.join(rootDir, '.cache', 'puppeteer'),
-            path.join('/', 'app.cache', 'puppeteer')
+            path.join(process.cwd(), '.cache', 'puppeteer')
         ];
         
         for (const baseDir of searchDirs) {
             if (fs.existsSync(baseDir)) {
-                // Função auxiliar para busca recursiva
                 const findExecutable = (dir) => {
                     const files = fs.readdirSync(dir);
                     for (const file of files) {
                         const fullPath = path.join(dir, file);
-                        if (fs.statSync(fullPath).isDirectory()) {
+                        const stat = fs.statSync(fullPath);
+                        if (stat.isDirectory()) {
                             const found = findExecutable(fullPath);
                             if (found) return found;
-                        } else if (file === 'chrome' || file === 'chromium' || file === 'chrome.exe') {
-                            // Verifica se é um executável (no Linux)
-                            try {
-                                if (process.platform !== 'win32') fs.accessSync(fullPath, fs.constants.X_OK);
-                                return fullPath;
-                            } catch (e) { }
+                        } else if (file === 'chrome' || file === 'chromium') {
+                            return fullPath;
                         }
                     }
                     return null;
                 };
 
-                const chromePath = findExecutable(baseDir);
-                if (chromePath) {
-                    console.log(`✅ [CHROME] Encontrado recursivamente em: ${chromePath}`);
-                    return chromePath;
+                const found = findExecutable(baseDir);
+                if (found) {
+                    console.log(`✅ [CHROME] Encontrado via busca recursiva: ${found}`);
+                    return found;
                 }
             }
         }
-    } catch (e) {
-        console.log('⚠️ [CHROME] Erro na busca recursiva:', e.message);
-    }
+    } catch (e) {}
     
-    console.log('⚠️ [CHROME] Usando caminho padrão do puppeteer (pode falhar se não instalado).');
-    return undefined; // Deixa puppeteer decidir
+    console.log('⚠️ [CHROME] Nenhum executável encontrado. Puppeteer tentará o padrão.');
+    return undefined;
 }
 
 const client = new Client({

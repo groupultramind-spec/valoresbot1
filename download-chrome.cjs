@@ -3,8 +3,9 @@ const path = require('path');
 const fs = require('fs');
 
 async function download() {
-    const cacheDir = path.join('/tmp', 'chrome-data');
-    const version = '146.0.7680.31'; // A versão que o Puppeteer 22 pede
+    // No ShardCloud, a pasta /app/chrome-data é persistente e segura
+    const cacheDir = path.join(process.cwd(), 'chrome-data');
+    const version = 'latest'; 
     
     console.log('🚀 [SISTEMA] Iniciando download nativo do Chrome...');
     console.log(`📂 [SISTEMA] Destino: ${cacheDir}`);
@@ -36,19 +37,19 @@ async function download() {
     } catch (error) {
         console.error('❌ [SISTEMA] Falha no download nativo:', error.message);
         
-        // Tenta baixar a versão estável se a específica falhar
+        // Tenta baixar o Chromium se o Chrome falhar
         try {
-            console.log('🔄 [SISTEMA] Tentando baixar versão estável como fallback...');
+            console.log('🔄 [SISTEMA] Tentando baixar Chromium como fallback...');
             const fallback = await install({
-                browser: Browser.CHROME,
+                browser: Browser.CHROMIUM,
                 cacheDir: cacheDir,
                 platform: detectBrowserPlatform(),
                 buildId: 'latest'
             });
-            console.log('✅ [SISTEMA] Chrome estável instalado!');
+            console.log('✅ [SISTEMA] Chromium instalado!');
             fs.writeFileSync(path.join(process.cwd(), 'chrome-path.json'), JSON.stringify({ path: fallback.executablePath }));
         } catch (e) {
-            console.error('💀 [SISTEMA] Erro crítico: Não foi possível instalar o Chrome.');
+            console.error('💀 [SISTEMA] Erro crítico: Não foi possível instalar nenhum navegador.');
         }
     }
 }
