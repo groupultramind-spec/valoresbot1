@@ -875,30 +875,48 @@ async function showPixManualMenu(userId: number, messageId?: number) {
 }
 
 function resetBotSession(id: string) {
+  console.log(`🔄 [SISTEMA] Iniciando reset total da sessão: ${id}`);
   stopBot(id);
+
+  // Força o encerramento de processos do Chrome órfãos no Linux
+  try {
+    if (process.platform !== 'win32') {
+      const { execSync } = require('child_process');
+      execSync('pkill -f chrome || true');
+      console.log('🛡️ [SISTEMA] Processos do Chrome encerrados para limpeza.');
+    }
+  } catch (e) { }
+
   const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${id}`);
   const qrMsgFile = path.join(process.cwd(), `bot-qr-msg-${id}.json`);
+  const statusFile = path.join(process.cwd(), `bot-status-${id}.json`);
 
-  const attemptReset = (retries = 10) => {
+  const attemptReset = (retries = 12) => {
     try {
       if (fs.existsSync(sessionPath)) {
+        console.log(`🗑️ [SISTEMA] Removendo pasta de sessão: ${sessionPath}`);
         fs.rmSync(sessionPath, { recursive: true, force: true });
       }
-      if (fs.existsSync(qrMsgFile)) {
-        fs.unlinkSync(qrMsgFile);
+      if (fs.existsSync(qrMsgFile)) fs.unlinkSync(qrMsgFile);
+      if (fs.existsSync(statusFile)) {
+        // Marca como desconectado para o watchdog não interferir
+        fs.writeFileSync(statusFile, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now() }));
       }
-      startBot(id);
-    } catch (e) {
+      
+      console.log(`✅ [SISTEMA] Sessão ${id} limpa com sucesso. Reiniciando robô...`);
+      startBot(id, 2000);
+    } catch (e: any) {
       if (retries > 0) {
-        setTimeout(() => attemptReset(retries - 1), 500);
+        console.log(`⏳ [SISTEMA] Pasta de sessão ocupada, tentando novamente em 1s... (${retries} tentativas restantes)`);
+        setTimeout(() => attemptReset(retries - 1), 1000);
       } else {
-        console.log(`⚠️ [SISTEMA] Falha ao apagar sessão após tentativas. Reiniciando de qualquer forma.`);
-        startBot(id);
+        console.error(`❌ [SISTEMA] Erro crítico ao limpar sessão ${id}:`, e.message);
+        startBot(id, 2000);
       }
     }
   };
 
-  setTimeout(attemptReset, 500); // Give initial 500ms for process to close
+  setTimeout(attemptReset, 1500); // Aguarda o encerramento completo dos processos
 }
 
 if (fs.existsSync(configPath)) {
