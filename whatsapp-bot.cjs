@@ -428,12 +428,25 @@ function getChromePath() {
         const savedPathFile = path.join(process.cwd(), 'chrome-path.json');
         if (fs.existsSync(savedPathFile)) {
             const savedData = JSON.parse(fs.readFileSync(savedPathFile, 'utf8'));
-            if (savedData.path && fs.existsSync(savedData.path)) {
-                console.log(`✅ [CHROME] Usando caminho salvo em chrome-path.json: ${savedData.path}`);
-                return savedData.path;
+            if (savedData.path) {
+                if (fs.existsSync(savedData.path)) {
+                    console.log(`✅ [CHROME] Usando caminho salvo em chrome-path.json: ${savedData.path}`);
+                    try {
+                        if (process.platform !== 'win32') {
+                            fs.accessSync(savedData.path, fs.constants.X_OK);
+                            console.log(`🔓 [CHROME] Permissão de execução OK.`);
+                        }
+                    } catch (e) {
+                        console.log(`⚠️ [CHROME] Erro de permissão no executável: ${e.message}. Tentando corrigir...`);
+                        try { fs.chmodSync(savedData.path, '755'); } catch (_) {}
+                    }
+                    return savedData.path;
+                } else {
+                    console.log(`⚠️ [CHROME] Caminho salvo não existe: ${savedData.path}`);
+                }
             }
         }
-    } catch (e) { }
+    } catch (e) { console.log(`⚠️ [CHROME] Erro ao ler chrome-path.json: ${e.message}`); }
 
     // 1. Tenta comandos do sistema (Linux/Mac)
     if (process.platform !== 'win32') {
@@ -451,8 +464,8 @@ function getChromePath() {
     }
 
     const paths = [
-        '/usr/bin/google-chrome',
         '/usr/bin/google-chrome-stable',
+        '/usr/bin/google-chrome',
         '/usr/bin/chromium-browser',
         '/usr/bin/chromium',
         '/snap/bin/chromium',
@@ -519,16 +532,20 @@ function getChromePath() {
 }
 
 
+console.log(`🐧 [SISTEMA] Iniciando bot em ambiente: ${process.platform} (${process.arch})`);
+
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
     authTimeoutMs: 0,
     qrTimeoutMs: 0,
     takeoverOnConflict: true,
     takeoverTimeoutMs: 0,
+    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     puppeteer: {
-        headless: true,
+        headless: 'new',
         executablePath: getChromePath(),
         protocolTimeout: 0,
+        timeout: 60000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -536,6 +553,8 @@ const client = new Client({
             '--disable-gpu',
             '--no-first-run',
             '--no-zygote',
+            '--single-process',
+            '--remote-debugging-port=9222',
             '--disable-extensions',
             '--disable-accelerated-2d-canvas',
             '--disable-software-rasterizer',
@@ -561,10 +580,12 @@ const client = new Client({
             '--disable-web-security',
             '--disable-site-isolation-trials',
             '--disk-cache-size=1',
-            '--media-cache-size=1'
+            '--media-cache-size=1',
+            '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ]
     }
 });
+
 
 client.on('qr', async (qr) => {
     if (isBotReady || qrSentToTelegram) return;
