@@ -469,11 +469,12 @@ function getBrowserStrategies() {
         sysPaths.forEach(p => strategies.push({ name: 'SISTEMA', path: p }));
     }
 
-    // 3. Cache do Puppeteer (Instalação automática)
+    // 3. Cache oficial do Puppeteer (npx puppeteer browsers install chrome)
     const os = require('os');
-    const localCaches = [
-        path.join(process.cwd(), '.cache', 'puppeteer'),
-        path.join(os.homedir(), '.cache', 'puppeteer')
+    const puppeteerCacheDirs = [
+        '/app/.cache/puppeteer',           // ShardCloud Linux (path absoluto)
+        path.join(os.homedir(), '.cache', 'puppeteer'), // Linux genérico
+        path.join(process.cwd(), '.cache', 'puppeteer') // Local relativo
     ];
     const findInCache = (dir) => {
         const res = [];
@@ -490,7 +491,7 @@ function getBrowserStrategies() {
         } catch (e) { }
         return res;
     };
-    for (const cache of localCaches) {
+    for (const cache of puppeteerCacheDirs) {
         findInCache(cache).forEach(p => strategies.push({ name: 'CACHE_PUPPETEER', path: p }));
     }
 

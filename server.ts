@@ -1968,39 +1968,72 @@ async function ensureChromeAndStart() {
   console.log('🚀 [SISTEMA] Verificando disponibilidade do Chrome...');
 
   try {
+    const { execSync } = await import('child_process');
     const chromePathFile = path.join(process.cwd(), 'chrome-path.json');
-    let needsDownload = true;
 
+    // Verifica se já existe um Chrome válido E com icudtl.dat
+    let needsDownload = true;
     if (fs.existsSync(chromePathFile)) {
-      const savedData = JSON.parse(fs.readFileSync(chromePathFile, 'utf8'));
-      if (savedData.path && fs.existsSync(savedData.path)) {
-        // Validação crítica: verifica se o icudtl.dat está presente (sem ele, o Chrome trava)
-        const icuCheck = path.join(path.dirname(savedData.path), 'icudtl.dat');
-        if (fs.existsSync(icuCheck)) {
-          console.log(`✅ [SISTEMA] Chrome válido e completo (com icudtl.dat) em: ${savedData.path}`);
-          needsDownload = false;
-        } else {
-          console.log(`⚠️ [SISTEMA] Chrome em ${savedData.path} está INCOMPLETO (icudtl.dat ausente). Forçando novo download...`);
-          // Apaga o cache antigo inválido para forçar o re-download
-          fs.unlinkSync(chromePathFile);
+      try {
+        const savedData = JSON.parse(fs.readFileSync(chromePathFile, 'utf8'));
+        if (savedData.path && fs.existsSync(savedData.path)) {
+          const icuCheck = path.join(path.dirname(savedData.path), 'icudtl.dat');
+          if (fs.existsSync(icuCheck)) {
+            console.log(`✅ [SISTEMA] Chrome válido e completo (com icudtl.dat) em: ${savedData.path}`);
+            needsDownload = false;
+          } else {
+            console.log('⚠️ [SISTEMA] Chrome encontrado mas SEM icudtl.dat. Forçando re-download...');
+            fs.unlinkSync(chromePathFile);
+          }
         }
-      } else {
-        console.log('⚠️ [SISTEMA] Caminho em chrome-path.json é inválido ou arquivo não existe.');
+      } catch (e) { /* arquivo inválido, faz o download */ }
+    }
+
+    // Verifica também se o cache do Puppeteer já tem Chrome instalado
+    const puppeteerCacheDir = process.platform === 'linux' ? '/app/.cache/puppeteer' : path.join(process.cwd(), '.cache', 'puppeteer');
+    if (needsDownload && fs.existsSync(puppeteerCacheDir)) {
+      // Busca por executável do Chrome no cache do Puppeteer
+      const findChrome = (dir: string, depth = 0): string | null => {
+        if (depth > 6) return null;
+        try {
+          for (const f of fs.readdirSync(dir)) {
+            const fp = path.join(dir, f);
+            if ((f === 'chrome' || f === 'chrome.exe') && fs.statSync(fp).isFile()) return fp;
+            if (fs.statSync(fp).isDirectory()) {
+              const found = findChrome(fp, depth + 1);
+              if (found) return found;
+            }
+          }
+        } catch (e) {}
+        return null;
+      };
+      const cached = findChrome(puppeteerCacheDir);
+      if (cached) {
+        console.log(`✅ [SISTEMA] Chrome encontrado no cache do Puppeteer: ${cached}`);
+        needsDownload = false;
       }
     }
 
     if (needsDownload) {
-      console.log('📡 [SISTEMA] Chrome não encontrado ou inválido. Iniciando download...');
-      const { execSync } = await import('child_process');
-
+      console.log('📡 [SISTEMA] Instalando Chrome via Puppeteer (comando oficial)...');
+      console.log('⏳ [SISTEMA] Aguarde, isso pode levar alguns minutos...');
       try {
-        execSync('node download-chrome.cjs', { stdio: 'inherit' });
-      } catch (e) {
-        console.error('⚠️ [SISTEMA] Falha ao rodar download-chrome.cjs. Tentando npx como fallback...');
+        // Comando oficial do Puppeteer — instala no path correto automaticamente
+        execSync('npx puppeteer browsers install chrome', {
+          stdio: 'inherit',
+          timeout: 300000 // 5 minutos
+        });
+        console.log('✅ [SISTEMA] Chrome instalado com sucesso via Puppeteer!');
+      } catch (e: any) {
+        console.error('⚠️ [SISTEMA] Falha ao instalar Chrome via Puppeteer. Tentando Chromium...');
         try {
-          execSync('npx @puppeteer/browsers install chrome@stable', { stdio: 'inherit' });
-        } catch (e2) {
-          console.error('💀 [SISTEMA] Falha total ao instalar Chrome via scripts.');
+          execSync('npx puppeteer browsers install chromium', {
+            stdio: 'inherit',
+            timeout: 300000
+          });
+          console.log('✅ [SISTEMA] Chromium instalado como fallback!');
+        } catch (e2: any) {
+          console.error('💀 [SISTEMA] Falha total ao instalar navegador:', e2.message);
         }
       }
     }
