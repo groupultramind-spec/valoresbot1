@@ -60,6 +60,34 @@ async function download() {
                 buildId: chromiumBuildId
             });
             console.log('✅ [SISTEMA] Chromium instalado!');
+            
+            // Verifica se o ICU está lá
+            const execDir = path.dirname(fallback.executablePath);
+            const icuFile = path.join(execDir, 'icudtl.dat');
+            if (!fs.existsSync(icuFile)) {
+                console.log('⚠️ [SISTEMA] icudtl.dat ausente no Chromium. Tentando localizar no cache...');
+                // Busca profunda por icudtl.dat para corrigir o erro de ICU
+                const findICU = (dir) => {
+                    const files = fs.readdirSync(dir);
+                    for (const f of files) {
+                        const fp = path.join(dir, f);
+                        if (f === 'icudtl.dat') return fp;
+                        if (fs.statSync(fp).isDirectory()) {
+                            const found = findICU(fp);
+                            if (found) return found;
+                        }
+                    }
+                    return null;
+                };
+                const foundIcu = findICU(cacheDir);
+                if (foundIcu) {
+                    console.log(`✨ [SISTEMA] icudtl.dat encontrado em: ${foundIcu}. Copiando...`);
+                    fs.copyFileSync(foundIcu, icuFile);
+                } else {
+                    console.log('❌ [SISTEMA] Não foi possível encontrar icudtl.dat no cache.');
+                }
+            }
+
             console.log(`📍 [SISTEMA] Executável: ${fallback.executablePath}`);
             fs.writeFileSync(path.join(process.cwd(), 'chrome-path.json'), JSON.stringify({ path: fallback.executablePath }));
         } catch (e) {

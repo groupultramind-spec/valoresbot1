@@ -603,6 +603,7 @@ const client = new Client({
             '--disable-gpu',
             '--no-zygote',
             '--no-first-run',
+            '--single-process', // Re-adicionado para corrigir erro de descritor de ICU
             '--disable-extensions',
             '--disable-background-networking',
             '--disable-default-apps',
