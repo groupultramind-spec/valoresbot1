@@ -1,8 +1,8 @@
 DISPLAY_NAME=valoresreceber1
-DESCRIPTION=Portal de Valores com Bot de WhatsApp
+DESCRIPTION=
 LANGUAGE=node
 MAIN=server.ts
-MEMORY=2048
+MEMORY=3048
 VERSION=latest
 SUBDOMAIN=valoresreceber1
 CUSTOM_COMMAND=npm install --omit=dev && npx tsx server.ts
