@@ -69,5 +69,11 @@ async function download() {
     }
 }
 
-download();
+download().then(() => {
+    console.log('🏁 [SISTEMA] Script de download finalizado.');
+}).catch((err) => {
+    console.error('💀 [SISTEMA] Erro fatal no script de download:', err);
+    process.exit(1);
+});
+
 
