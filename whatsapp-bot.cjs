@@ -456,12 +456,15 @@ function getChromePath() {
             '/usr/bin/google-chrome',
             '/usr/bin/chromium-browser',
             '/usr/bin/chromium',
-            '/snap/bin/chromium',
-            '/usr/bin/brave-browser'
+            '/app/.apt/usr/bin/chromium',
+            '/usr/local/bin/google-chrome'
         ];
+        console.log('🔍 [DIAGNÓSTICO] Verificando caminhos de sistema...');
         for (const sysPath of systemPaths) {
-            if (fs.existsSync(sysPath)) {
-                console.log(`🚀 [CHROME] Detectado Chrome do Sistema (ShardCloud Path): ${sysPath}`);
+            const exists = fs.existsSync(sysPath);
+            console.log(`   - ${sysPath}: ${exists ? '✅ EXISTE' : '❌ NÃO ENCONTRADO'}`);
+            if (exists) {
+                console.log(`🚀 [CHROME] Selecionado Chrome do Sistema: ${sysPath}`);
                 return sysPath;
             }
         }
@@ -481,13 +484,20 @@ function getChromePath() {
             const savedData = JSON.parse(fs.readFileSync(savedPathFile, 'utf8'));
             if (savedData.path && fs.existsSync(savedData.path)) {
                 console.log(`✅ [CHROME] Usando caminho salvo em chrome-path.json: ${savedData.path}`);
+                
+                // Verificação de integridade ICU
+                const icuPath = path.join(path.dirname(savedData.path), 'icudtl.dat');
+                if (!fs.existsSync(icuPath)) {
+                    console.log('⚠️ [ALERTA] Arquivo icudtl.dat NÃO ENCONTRADO na pasta do Chrome! Isso causará o erro de ICU.');
+                } else {
+                    console.log('💎 [CHROME] Arquivo icudtl.dat verificado com sucesso.');
+                }
+
                 try {
                     if (process.platform !== 'win32') {
-                        fs.accessSync(savedData.path, fs.constants.X_OK);
+                        fs.chmodSync(savedData.path, '755');
                     }
-                } catch (e) {
-                    try { fs.chmodSync(savedData.path, '755'); } catch (_) { }
-                }
+                } catch (e) { }
                 return savedData.path;
             }
         }
