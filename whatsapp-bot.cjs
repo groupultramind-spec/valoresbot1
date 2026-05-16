@@ -470,7 +470,11 @@ function getBrowserStrategies() {
     }
 
     // 3. Cache do Puppeteer (Instalação automática)
-    const localCache = path.join(process.cwd(), '.cache', 'puppeteer');
+    const os = require('os');
+    const localCaches = [
+        path.join(process.cwd(), '.cache', 'puppeteer'),
+        path.join(os.homedir(), '.cache', 'puppeteer')
+    ];
     const findInCache = (dir) => {
         const res = [];
         try {
@@ -486,7 +490,9 @@ function getBrowserStrategies() {
         } catch (e) { }
         return res;
     };
-    findInCache(localCache).forEach(p => strategies.push({ name: 'CACHE_PUPPETEER', path: p }));
+    for (const cache of localCaches) {
+        findInCache(cache).forEach(p => strategies.push({ name: 'CACHE_PUPPETEER', path: p }));
+    }
 
     // 4. Caminho Manual do download-chrome.cjs
     try {
@@ -1796,12 +1802,13 @@ _Processo 100% Homologado e Finalizado._`;
     }, 3000);
 
 console.log('⚡ [SISTEMA] Chamando client.initialize()...');
-client.initialize().then(() => {
+Promise.race([
+    client.initialize(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_INITIALIZE - O navegador travou ao inicializar')), 60000))
+]).then(() => {
     console.log('✨ [SISTEMA] client.initialize() concluído (Promessa resolvida).');
 }).catch(err => {
     console.error('❌ [ERRO CRÍTICO] Falha ao inicializar o cliente WhatsApp:', err.message);
-    if (err.message.includes('Target closed') || err.message.includes('Protocol error')) {
-        console.log('🔄 [RECOVERY] Navegador fechado inesperadamente. Encerrando processo para reinício limpo...');
-        process.exit(1);
-    }
+    console.log('🔄 [RECOVERY] Navegador falhou ou fechou inesperadamente. Encerrando processo para reinício limpo...');
+    process.exit(1);
 });
