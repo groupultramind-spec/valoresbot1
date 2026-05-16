@@ -1,3 +1,5 @@
+chromium-browser
+google-chrome-stable
 libnss3
 libatk1.0-0
 libatk-bridge2.0-0
@@ -20,3 +22,4 @@ libxi6
 libxcursor1
 libxtst6
 libxss1
+xvfb
