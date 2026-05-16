@@ -485,10 +485,53 @@ function getChromePath() {
             if (savedData.path && fs.existsSync(savedData.path)) {
                 console.log(`✅ [CHROME] Usando caminho salvo em chrome-path.json: ${savedData.path}`);
                 
-                // Verificação de integridade ICU
-                const icuPath = path.join(path.dirname(savedData.path), 'icudtl.dat');
+                // --- RESGATE DE ICU (ICUDTL.DAT) ---
+                const chromeDir = path.dirname(savedData.path);
+                const icuPath = path.join(chromeDir, 'icudtl.dat');
+                
                 if (!fs.existsSync(icuPath)) {
-                    console.log('⚠️ [ALERTA] Arquivo icudtl.dat NÃO ENCONTRADO na pasta do Chrome! Isso causará o erro de ICU.');
+                    console.log('⚠️ [ALERTA] icudtl.dat AUSENTE! Iniciando busca de emergência no servidor...');
+                    
+                    const searchPaths = [
+                        process.cwd(),
+                        '/usr/lib',
+                        '/usr/share',
+                        '/app'
+                    ];
+
+                    let foundPath = null;
+                    const findICU = (dir, depth = 0) => {
+                        if (depth > 4 || foundPath) return; // Limita profundidade
+                        try {
+                            const files = fs.readdirSync(dir);
+                            for (const f of files) {
+                                const fp = path.join(dir, f);
+                                if (f === 'icudtl.dat') {
+                                    foundPath = fp;
+                                    return;
+                                }
+                                if (fs.statSync(fp).isDirectory() && !f.startsWith('.')) {
+                                    findICU(fp, depth + 1);
+                                }
+                            }
+                        } catch (e) { }
+                    };
+
+                    for (const s of searchPaths) {
+                        if (fs.existsSync(s)) findICU(s);
+                        if (foundPath) break;
+                    }
+
+                    if (foundPath) {
+                        console.log(`✨ [RESGATE] Arquivo encontrado em: ${foundPath}. Copiando para ${icuPath}`);
+                        try {
+                            fs.copyFileSync(foundPath, icuPath);
+                        } catch (e) {
+                            console.log(`❌ [RESGATE] Erro ao copiar: ${e.message}`);
+                        }
+                    } else {
+                        console.log('💀 [RESGATE] Não foi possível encontrar icudtl.dat em lugar nenhum.');
+                    }
                 } else {
                     console.log('💎 [CHROME] Arquivo icudtl.dat verificado com sucesso.');
                 }
