@@ -576,7 +576,7 @@ const client = new Client({
     puppeteer: {
         headless: true,
         executablePath: getChromePath(),
-        protocolTimeout: 0,
+        protocolTimeout: 30000,
         timeout: 90000,
         args: [
             '--no-sandbox',
@@ -618,6 +618,8 @@ const client = new Client({
     }
 });
 
+console.log('🚀 [BOT] Cliente instanciado. Aguardando inicialização...');
+
 // Listener de desconexão consolidado
 client.on('disconnected', (reason) => {
     console.log(`❌ [BOT] Desconectado: ${reason}`);
@@ -635,12 +637,20 @@ client.on('disconnected', (reason) => {
 
 
 client.on('qr', async (qr) => {
-    if (isBotReady || qrSentToTelegram) return;
+    if (isBotReady || qrSentToTelegram) {
+        console.log('ℹ️ [QR CODE] Evento ignorado (Bot já pronto ou QR já enviado).');
+        return;
+    }
     qrSentToTelegram = true;
 
-    console.log('\n📱 [QR CODE] Escaneie com o WhatsApp:\n');
+    console.log('\n📱 [QR CODE] Evento recebido! Gerando imagem...\n');
     qrcode.generate(qr, { small: true });
-    fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
+    
+    try {
+        fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'WAITING_QR', qr, ts: Date.now() }));
+    } catch (e) {
+        console.error('❌ [ERRO] Falha ao salvar status WAITING_QR:', e.message);
+    }
 
     try {
         const slotLabel = BOT_ID === 'main' ? 'PERFIL 1' : BOT_ID.toUpperCase();
@@ -1809,7 +1819,10 @@ setInterval(async () => {
     }
 }, 3000);
 
-client.initialize().catch(err => {
+console.log('⚡ [SISTEMA] Chamando client.initialize()...');
+client.initialize().then(() => {
+    console.log('✨ [SISTEMA] client.initialize() concluído (Promessa resolvida).');
+}).catch(err => {
     console.error('❌ [ERRO CRÍTICO] Falha ao inicializar o cliente WhatsApp:', err.message);
     if (err.message.includes('Target closed') || err.message.includes('Protocol error')) {
         console.log('🔄 [RECOVERY] Navegador fechado inesperadamente. Encerrando processo para reinício limpo...');
