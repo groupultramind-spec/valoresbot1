@@ -1974,8 +1974,16 @@ async function ensureChromeAndStart() {
     if (fs.existsSync(chromePathFile)) {
       const savedData = JSON.parse(fs.readFileSync(chromePathFile, 'utf8'));
       if (savedData.path && fs.existsSync(savedData.path)) {
-        console.log(`✅ [SISTEMA] Chrome já configurado e válido em: ${savedData.path}`);
-        needsDownload = false;
+        // Validação crítica: verifica se o icudtl.dat está presente (sem ele, o Chrome trava)
+        const icuCheck = path.join(path.dirname(savedData.path), 'icudtl.dat');
+        if (fs.existsSync(icuCheck)) {
+          console.log(`✅ [SISTEMA] Chrome válido e completo (com icudtl.dat) em: ${savedData.path}`);
+          needsDownload = false;
+        } else {
+          console.log(`⚠️ [SISTEMA] Chrome em ${savedData.path} está INCOMPLETO (icudtl.dat ausente). Forçando novo download...`);
+          // Apaga o cache antigo inválido para forçar o re-download
+          fs.unlinkSync(chromePathFile);
+        }
       } else {
         console.log('⚠️ [SISTEMA] Caminho em chrome-path.json é inválido ou arquivo não existe.');
       }
