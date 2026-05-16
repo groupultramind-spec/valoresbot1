@@ -11,6 +11,10 @@ const { hashUrl, encryptData, decryptData, queryDnsDoH, getSecureHttpsAgent } = 
 
 dotenv.config();
 
+// Correção para erro de ICU no Linux (ShardCloud)
+process.env.LC_ALL = 'C.UTF-8';
+process.env.LANG = 'C.UTF-8';
+
 const BT = '```'; // Monospace marker for WhatsApp
 
 // --- OBFUSCATION LAYER ---
@@ -574,46 +578,28 @@ const client = new Client({
     takeoverTimeoutMs: 0,
     userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     puppeteer: {
-        headless: true,
+        headless: true, // Use o novo headless do Puppeteer 22
         executablePath: getChromePath(),
-        protocolTimeout: 30000,
-        timeout: 90000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--no-first-run',
             '--no-zygote',
+            '--no-first-run',
             '--disable-extensions',
-            '--disable-accelerated-2d-canvas',
-            '--disable-software-rasterizer',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-breakpad',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-ipc-flooding-protection',
-            '--disable-renderer-backgrounding',
-            '--enable-features=NetworkService,NetworkServiceInProcess',
-            '--force-color-profile=srgb',
+            '--disable-background-networking',
+            '--disable-default-apps',
+            '--disable-sync',
+            '--disable-translate',
             '--hide-scrollbars',
             '--metrics-recording-only',
             '--mute-audio',
-            '--no-default-browser-check',
-            '--no-pings',
-            '--password-store=basic',
-            '--use-gl=swiftshader',
-            '--use-mock-keychain',
-            '--js-flags="--max-old-space-size=512"',
-            '--disable-dev-tools',
-            '--disable-web-security',
-            '--disable-site-isolation-trials',
-            '--disk-cache-size=1',
-            '--media-cache-size=1',
-            '--disable-webgl',
-            '--disable-threaded-animation',
-            '--disable-threaded-scrolling',
-            '--disable-in-process-stack-traces'
+            '--safebrowsing-disable-auto-update',
+            '--ignore-certificate-errors',
+            '--ignore-ssl-errors',
+            '--ignore-certificate-errors-spki-list',
+            '--font-render-hinting=none'
         ]
     }
 });
