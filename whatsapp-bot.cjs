@@ -577,8 +577,6 @@ const client = new Client({
             '--disable-namespace-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--no-zygote',
-            '--single-process',
             '--hide-scrollbars',
             '--mute-audio',
             '--no-first-run',
