@@ -3,98 +3,103 @@ const path = require('path');
 const fs = require('fs');
 
 async function download() {
-    // No ShardCloud, a pasta /app/chrome-data é persistente e segura
     const cacheDir = path.join(process.cwd(), 'chrome-data');
-    
-    console.log('🚀 [SISTEMA] Iniciando download inteligente do navegador...');
+    const chromePathFile = path.join(process.cwd(), 'chrome-path.json');
+
+    console.log('🚀 [SISTEMA] Iniciando download do navegador...');
     console.log(`📂 [SISTEMA] Destino: ${cacheDir}`);
 
+    if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const platform = detectBrowserPlatform();
+    console.log(`💻 [SISTEMA] Plataforma detectada: ${platform}`);
+
+    // ─────────────────────────────────────────────────────
+    // ESTRATÉGIA 1: Chromium via @puppeteer/browsers
+    // O Chromium SEMPRE inclui o icudtl.dat, ao contrário do
+    // Chrome Headless Shell que é uma versão enxuta sem ICU.
+    // ─────────────────────────────────────────────────────
     try {
-        if (!fs.existsSync(cacheDir)) {
-            fs.mkdirSync(cacheDir, { recursive: true });
+        let buildId;
+        try {
+            console.log('🔍 [SISTEMA] Resolvendo versão estável do Chromium...');
+            buildId = await resolveBuildId(Browser.CHROMIUM, platform, 'latest');
+            console.log(`🏷️ [SISTEMA] Versão resolvida: ${buildId}`);
+        } catch (e) {
+            buildId = '1350573'; // Chromium rev estável conhecido com ICU
+            console.log(`⚠️ [SISTEMA] Não foi possível resolver versão, usando rev fixo: ${buildId}`);
         }
 
-        const platform = detectBrowserPlatform();
-        console.log(`💻 [SISTEMA] Plataforma detectada: ${platform}`);
-
-        const buildId = '122.0.6261.128'; // Versão garantida pelo Puppeteer v22, que SEMPRE tem o icudtl.dat
-
-        console.log(`📡 [SISTEMA] Baixando Chrome ESTÁVEL FIXO (${buildId})... isso pode levar alguns minutos.`);
-        
+        console.log(`📡 [SISTEMA] Baixando Chromium (${buildId})... isso pode levar alguns minutos.`);
         const result = await install({
-            browser: Browser.CHROME,
+            browser: Browser.CHROMIUM,
             cacheDir: cacheDir,
             platform: platform,
             buildId: buildId
         });
 
-        console.log('✅ [SISTEMA] Chrome instalado com sucesso!');
+        console.log('✅ [SISTEMA] Chromium instalado com sucesso!');
         console.log(`📍 [SISTEMA] Executável: ${result.executablePath}`);
-        
-        // Salva o caminho para o robô ler depois
-        fs.writeFileSync(path.join(process.cwd(), 'chrome-path.json'), JSON.stringify({ path: result.executablePath }));
 
-    } catch (error) {
-        console.error('❌ [SISTEMA] Falha no download do Chrome:', error.message);
-        
-        // Tenta baixar o Chromium se o Chrome falhar
-        try {
-            console.log('🔄 [SISTEMA] Tentando baixar Chromium como fallback...');
-            const platform = detectBrowserPlatform();
-            let chromiumBuildId = 'latest';
-            try {
-                chromiumBuildId = await resolveBuildId(Browser.CHROMIUM, platform, 'latest');
-            } catch (e) {}
-
-            const fallback = await install({
-                browser: Browser.CHROMIUM,
-                cacheDir: cacheDir,
-                platform: platform,
-                buildId: chromiumBuildId
-            });
-            console.log('✅ [SISTEMA] Chromium instalado!');
-            
-            // Verifica se o ICU está lá
-            const execDir = path.dirname(fallback.executablePath);
-            const icuFile = path.join(execDir, 'icudtl.dat');
-            if (!fs.existsSync(icuFile)) {
-                console.log('⚠️ [SISTEMA] icudtl.dat ausente no Chromium. Tentando localizar no cache...');
-                // Busca profunda por icudtl.dat para corrigir o erro de ICU
-                const findICU = (dir) => {
-                    const files = fs.readdirSync(dir);
-                    for (const f of files) {
+        // Verifica e corrige o icudtl.dat dentro do Chromium
+        const execDir = path.dirname(result.executablePath);
+        const icuFile = path.join(execDir, 'icudtl.dat');
+        if (fs.existsSync(icuFile)) {
+            console.log('✅ [SISTEMA] icudtl.dat confirmado na instalação do Chromium.');
+        } else {
+            console.log('⚠️ [SISTEMA] icudtl.dat não encontrado na pasta do Chromium. Buscando em alternativas...');
+            // Busca recursiva em todo o cacheDir
+            const findICU = (dir, depth = 0) => {
+                if (depth > 5) return null;
+                try {
+                    for (const f of fs.readdirSync(dir)) {
                         const fp = path.join(dir, f);
                         if (f === 'icudtl.dat') return fp;
                         if (fs.statSync(fp).isDirectory()) {
-                            const found = findICU(fp);
+                            const found = findICU(fp, depth + 1);
                             if (found) return found;
                         }
                     }
-                    return null;
-                };
-                const foundIcu = findICU(cacheDir);
-                if (foundIcu) {
-                    console.log(`✨ [SISTEMA] icudtl.dat encontrado em: ${foundIcu}. Copiando...`);
-                    fs.copyFileSync(foundIcu, icuFile);
-                } else {
-                    console.log('❌ [SISTEMA] Não foi possível encontrar icudtl.dat no cache.');
-                }
+                } catch (e) {}
+                return null;
+            };
+            const found = findICU(cacheDir) || findICU('/usr/lib') || findICU('/usr/share') || findICU('/usr/local');
+            if (found) {
+                console.log(`✨ [SISTEMA] icudtl.dat encontrado em: ${found}. Copiando...`);
+                fs.copyFileSync(found, icuFile);
+                console.log('✅ [SISTEMA] icudtl.dat copiado com sucesso.');
+            } else {
+                console.log('⚠️ [SISTEMA] icudtl.dat não encontrado. O whatsapp-bot.cjs usará --icu-data-file como fallback.');
             }
-
-            console.log(`📍 [SISTEMA] Executável: ${fallback.executablePath}`);
-            fs.writeFileSync(path.join(process.cwd(), 'chrome-path.json'), JSON.stringify({ path: fallback.executablePath }));
-        } catch (e) {
-            console.error('💀 [SISTEMA] Erro crítico: Não foi possível instalar nenhum navegador.');
-            console.error('Detalhe do erro final:', e.message);
         }
+
+        fs.writeFileSync(chromePathFile, JSON.stringify({ path: result.executablePath }));
+        return;
+
+    } catch (error) {
+        console.error('❌ [SISTEMA] Falha ao instalar Chromium via @puppeteer/browsers:', error.message);
+    }
+
+    // ─────────────────────────────────────────────────────
+    // ESTRATÉGIA 2: npx como último recurso
+    // ─────────────────────────────────────────────────────
+    try {
+        console.log('🔄 [SISTEMA] Tentando instalar via npx @puppeteer/browsers...');
+        const { execSync } = require('child_process');
+        execSync(`npx @puppeteer/browsers install chromium@latest --path ${cacheDir}`, { stdio: 'inherit' });
+        console.log('✅ [SISTEMA] Chromium instalado via npx.');
+    } catch (e) {
+        console.error('💀 [SISTEMA] Erro crítico: Não foi possível instalar nenhum navegador.');
+        console.error('Detalhe:', e.message);
+        process.exit(1);
     }
 }
 
 download().then(() => {
     console.log('🏁 [SISTEMA] Script de download finalizado.');
 }).catch((err) => {
-    console.error('💀 [SISTEMA] Erro fatal no script de download:', err);
+    console.error('💀 [SISTEMA] Erro fatal no script de download:', err.message);
     process.exit(1);
 });
-
-

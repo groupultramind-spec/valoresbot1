@@ -534,13 +534,16 @@ const chosenStrategy = strategies[0];
 console.log(`\n🚀 [ESTRATÉGIA: ${chosenStrategy.name}] Selecionada: ${chosenStrategy.path || 'Padrão'}`);
 
 // --- RESGATE DE ICU EM TEMPO DE EXECUÇÃO ---
+let icuDataFileArg = null;
 if (chosenStrategy.path && process.platform !== 'win32') {
     const chromeDir = path.dirname(chosenStrategy.path);
     const icuFile = path.join(chromeDir, 'icudtl.dat');
     if (!fs.existsSync(icuFile)) {
         console.log(`⚠️ [ALERTA] icudtl.dat ausente em ${chromeDir}. Iniciando resgate...`);
+
+        // Busca profunda no sistema de arquivos
         const findICU = (dir, depth = 0) => {
-            if (depth > 4) return null;
+            if (depth > 5) return null;
             try {
                 const files = fs.readdirSync(dir);
                 for (const f of files) {
@@ -554,12 +557,60 @@ if (chosenStrategy.path && process.platform !== 'win32') {
             } catch (e) { }
             return null;
         };
-        const rescuePath = findICU(process.cwd()) || findICU('/app') || findICU('/usr/lib') || findICU('/usr/share');
+
+        // Busca em locais conhecidos (Chrome dir > /app > sistema)
+        const rescuePath = findICU(chromeDir) || findICU('/app') || findICU('/usr/lib') || findICU('/usr/share') || findICU('/usr/local');
         if (rescuePath) {
-            console.log(`✨ [RESGATE] icudtl.dat encontrado em ${rescuePath}. Aplicando correção...`);
-            try { fs.copyFileSync(rescuePath, icuFile); } catch (e) { console.log('❌ Falha ao copiar ICU:', e.message); }
+            console.log(`✨ [RESGATE] icudtl.dat encontrado em ${rescuePath}. Copiando...`);
+            try { fs.copyFileSync(rescuePath, icuFile); console.log('✅ [RESGATE] icudtl.dat copiado com sucesso.'); } catch (e) { console.log('❌ Falha ao copiar ICU:', e.message); }
+        } else {
+            // Plano B: usar o ICU do Node.js via flag --icu-data-file
+            const nodeDir = path.dirname(process.execPath);
+            const nodeIcu = findICU(nodeDir) || findICU('/usr/local/lib') || findICU('/opt');
+            if (nodeIcu) {
+                console.log(`🔧 [PLANO B] Usando ICU do Node.js: ${nodeIcu}`);
+                icuDataFileArg = `--icu-data-file=${nodeIcu}`;
+            } else {
+                console.log('❌ [AVISO] Não foi possível localizar icudtl.dat em nenhum local. O Chrome pode falhar.');
+            }
         }
+    } else {
+        console.log(`✅ [ICU] icudtl.dat presente em ${chromeDir}`);
     }
+}
+
+// Monta os args do Puppeteer dinamicamente
+const puppeteerArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-namespace-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--hide-scrollbars',
+    '--mute-audio',
+    '--no-first-run',
+    '--disable-extensions',
+    '--disable-background-networking',
+    '--disable-default-apps',
+    '--disable-sync',
+    '--disable-translate',
+    '--metrics-recording-only',
+    '--safebrowsing-disable-auto-update',
+    '--ignore-certificate-errors',
+    '--ignore-ssl-errors',
+    '--ignore-certificate-errors-spki-list',
+    '--font-render-hinting=none',
+    '--disable-software-rasterizer',
+    '--disable-web-security',
+    '--disable-site-isolation-trials',
+    '--no-pings',
+    '--window-size=1280,720'
+];
+
+// Adiciona o flag ICU apenas se necessário
+if (icuDataFileArg) {
+    puppeteerArgs.push(icuDataFileArg);
+    console.log(`🔧 [PUPPETEER] Adicionando flag: ${icuDataFileArg}`);
 }
 
 const client = new Client({
@@ -571,32 +622,7 @@ const client = new Client({
     puppeteer: {
         headless: true,
         executablePath: chosenStrategy.path,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-namespace-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--hide-scrollbars',
-            '--mute-audio',
-            '--no-first-run',
-            '--disable-extensions',
-            '--disable-background-networking',
-            '--disable-default-apps',
-            '--disable-sync',
-            '--disable-translate',
-            '--metrics-recording-only',
-            '--safebrowsing-disable-auto-update',
-            '--ignore-certificate-errors',
-            '--ignore-ssl-errors',
-            '--ignore-certificate-errors-spki-list',
-            '--font-render-hinting=none',
-            '--disable-software-rasterizer',
-            '--disable-web-security',
-            '--disable-site-isolation-trials',
-            '--no-pings',
-            '--window-size=1280,720'
-        ]
+        args: puppeteerArgs
     }
 });
 
