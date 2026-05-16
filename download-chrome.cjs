@@ -17,16 +17,9 @@ async function download() {
         const platform = detectBrowserPlatform();
         console.log(`💻 [SISTEMA] Plataforma detectada: ${platform}`);
 
-        let buildId = 'latest';
-        try {
-            console.log('🔍 [SISTEMA] Resolvendo versão estável mais recente...');
-            buildId = await resolveBuildId(Browser.CHROME, platform, 'stable');
-            console.log(`🏷️ [SISTEMA] Versão estável encontrada: ${buildId}`);
-        } catch (e) {
-            console.log('⚠️ [SISTEMA] Não foi possível resolver a versão estável, tentando "latest"...');
-        }
+        const buildId = '122.0.6261.128'; // Versão garantida pelo Puppeteer v22, que SEMPRE tem o icudtl.dat
 
-        console.log(`📡 [SISTEMA] Baixando Chrome (${buildId})... isso pode levar alguns minutos.`);
+        console.log(`📡 [SISTEMA] Baixando Chrome ESTÁVEL FIXO (${buildId})... isso pode levar alguns minutos.`);
         
         const result = await install({
             browser: Browser.CHROME,
