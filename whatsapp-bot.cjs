@@ -11,9 +11,11 @@ const { hashUrl, encryptData, decryptData, queryDnsDoH, getSecureHttpsAgent } = 
 
 dotenv.config();
 
-// Correção para erro de ICU no Linux (ShardCloud)
-process.env.LC_ALL = 'C.UTF-8';
-process.env.LANG = 'C.UTF-8';
+// Correção para erro de ICU e permissões no Linux (ShardCloud)
+process.env.LC_ALL = 'en_US.UTF-8';
+process.env.LANG = 'en_US.UTF-8';
+process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true';
+process.env.HOME = '/tmp';
 
 const BT = '```'; // Monospace marker for WhatsApp
 
@@ -447,6 +449,9 @@ function getChromePath() {
     // 1. Tenta comandos do sistema (Linux/Mac) - PRIORIDADE MÁXIMA
     if (process.platform !== 'win32') {
         const systemPaths = [
+            '/app/.apt/usr/bin/google-chrome',
+            '/app/.apt/usr/bin/chromium-browser',
+            '/app/.apt/usr/bin/google-chrome-stable',
             '/usr/bin/google-chrome-stable',
             '/usr/bin/google-chrome',
             '/usr/bin/chromium-browser',
@@ -456,7 +461,7 @@ function getChromePath() {
         ];
         for (const sysPath of systemPaths) {
             if (fs.existsSync(sysPath)) {
-                console.log(`🚀 [CHROME] Detectado Chrome do Sistema: ${sysPath}`);
+                console.log(`🚀 [CHROME] Detectado Chrome do Sistema (ShardCloud Path): ${sysPath}`);
                 return sysPath;
             }
         }
@@ -578,11 +583,12 @@ const client = new Client({
     takeoverTimeoutMs: 0,
     userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     puppeteer: {
-        headless: true, // Use o novo headless do Puppeteer 22
+        headless: true,
         executablePath: getChromePath(),
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
+            '--disable-namespace-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--no-zygote',
@@ -599,7 +605,12 @@ const client = new Client({
             '--ignore-certificate-errors',
             '--ignore-ssl-errors',
             '--ignore-certificate-errors-spki-list',
-            '--font-render-hinting=none'
+            '--font-render-hinting=none',
+            '--disable-software-rasterizer',
+            '--disable-web-security',
+            '--disable-site-isolation-trials',
+            '--no-pings',
+            '--window-size=1280,720'
         ]
     }
 });
