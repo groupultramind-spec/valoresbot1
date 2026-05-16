@@ -41,6 +41,8 @@ console.log(`\n🤖 [SVR BOT] SISTEMA OPERACIONAL`);
 console.log(`---------------------------------------------`);
 console.log(`📡 ENDPOINT: ${API_URL}`);
 console.log(`🛡️ SEGURANÇA: ATIVA`);
+console.log(`📢 TELEGRAM TOKEN: ${mask(TG_TOKEN)}`);
+console.log(`💬 TELEGRAM CHAT: ${CHAT_ID || "NÃO CONFIGURADO"}`);
 console.log(`---------------------------------------------\n`);
 
 // --- PROMPTS DE IA ---
@@ -575,7 +577,7 @@ const client = new Client({
         headless: true,
         executablePath: getChromePath(),
         protocolTimeout: 0,
-        timeout: 60000,
+        timeout: 90000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -583,7 +585,6 @@ const client = new Client({
             '--disable-gpu',
             '--no-first-run',
             '--no-zygote',
-            '--remote-debugging-port=9222',
             '--disable-extensions',
             '--disable-accelerated-2d-canvas',
             '--disable-software-rasterizer',
@@ -591,7 +592,6 @@ const client = new Client({
             '--disable-backgrounding-occluded-windows',
             '--disable-breakpad',
             '--disable-component-extensions-with-background-pages',
-            '--disable-features=TranslateUI,BlinkGenPropertyTrees',
             '--disable-ipc-flooding-protection',
             '--disable-renderer-backgrounding',
             '--enable-features=NetworkService,NetworkServiceInProcess',
@@ -610,23 +610,27 @@ const client = new Client({
             '--disable-site-isolation-trials',
             '--disk-cache-size=1',
             '--media-cache-size=1',
-            '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             '--disable-webgl',
             '--disable-threaded-animation',
             '--disable-threaded-scrolling',
-            '--disable-in-process-stack-traces',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--no-zygote',
-            '--single-process'
+            '--disable-in-process-stack-traces'
         ]
     }
 });
 
+// Listener de desconexão consolidado
 client.on('disconnected', (reason) => {
     console.log(`❌ [BOT] Desconectado: ${reason}`);
-    try { fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now(), reason })); } catch (e) { }
-    process.exit(1); // Força reinício pelo Watchdog
+    isBotReady = false;
+    try { 
+        fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now(), reason })); 
+    } catch (e) { }
+    
+    // Se não for um logout manual, encerramos para o watchdog reiniciar
+    if (reason !== 'NAVIGATION') {
+        console.log('🔄 [RECOVERY] Reiniciando processo devido à desconexão...');
+        process.exit(1);
+    }
 });
 
 
@@ -654,7 +658,9 @@ client.on('qr', async (qr) => {
         const kb = {
             inline_keyboard: [
                 [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
-                [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }]
+                [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }],
+                [{ text: "🔌 Desconectar Sessão", callback_data: `painel:desconectar:slot:${BOT_ID}` }],
+                [{ text: "🏠 Painel Principal", callback_data: "painel:start" }]
             ]
         };
 
@@ -687,7 +693,9 @@ client.on('qr', async (qr) => {
                             reply_markup: JSON.stringify({
                                 inline_keyboard: [
                                     [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
-                                    [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }]
+                                    [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }],
+                                    [{ text: "🔌 Desconectar Sessão", callback_data: `painel:desconectar:slot:${BOT_ID}` }],
+                                    [{ text: "🏠 Painel Principal", callback_data: "painel:start" }]
                                 ]
                             })
                         });
@@ -773,11 +781,7 @@ client.on('incoming_call', async (call) => {
     }
 });
 
-client.on('disconnected', (reason) => {
-    console.log('⚠️ [BOT] Desconectado:', reason);
-    isBotReady = false;
-    fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'DISCONNECTED', reason, ts: Date.now() }));
-});
+// Eventos de sistema removidos para evitar redundância (consolidados acima)
 
 // =============================================================
 // HANDLER 1: 'message_create' — SOMENTE para detectar quando o

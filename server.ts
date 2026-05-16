@@ -1298,9 +1298,10 @@ async function startTelegramPolling() {
           const kb = {
             inline_keyboard: [
               [{ text: "📊 Atualizar Métricas", callback_data: "painel:start" }, { text: "👥 Gerenciar Fila", callback_data: "painel:fila" }],
+              [{ text: "📲 Conectar Main", callback_data: "generate_qr:main" }, { text: "🔄 Reiniciar Main", callback_data: "painel:reiniciar:slot:main" }],
+              [{ text: "📱 Mudar Número", callback_data: "painel:change_whatsapp_num:main" }, { text: "📱 Gestão Slots", callback_data: "painel:slots" }],
               [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
-              [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }],
-              [{ text: "📱 Gestão de WhatsApp", callback_data: "painel:slots" }, { text: "🔄 Reiniciar Main", callback_data: "painel:reiniciar:slot:main" }]
+              [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
@@ -1379,6 +1380,7 @@ async function startTelegramPolling() {
             inline_keyboard: [
               [{ text: "📲 Conectar / Gerar QR Code", callback_data: `generate_qr:${id}` }],
               [{ text: "🔄 Reiniciar Instância", callback_data: `painel:reiniciar:slot:${id}` }],
+              [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${id}` }],
               [{ text: "🔌 Desconectar (Apagar)", callback_data: `painel:desconectar:slot:${id}` }],
               [{ text: "⬅️ Voltar", callback_data: "painel:slots" }]
             ]
