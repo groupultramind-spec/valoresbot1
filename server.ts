@@ -1098,6 +1098,13 @@ async function sendTelegramPhoto(buffer: Buffer, caption: string, replyMarkup?: 
   }
 }
 
+async function deleteTelegramMessage(messageId: number) {
+  if (!TG_TOKEN || !CHAT_ID || !messageId) return;
+  try {
+    await axios.post(`${TELEGRAM_URL}/deleteMessage`, { chat_id: CHAT_ID, message_id: messageId });
+  } catch (e) {}
+}
+
 function escapeHtml(text: string | undefined | null) {
   if (!text) return "";
   return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -1433,6 +1440,15 @@ async function startTelegramPolling() {
             await generateModifiedPix('AVULSO', parseFloat(state.data.amount), key, state.data.name, doc);
           }
         }
+        else if (text === "pix_auto:exec") {
+          const state = botStates.get(userId);
+          if (state && state.data.chatId && state.data.amount) {
+            botStates.delete(userId);
+            const amount = parseFloat(state.data.amount);
+            await sendTelegram(`⏳ <b>Gerando protocolo de R$ ${amount.toFixed(2)}...</b>\nAguarde um momento.`, msgId);
+            await generateStandardPix(state.data.chatId, amount, undefined);
+          }
+        }
         else if (text.startsWith("pix_sel:auto:")) {
           const chatId = text.split(":")[2];
           botStates.set(userId, { action: 'pix_auto_await_value', data: { chatId } });
@@ -1553,15 +1569,15 @@ async function startTelegramPolling() {
         else if (text.startsWith("painel:edit_smtp:")) {
           const field = text.split(":")[2];
           const labels: any = { name: "Nome do Remetente", host: "Host SMTP", port: "Porta", user: "Usuário/E-mail", pass: "Senha/App Password" };
-          botStates.set(userId, { action: `awaiting_smtp_edit_${field}` });
+          botStates.set(userId, { action: `awaiting_smtp_edit_${field}`, data: { botMsgId: msgId } });
           await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nPor favor, digite o novo valor para este campo:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_smtp" }]] });
         }
         else if (text === "painel:financeiro_auth") {
-          botStates.set(userId, { action: 'awaiting_financial_password' });
+          botStates.set(userId, { action: 'awaiting_financial_password', data: { botMsgId: msgId } });
           await sendTelegram(`🔐 <b>ACESSO RESTRITO</b>\n\nPor favor, informe a <b>Senha Financeira</b> para acessar o saldo e saques:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
         }
         else if (text === "painel:whatsapp_auth") {
-          botStates.set(userId, { action: 'awaiting_whatsapp_password' });
+          botStates.set(userId, { action: 'awaiting_whatsapp_password', data: { botMsgId: msgId } });
           await sendTelegram(`🔐 <b>SEGURANÇA EXIGIDA</b>\n\nPor favor, informe a <b>Senha de Segurança</b> (a mesma do financeiro) para gerenciar o WhatsApp:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
         }
         else if (text === "painel:financeiro_menu") {
@@ -1613,7 +1629,7 @@ async function startTelegramPolling() {
         else if (text.startsWith("painel:edit_saque_fee:")) {
           const field = text.split(":")[2];
           const label = field === 'fixed' ? 'Taxa Fixa (R$)' : 'Taxa Variável (%)';
-          botStates.set(userId, { action: `awaiting_saque_fee_edit_${field}` });
+          botStates.set(userId, { action: `awaiting_saque_fee_edit_${field}`, data: { botMsgId: msgId } });
           await sendTelegram(`📝 <b>EDITAR ${label.toUpperCase()}</b>\n\nDigite o novo valor:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_taxas_saque" }]] });
         }
         else if (text === "painel:config_saque") {
@@ -1634,7 +1650,7 @@ async function startTelegramPolling() {
         else if (text.startsWith("painel:edit_saque:")) {
           const field = text.split(":")[2];
           const labels: any = { key: "Chave PIX", type: "Tipo (CPF, EMAIL, PHONE, RANDOM)", name: "Nome do Beneficiário", doc: "CPF/CNPJ" };
-          botStates.set(userId, { action: `awaiting_saque_edit_${field}` });
+          botStates.set(userId, { action: `awaiting_saque_edit_${field}`, data: { botMsgId: msgId } });
           await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nDigite o novo valor:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_saque" }]] });
         }
         else if (text === "painel:saque_total") {
@@ -1678,18 +1694,18 @@ async function startTelegramPolling() {
           }
         }
         else if (text.startsWith("painel:edit_fin:")) {
-          botStates.set(userId, { action: 'awaiting_fin_pass_edit' });
+          botStates.set(userId, { action: 'awaiting_fin_pass_edit', data: { botMsgId: msgId } });
           await sendTelegram(`🔑 <b>ALTERAR SENHA FINANCEIRA</b>\n\nDigite a nova senha de segurança:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:financeiro_menu" }]] });
         }
         else if (text.startsWith("painel:edit_pix:")) {
           const field = text.split(":")[2];
           const labels: any = { name: "Nome Completo", email: "E-mail", doc: "Documento (CPF/CNPJ)", fee: "Taxa Gateway (%)" };
-          botStates.set(userId, { action: `awaiting_pix_edit_${field}` });
+          botStates.set(userId, { action: `awaiting_pix_edit_${field}`, data: { botMsgId: msgId } });
           await sendTelegram(`📝 <b>EDITAR ${labels[field].toUpperCase()}</b>\n\nPor favor, digite o novo valor para este campo:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_pix" }]] });
         }
         else if (text.startsWith("cmd:pix_std:")) {
           const chatId = text.split(":")[2];
-          botStates.set(userId, { action: 'awaiting_lead_pix_value', data: { chatId } });
+          botStates.set(userId, { action: 'awaiting_lead_pix_value', data: { chatId, botMsgId: msgId } });
           await sendTelegram(`💰 <b>VALOR DO PROTOCOLO</b>\n\nPor favor, <b>digite o valor</b> que deseja cobrar para o lead <code>${chatId}</code> (ex: 97.50):`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:start" }]] });
         }
         else if (text.startsWith("cmd:pix_confirm_std:")) {
@@ -1700,7 +1716,7 @@ async function startTelegramPolling() {
         }
         else if (text.startsWith("cmd:pix_custom:")) {
           const chatId = text.split(":")[3];
-          botStates.set(userId, { action: 'awaiting_pix_key', data: { chatId } });
+          botStates.set(userId, { action: 'awaiting_pix_key', data: { chatId, botMsgId: msgId } });
           await sendTelegram(`🛠️ <b>PROTOCOLO CUSTOMIZADO</b>\n\nPor favor, <b>digite a Chave PIX</b> (ou copie e cole o código) que será usada para este lead:\n\n<i>Aguardando sua mensagem...</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
         }
         else if (text.startsWith("cmd:send_email:")) {
@@ -1745,7 +1761,7 @@ async function startTelegramPolling() {
         }
         else if (text.startsWith("painel:change_whatsapp_num")) {
           const id = text.split(":")[2] || 'main';
-          botStates.set(userId, { action: 'awaiting_whatsapp_new_number', data: { slotId: id } });
+          botStates.set(userId, { action: 'awaiting_whatsapp_new_number', data: { slotId: id, botMsgId: msgId } });
           await sendTelegram(`📱 <b>ALTERAR NÚMERO WHATSAPP (${id})</b>\n\nPor favor, digite o novo número de WhatsApp do bot (com DDI e DDD, ex: 5511999999999):\n\n<i>O bot será reiniciado com este número, gerando um novo QR Code.</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
         }
         else if (text.startsWith("pix_dest:")) {
@@ -1766,12 +1782,17 @@ async function startTelegramPolling() {
           } else if (dest === 'copy') {
             await sendTelegram(`📋 <b>HASH PIX (COPIAR):</b>\n\n<code>${pix.pixCode}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
           } else if (dest === 'phone') {
-            botStates.set(userId, { action: 'awaiting_target_phone', data: { pendingId } });
+            botStates.set(userId, { action: 'awaiting_target_phone', data: { pendingId, botMsgId: msgId } });
             await sendTelegram(`📱 <b>ENVIAR PARA OUTRO NÚMERO</b>\n\nPor favor, digite o número de telefone (com DDD) para o qual deseja enviar este PIX:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
           }
         }
         else if (!cb && msg?.text) {
           const state = botStates.get(userId);
+          const targetMsgId = state?.data?.botMsgId || msgId;
+
+          if (state?.data?.botMsgId) {
+             deleteTelegramMessage(msgId);
+          }
 
           if (state?.action?.startsWith('awaiting_pix_edit_')) {
             const field = state.action.replace('awaiting_pix_edit_', '');
@@ -1780,13 +1801,14 @@ async function startTelegramPolling() {
             let isValid = true;
             let errorMsg = "";
 
-            if (field === 'email' && !validateEmail(value)) { isValid = false; errorMsg = "E-mail inválido."; }
+            if (value.length === 0) { isValid = false; errorMsg = "O valor digitado não pode estar vazio."; }
+            else if (field === 'email' && !validateEmail(value)) { isValid = false; errorMsg = "E-mail inválido."; }
             else if (field === 'doc' && !validateDocument(value)) { isValid = false; errorMsg = "Documento (CPF/CNPJ) inválido."; }
             else if (field === 'name' && value.length < 5) { isValid = false; errorMsg = "Nome muito curto."; }
             else if (field === 'fee' && isNaN(parseFloat(value))) { isValid = false; errorMsg = "Taxa deve ser um número."; }
 
             if (!isValid) {
-              await sendTelegram(`❌ <b>ERRO DE VALIDAÇÃO</b>\n\n${errorMsg}\n\nTente novamente:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_pix" }]] });
+              await sendTelegram(`❌ <b>ERRO DE VALIDAÇÃO</b>\n\n${errorMsg}\n\nTente novamente:`, targetMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_pix" }]] });
               return;
             }
 
@@ -1795,71 +1817,76 @@ async function startTelegramPolling() {
             (currentConfig as any)[configKey[field]] = finalValue;
             saveConfig();
             botStates.delete(userId);
-            await sendTelegram(`✅ <b>ATUALIZADO COM SUCESSO!</b>\n\nO campo <b>${field}</b> foi definido como: <code>${value}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_pix" }]] });
+            await sendTelegram(`✅ <b>ATUALIZADO COM SUCESSO!</b>\n\nO campo <b>${field}</b> foi definido como: <code>${value}</code>`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_pix" }]] });
           }
           else if (state?.action?.startsWith('awaiting_saque_edit_')) {
             const field = state.action.replace('awaiting_saque_edit_', '');
             const value = msg.text.trim();
+            if (value.length === 0) {
+              await sendTelegram(`❌ <b>ERRO DE VALIDAÇÃO</b>\n\nO valor não pode estar vazio.`, targetMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_saque" }]] });
+              return;
+            }
             const configKey: any = { key: 'adminPixKey', type: 'adminPixType', name: 'adminPixName', doc: 'adminPixDoc' };
             (currentConfig as any)[configKey[field]] = value;
             saveConfig();
             botStates.delete(userId);
-            await sendTelegram(`✅ <b>CONTA ATUALIZADA!</b>\n\nO campo <b>${field}</b> foi salvo.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_saque" }]] });
+            await sendTelegram(`✅ <b>ATUALIZADO COM SUCESSO!</b>\n\nO campo <b>${field}</b> foi definido como: <code>${value}</code>`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_saque" }]] });
           }
           else if (state?.action === 'awaiting_financial_password' || state?.action === 'awaiting_whatsapp_password') {
             const actualFinancialPass = currentConfig.financialPassword.includes(':') ? decryptData(currentConfig.financialPassword) : currentConfig.financialPassword;
             if (msg.text === actualFinancialPass) {
-
               const action = state.action;
               botStates.delete(userId);
               const target = action === 'awaiting_financial_password' ? 'painel:financeiro_menu' : 'painel:slots';
-              await sendTelegram(`✅ <b>Acesso Liberado!</b>\n\nClique no botão abaixo para prosseguir:`, msgId, { inline_keyboard: [[{ text: "➡️ Acessar Painel", callback_data: target }]] });
+              await sendTelegram(`✅ <b>Acesso Liberado!</b>\n\nClique no botão abaixo para prosseguir:`, targetMsgId, { inline_keyboard: [[{ text: "➡️ Acessar Painel", callback_data: target }]] });
             } else {
-              await sendTelegram(`❌ <b>SENHA INCORRETA</b>\n\nTente novamente ou cancele:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+              await sendTelegram(`❌ <b>SENHA INCORRETA</b>\n\nTente novamente ou cancele:`, targetMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
             }
           }
           else if (state?.action === 'awaiting_fin_pass_edit') {
             currentConfig.financialPassword = encryptData(msg.text.trim());
             saveConfig();
             botStates.delete(userId);
-            await sendTelegram(`✅ <b>SENHA FINANCEIRA ALTERADA!</b>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:financeiro_menu" }]] });
+            await sendTelegram(`✅ <b>SENHA FINANCEIRA ALTERADA!</b>`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:financeiro_menu" }]] });
           }
           else if (state?.action?.startsWith('awaiting_saque_fee_edit_')) {
             const field = state.action.replace('awaiting_saque_fee_edit_', '');
             const value = parseFloat(msg.text.trim());
             if (isNaN(value)) {
-              await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido.`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_taxas_saque" }]] });
+              await sendTelegram(`❌ <b>ERRO DE VALIDAÇÃO</b>\n\nDigite um número válido.`, targetMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_taxas_saque" }]] });
               return;
             }
             const configKey: any = { fixed: 'withdrawalFeeFixed', percent: 'withdrawalFeePercent' };
             (currentConfig as any)[configKey[field]] = value;
             saveConfig();
             botStates.delete(userId);
-            await sendTelegram(`✅ <b>TAXA ATUALIZADA!</b>\n\nO campo foi definido como: ${value}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_taxas_saque" }]] });
+            await sendTelegram(`✅ <b>TAXA ATUALIZADA!</b>\n\nO campo foi definido como: ${value}`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_taxas_saque" }]] });
           }
           else if (state?.action?.startsWith('awaiting_smtp_edit_')) {
             const field = state.action.replace('awaiting_smtp_edit_', '');
             const value = msg.text.trim();
-
+            if (value.length === 0) {
+              await sendTelegram(`❌ <b>ERRO DE VALIDAÇÃO</b>\n\nO valor digitado não pode estar vazio.\n\nTente novamente:`, targetMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_smtp" }]] });
+              return;
+            }
             const configKey: any = { name: 'smtpSenderName', host: 'smtpHost', port: 'smtpPort', user: 'smtpUser', pass: 'smtpPass' };
             const finalValue = field === 'port' ? parseInt(value) : value;
             const actualValue = configKey[field] === 'smtpPass' ? encryptData(value) : finalValue;
             (currentConfig as any)[configKey[field]] = actualValue;
             saveConfig();
             botStates.delete(userId);
-            await sendTelegram(`✅ <b>SMTP ATUALIZADO!</b>\n\nO campo <b>${field}</b> foi definido com sucesso.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_smtp" }]] });
+            await sendTelegram(`✅ <b>SMTP ATUALIZADO!</b>\n\nO campo <b>${field}</b> foi definido com sucesso.`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_smtp" }]] });
           }
           else if (state?.action === 'awaiting_whatsapp_new_number') {
             const newNumber = msg.text.replace(/\D/g, '');
             if (newNumber.length < 10) {
-              await sendTelegram(`❌ <b>NÚMERO INVÁLIDO</b>\n\nDigite um número válido.`, msgId);
+              await sendTelegram(`❌ <b>NÚMERO INVÁLIDO</b>\n\nDigite um número válido.`, targetMsgId);
               return;
             }
             currentConfig.whatsappNumber = newNumber;
             saveConfig();
             const slotId = state.data?.slotId || 'main';
             botStates.delete(userId);
-
             await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
 
             // Reinicia o bot específico
@@ -1873,14 +1900,36 @@ async function startTelegramPolling() {
             }
             const amount = parseFloat(cleanVal);
             if (isNaN(amount) || amount <= 0) {
-              await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido para o valor (ex: 97.50).`, undefined);
+              await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido para o valor (ex: 97.50).`, targetMsgId);
               return;
             }
             const chatId = state.data.chatId;
-            botStates.delete(userId);
-            await sendTelegram(`⏳ <b>Gerando protocolo de R$ ${amount.toFixed(2)}...</b>\nAguarde um momento.`, undefined);
-            await generateStandardPix(chatId, amount, undefined);
+            botStates.set(userId, { action: 'pix_auto_confirm', data: { chatId, amount: amount.toString() } });
+
+            const feeGateway = amount * (currentConfig.gatewayFee / 100);
+            const valLiq = amount - feeGateway;
+            const feeSaque = (valLiq * (currentConfig.withdrawalFeePercent / 100)) + currentConfig.withdrawalFeeFixed;
+            const valFinal = valLiq - feeSaque;
+
+            const previewTxt = `⚠️ <b>CONFIRMAÇÃO - SISTEMA PADRÃO (AUTO)</b>\n\n` +
+                        `💰 <b>Valor Bruto:</b> R$ ${amount.toFixed(2)}\n` +
+                        `👤 <b>Recebedor:</b> ${currentConfig.pixName || 'Padrão'}\n\n` +
+                        `📊 <b>DETALHAMENTO FINANCEIRO:</b>\n` +
+                        `├─ Taxa Gateway (${currentConfig.gatewayFee}%): - R$ ${feeGateway.toFixed(2)}\n` +
+                        `├─ Valor Líquido: R$ ${valLiq.toFixed(2)}\n` +
+                        `├─ Taxa Saque: - R$ ${feeSaque.toFixed(2)}\n` +
+                        `└─ <b>VOCÊ RECEBE: R$ ${valFinal.toFixed(2)}</b>\n\n` +
+                        `<i>Confirma a geração deste PIX para o lead?</i>`;
+
+            const previewKb = {
+              inline_keyboard: [
+                [{ text: "🚀 GERAR PROTOCOLO", callback_data: "pix_auto:exec" }],
+                [{ text: "❌ Cancelar", callback_data: "painel:back" }]
+              ]
+            };
+            await sendTelegram(previewTxt, targetMsgId, previewKb);
           }
+
           else if (state?.action === 'pix_avulso_await_amount') {
             let cleanVal = msg.text.trim();
             const parts = cleanVal.split(',');
@@ -1904,9 +1953,19 @@ async function startTelegramPolling() {
             const amount = parseFloat(state.data.amount);
             botStates.set(userId, { action: 'pix_avulso_confirm', data: { amount: amount.toString(), name } });
             
+            const feeGateway = amount * (currentConfig.gatewayFee / 100);
+            const valLiq = amount - feeGateway;
+            const feeSaque = (valLiq * (currentConfig.withdrawalFeePercent / 100)) + currentConfig.withdrawalFeeFixed;
+            const valFinal = valLiq - feeSaque;
+
             const txt = `⚠️ <b>CONFIRMAÇÃO - PROTOCOLO AVULSO</b>\n\n` +
-                        `💰 <b>Valor:</b> R$ ${amount.toFixed(2)}\n` +
+                        `💰 <b>Valor Bruto:</b> R$ ${amount.toFixed(2)}\n` +
                         `👤 <b>Recebedor:</b> ${name}\n\n` +
+                        `📊 <b>DETALHAMENTO FINANCEIRO:</b>\n` +
+                        `├─ Taxa Gateway (${currentConfig.gatewayFee}%): - R$ ${feeGateway.toFixed(2)}\n` +
+                        `├─ Valor Líquido: R$ ${valLiq.toFixed(2)}\n` +
+                        `├─ Taxa Saque: - R$ ${feeSaque.toFixed(2)}\n` +
+                        `└─ <b>VOCÊ RECEBE: R$ ${valFinal.toFixed(2)}</b>\n\n` +
                         `<i>Confirma a geração deste PIX manual?</i>`;
                         
             const kb = {
@@ -2021,7 +2080,9 @@ async function ensureChromeAndStart() {
 
   // O Chrome foi instalado pelo comando: node download-chrome.cjs (ver .shardcloud)
   // Aqui apenas verificamos e logamos o status para diagnóstico.
+  let hasChrome = false;
   const puppeteerCacheDir = path.join(process.cwd(), '.cache', 'puppeteer');
+  
   if (fs.existsSync(puppeteerCacheDir)) {
     const findChrome = (dir: string, depth = 0): string | null => {
       if (depth > 6) return null;
@@ -2040,11 +2101,19 @@ async function ensureChromeAndStart() {
     const cached = findChrome(puppeteerCacheDir);
     if (cached) {
       console.log(`✅ [SISTEMA] Chrome detectado no cache do Puppeteer: ${cached}`);
-    } else {
-      console.log(`⚠️ [SISTEMA] Chrome NÃO encontrado em ${puppeteerCacheDir}. O download pode ter falhado.`);
+      hasChrome = true;
     }
-  } else {
-    console.log(`⚠️ [SISTEMA] Diretório de cache do Puppeteer não existe: ${puppeteerCacheDir}`);
+  }
+
+  if (!hasChrome) {
+    console.log(`⚠️ [SISTEMA] Chrome NÃO encontrado. Executando download-chrome.cjs internamente...`);
+    try {
+      const { execSync } = require('child_process');
+      execSync('node download-chrome.cjs', { stdio: 'inherit' });
+      console.log(`✅ [SISTEMA] Script de download concluído.`);
+    } catch (e: any) {
+      console.error(`❌ [SISTEMA] Erro ao executar download-chrome.cjs:`, e.message);
+    }
   }
 
   // Início escalonado dos serviços
