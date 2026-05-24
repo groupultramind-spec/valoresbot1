@@ -460,9 +460,9 @@ function getBrowserStrategies() {
             '/usr/bin/google-chrome',
             '/usr/bin/chromium-browser',
             '/usr/bin/chromium',
-            '/app/.apt/usr/bin/google-chrome',
-            '/app/.apt/usr/bin/chromium-browser',
-            '/app/.apt/usr/bin/google-chrome-stable',
+            path.join(process.cwd(), '.apt/usr/bin/google-chrome'),
+            path.join(process.cwd(), '.apt/usr/bin/chromium-browser'),
+            path.join(process.cwd(), '.apt/usr/bin/google-chrome-stable'),
             '/usr/bin/google-chrome',
             '/usr/local/bin/google-chrome'
         ];
@@ -472,9 +472,8 @@ function getBrowserStrategies() {
     // 3. Cache oficial do Puppeteer (npx puppeteer browsers install chrome)
     const os = require('os');
     const puppeteerCacheDirs = [
-        '/app/.cache/puppeteer',           // ShardCloud Linux (path absoluto)
-        path.join(os.homedir(), '.cache', 'puppeteer'), // Linux genérico
-        path.join(process.cwd(), '.cache', 'puppeteer') // Local relativo
+        path.join(process.cwd(), '.cache', 'puppeteer'), // Path absoluto no workspace local
+        path.join(os.homedir(), '.cache', 'puppeteer')  // Linux genérico
     ];
     const findInCache = (dir) => {
         const res = [];
@@ -559,8 +558,8 @@ if (chosenStrategy.path && process.platform !== 'win32') {
             return null;
         };
 
-        // Busca em locais conhecidos (Chrome dir > /app > sistema)
-        const rescuePath = findICU(chromeDir) || findICU('/app') || findICU('/usr/lib') || findICU('/usr/share') || findICU('/usr/local');
+        // Busca em locais conhecidos (Chrome dir > workspace > sistema)
+        const rescuePath = findICU(chromeDir) || findICU(process.cwd()) || findICU('/usr/lib') || findICU('/usr/share') || findICU('/usr/local');
         if (rescuePath) {
             console.log(`✨ [RESGATE] icudtl.dat encontrado em ${rescuePath}. Copiando...`);
             try { fs.copyFileSync(rescuePath, icuFile); console.log('✅ [RESGATE] icudtl.dat copiado com sucesso.'); } catch (e) { console.log('❌ Falha ao copiar ICU:', e.message); }
@@ -684,7 +683,7 @@ const client = new Client({
             const form = new FormData();
             form.append('chat_id', CHAT_ID);
             form.append('photo', qrBuffer, { filename: 'qrcode.png', contentType: 'image/png' });
-            form.append('caption', caption, { contentType: 'text/plain' });
+            form.append('caption', caption);
             form.append('parse_mode', 'HTML');
             form.append('reply_markup', JSON.stringify(kb));
 

@@ -1301,7 +1301,8 @@ async function startTelegramPolling() {
               [{ text: "📲 Conectar Main", callback_data: "generate_qr:main" }, { text: "🔄 Reiniciar Main", callback_data: "painel:reiniciar:slot:main" }],
               [{ text: "📱 Mudar Número", callback_data: "painel:change_whatsapp_num:main" }, { text: "📱 Gestão Slots", callback_data: "painel:slots" }],
               [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
-              [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }]
+              [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }],
+              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
@@ -1415,6 +1416,21 @@ async function startTelegramPolling() {
             await sendTelegram(txt, msgId, kb);
           } else {
             await sendTelegram("❌ <b>ERRO:</b> Nenhum lead recente encontrado.", msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+          }
+        }
+        else if (text === "pix_avulso:start") {
+          botStates.set(userId, { action: 'pix_avulso_await_amount', data: {} });
+          await sendTelegram(`📝 <b>GERAR PROTOCOLO AVULSO</b>\n\nPor favor, <b>digite o valor</b> do protocolo (ex: 97.50):`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+        }
+        else if (text === "pix_avulso:exec") {
+          const state = botStates.get(userId);
+          if (state && state.data.amount && state.data.name) {
+            botStates.delete(userId);
+            // Re-usa a configuração do Admin/Pix
+            const key = currentConfig.adminPixKey || currentConfig.pixDocument;
+            const doc = currentConfig.adminPixDoc || currentConfig.pixDocument;
+            await sendTelegram(`⏳ Gerando protocolo avulso para ${state.data.name}...`, msgId);
+            await generateModifiedPix('AVULSO', parseFloat(state.data.amount), key, state.data.name, doc);
           }
         }
         else if (text.startsWith("pix_sel:auto:")) {
@@ -1865,6 +1881,42 @@ async function startTelegramPolling() {
             await sendTelegram(`⏳ <b>Gerando protocolo de R$ ${amount.toFixed(2)}...</b>\nAguarde um momento.`, undefined);
             await generateStandardPix(chatId, amount, undefined);
           }
+          else if (state?.action === 'pix_avulso_await_amount') {
+            let cleanVal = msg.text.trim();
+            const parts = cleanVal.split(',');
+            if (parts.length > 1) {
+              cleanVal = parts.slice(0, -1).join('').replace(/\./g, '') + '.' + parts[parts.length - 1];
+            }
+            const amount = parseFloat(cleanVal);
+            if (isNaN(amount) || amount <= 0) {
+              await sendTelegram(`❌ <b>VALOR INVÁLIDO</b>\n\nDigite um número válido para o valor (ex: 97.50).`, undefined);
+              return;
+            }
+            botStates.set(userId, { action: 'pix_avulso_await_name', data: { amount: amount.toString() } });
+            await sendTelegram(`📝 <b>RECEBEDOR (AVULSO)</b>\n\nDigite o <b>nome do recebedor</b>.\n\n<i>Ou digite <b>padrao</b> para usar a configuração padrão do sistema (${currentConfig.pixName || 'Padrão'}).</i>`, undefined, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+          }
+          else if (state?.action === 'pix_avulso_await_name') {
+            let name = msg.text.trim();
+            if (name.toLowerCase() === 'padrao' || name.toLowerCase() === 'padrão') {
+              name = currentConfig.pixName || 'Padrão';
+            }
+            
+            const amount = parseFloat(state.data.amount);
+            botStates.set(userId, { action: 'pix_avulso_confirm', data: { amount: amount.toString(), name } });
+            
+            const txt = `⚠️ <b>CONFIRMAÇÃO - PROTOCOLO AVULSO</b>\n\n` +
+                        `💰 <b>Valor:</b> R$ ${amount.toFixed(2)}\n` +
+                        `👤 <b>Recebedor:</b> ${name}\n\n` +
+                        `<i>Confirma a geração deste PIX manual?</i>`;
+                        
+            const kb = {
+              inline_keyboard: [
+                [{ text: "🚀 GERAR PROTOCOLO", callback_data: "pix_avulso:exec" }],
+                [{ text: "❌ Cancelar", callback_data: "painel:back" }]
+              ]
+            };
+            await sendTelegram(txt, undefined, kb);
+          }
           else if (state?.action?.startsWith('pix_preauto_edit_')) {
             const field = state.action.replace('pix_preauto_edit_', '');
             let value = msg.text.trim();
@@ -1967,81 +2019,35 @@ function getQueueInfo() {
 async function ensureChromeAndStart() {
   console.log('🚀 [SISTEMA] Verificando disponibilidade do Chrome...');
 
-  try {
-    const { execSync } = await import('child_process');
-    const chromePathFile = path.join(process.cwd(), 'chrome-path.json');
-
-    // Verifica se já existe um Chrome válido E com icudtl.dat
-    let needsDownload = true;
-    if (fs.existsSync(chromePathFile)) {
+  // O Chrome foi instalado pelo comando: node download-chrome.cjs (ver .shardcloud)
+  // Aqui apenas verificamos e logamos o status para diagnóstico.
+  const puppeteerCacheDir = path.join(process.cwd(), '.cache', 'puppeteer');
+  if (fs.existsSync(puppeteerCacheDir)) {
+    const findChrome = (dir: string, depth = 0): string | null => {
+      if (depth > 6) return null;
       try {
-        const savedData = JSON.parse(fs.readFileSync(chromePathFile, 'utf8'));
-        if (savedData.path && fs.existsSync(savedData.path)) {
-          const icuCheck = path.join(path.dirname(savedData.path), 'icudtl.dat');
-          if (fs.existsSync(icuCheck)) {
-            console.log(`✅ [SISTEMA] Chrome válido e completo (com icudtl.dat) em: ${savedData.path}`);
-            needsDownload = false;
-          } else {
-            console.log('⚠️ [SISTEMA] Chrome encontrado mas SEM icudtl.dat. Forçando re-download...');
-            fs.unlinkSync(chromePathFile);
+        for (const f of fs.readdirSync(dir)) {
+          const fp = path.join(dir, f);
+          if ((f === 'chrome' || f === 'chrome.exe') && fs.statSync(fp).isFile()) return fp;
+          if (fs.statSync(fp).isDirectory()) {
+            const found = findChrome(fp, depth + 1);
+            if (found) return found;
           }
         }
-      } catch (e) { /* arquivo inválido, faz o download */ }
+      } catch (e) {}
+      return null;
+    };
+    const cached = findChrome(puppeteerCacheDir);
+    if (cached) {
+      console.log(`✅ [SISTEMA] Chrome detectado no cache do Puppeteer: ${cached}`);
+    } else {
+      console.log(`⚠️ [SISTEMA] Chrome NÃO encontrado em ${puppeteerCacheDir}. O download pode ter falhado.`);
     }
-
-    // Verifica também se o cache do Puppeteer já tem Chrome instalado
-    const puppeteerCacheDir = process.platform === 'linux' ? '/app/.cache/puppeteer' : path.join(process.cwd(), '.cache', 'puppeteer');
-    if (needsDownload && fs.existsSync(puppeteerCacheDir)) {
-      // Busca por executável do Chrome no cache do Puppeteer
-      const findChrome = (dir: string, depth = 0): string | null => {
-        if (depth > 6) return null;
-        try {
-          for (const f of fs.readdirSync(dir)) {
-            const fp = path.join(dir, f);
-            if ((f === 'chrome' || f === 'chrome.exe') && fs.statSync(fp).isFile()) return fp;
-            if (fs.statSync(fp).isDirectory()) {
-              const found = findChrome(fp, depth + 1);
-              if (found) return found;
-            }
-          }
-        } catch (e) {}
-        return null;
-      };
-      const cached = findChrome(puppeteerCacheDir);
-      if (cached) {
-        console.log(`✅ [SISTEMA] Chrome encontrado no cache do Puppeteer: ${cached}`);
-        needsDownload = false;
-      }
-    }
-
-    if (needsDownload) {
-      console.log('📡 [SISTEMA] Instalando Chrome via Puppeteer (comando oficial)...');
-      console.log('⏳ [SISTEMA] Aguarde, isso pode levar alguns minutos...');
-      try {
-        // Comando oficial do Puppeteer — instala no path correto automaticamente
-        execSync('npx puppeteer browsers install chrome', {
-          stdio: 'inherit',
-          timeout: 300000 // 5 minutos
-        });
-        console.log('✅ [SISTEMA] Chrome instalado com sucesso via Puppeteer!');
-      } catch (e: any) {
-        console.error('⚠️ [SISTEMA] Falha ao instalar Chrome via Puppeteer. Tentando Chromium...');
-        try {
-          execSync('npx puppeteer browsers install chromium', {
-            stdio: 'inherit',
-            timeout: 300000
-          });
-          console.log('✅ [SISTEMA] Chromium instalado como fallback!');
-        } catch (e2: any) {
-          console.error('💀 [SISTEMA] Falha total ao instalar navegador:', e2.message);
-        }
-      }
-    }
-  } catch (e: any) {
-    console.error('⚠️ [SISTEMA] Erro crítico na fase de preparação do Chrome:', e.message);
+  } else {
+    console.log(`⚠️ [SISTEMA] Diretório de cache do Puppeteer não existe: ${puppeteerCacheDir}`);
   }
 
-  // Início staggered (escalonado) para economizar recursos
+  // Início escalonado dos serviços
   setTimeout(() => startBot('main'), 2000);
   startTelegramPolling();
   app.listen(port, () => console.log(`🚀 Backend rodando na porta ${port}`));

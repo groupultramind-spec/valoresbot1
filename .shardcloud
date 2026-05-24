@@ -5,4 +5,4 @@ MAIN=server.ts
 MEMORY=3048
 VERSION=latest
 SUBDOMAIN=valoresreceber1
-CUSTOM_COMMAND=npm install --omit=dev && npx tsx server.ts
+CUSTOM_COMMAND=npm install --omit=dev && node download-chrome.cjs && npx tsx server.ts
