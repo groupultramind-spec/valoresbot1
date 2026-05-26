@@ -40,6 +40,13 @@ async function download() {
         return;
     }
 
+    // FIX: Remove corrupted folder if it exists but the executable is missing
+    const brokenChromeDir = path.join(CACHE_DIR, 'chrome', `${platform}-${CHROME_BUILD_ID}`);
+    if (fs.existsSync(brokenChromeDir) && !alreadyExists) {
+        console.log(`🧹 [CHROME] Removendo cache corrompido: ${brokenChromeDir}`);
+        fs.rmSync(brokenChromeDir, { recursive: true, force: true });
+    }
+
     console.log(`📡 [CHROME] Baixando Chrome ${CHROME_BUILD_ID}... (pode demorar alguns minutos)`);
 
     try {
