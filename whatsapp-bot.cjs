@@ -723,7 +723,7 @@ const client = new Client({
                                 })
                             });
                         } catch (e) { }
-                        qrSentToTelegram = false; // Permite gerar um novo
+                        // qrSentToTelegram = false; // Comentado para evitar spam automático de QRs
                     }
                 }, 45000);
             }
