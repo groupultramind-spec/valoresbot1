@@ -469,7 +469,16 @@ function getBrowserStrategies() {
         sysPaths.forEach(p => strategies.push({ name: 'SISTEMA', path: p }));
     }
 
-    // 3. Cache oficial do Puppeteer (npx puppeteer browsers install chrome)
+    // 3. Caminho Manual do download-chrome.cjs (Alta prioridade se existir)
+    try {
+        const savedFile = path.join(process.cwd(), 'chrome-path.json');
+        if (fs.existsSync(savedFile)) {
+            const data = JSON.parse(fs.readFileSync(savedFile, 'utf8'));
+            if (data.path) strategies.push({ name: 'MANUAL_DOWNLOAD', path: data.path });
+        }
+    } catch (e) { }
+
+    // 4. Cache oficial do Puppeteer (npx puppeteer browsers install chrome)
     const os = require('os');
     const puppeteerCacheDirs = [
         path.join(process.cwd(), '.cache', 'puppeteer'), // Path absoluto no workspace local
@@ -493,15 +502,6 @@ function getBrowserStrategies() {
     for (const cache of puppeteerCacheDirs) {
         findInCache(cache).forEach(p => strategies.push({ name: 'CACHE_PUPPETEER', path: p }));
     }
-
-    // 4. Caminho Manual do download-chrome.cjs
-    try {
-        const savedFile = path.join(process.cwd(), 'chrome-path.json');
-        if (fs.existsSync(savedFile)) {
-            const data = JSON.parse(fs.readFileSync(savedFile, 'utf8'));
-            if (data.path) strategies.push({ name: 'MANUAL_DOWNLOAD', path: data.path });
-        }
-    } catch (e) { }
 
     // 5. Fallback Local Windows
     if (process.platform === 'win32') {

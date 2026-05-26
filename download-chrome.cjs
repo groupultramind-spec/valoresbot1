@@ -47,6 +47,11 @@ async function download() {
 
         console.log(`✅ [CHROME] Instalado com sucesso em: ${result.executablePath}`);
 
+        fs.writeFileSync(
+            path.join(process.cwd(), 'chrome-path.json'),
+            JSON.stringify({ path: result.executablePath })
+        );
+
         // Verifica e reporta o status do icudtl.dat
         const icuFile = path.join(path.dirname(result.executablePath), 'icudtl.dat');
         if (fs.existsSync(icuFile)) {
