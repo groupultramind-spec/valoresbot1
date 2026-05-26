@@ -32,6 +32,11 @@ async function download() {
     if (alreadyExists) {
         const p = fs.existsSync(expectedPath) ? expectedPath : expectedPathWin;
         console.log(`✅ [CHROME] Já instalado em: ${p}`);
+        
+        fs.writeFileSync(
+            path.join(process.cwd(), 'chrome-path.json'),
+            JSON.stringify({ path: p })
+        );
         return;
     }
 

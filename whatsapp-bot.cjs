@@ -7,7 +7,14 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { hashUrl, encryptData, decryptData, queryDnsDoH, getSecureHttpsAgent } = require('./security-utils.cjs');
+const { execSync } = require('child_process');
 
+try {
+    console.log('🔄 [SISTEMA] Garantindo a instalação do Chrome íntegro...');
+    execSync('node download-chrome.cjs', { stdio: 'inherit' });
+} catch (e) {
+    console.error('❌ [SISTEMA] Aviso ao rodar download-chrome.cjs:', e.message);
+}
 
 dotenv.config();
 
