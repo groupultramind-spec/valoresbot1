@@ -489,7 +489,9 @@ function getBrowserStrategies() {
     const os = require('os');
     const puppeteerCacheDirs = [
         path.join(process.cwd(), '.cache', 'puppeteer'), // Path absoluto no workspace local
-        path.join(os.homedir(), '.cache', 'puppeteer')  // Linux genérico
+        path.join(os.homedir(), '.cache', 'puppeteer'),  // Linux genérico
+        '/root/.cache/puppeteer',                        // Shard Cloud root
+        '/home/container/.cache/puppeteer'               // Pterodactyl/Shard
     ];
     const findInCache = (dir) => {
         const res = [];
