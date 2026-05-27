@@ -17,11 +17,14 @@
     Deny from all
   </FilesMatch>
 
-  # SPA Routing: Send all requests to index.html if they are not files/dirs
-  RewriteRule ^index\.html$ - [L]
+  # SPA Routing: Send all requests to the compiled dist folder
+  RewriteCond %{REQUEST_URI} !^/dist/
+  RewriteRule ^(.*)$ /dist/$1 [L]
+
+  # Inside dist, send everything to index.html if not a file
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+  RewriteRule ^dist/.*$ /dist/index.html [L]
 </IfModule>
 
 # Security Headers

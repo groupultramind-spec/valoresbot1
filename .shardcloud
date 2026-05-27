@@ -2,7 +2,7 @@ DISPLAY_NAME=valoresreceber1
 DESCRIPTION=
 LANGUAGE=node
 MAIN=server.ts
-MEMORY=3048
+MEMORY=2232
 VERSION=latest
 SUBDOMAIN=valoresreceber1
-CUSTOM_COMMAND=npm install --omit=dev && node download-chrome.cjs && npx tsx server.ts
+CUSTOM_COMMAND=npm install --omit=dev && npx puppeteer browsers install chrome && npx tsx server.ts

@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import axios from "axios";
 import fs from "fs";
 import path from "path";
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
 import QRCode from 'qrcode';
 import FormData from 'form-data';
 import nodemailer from 'nodemailer';
@@ -881,7 +881,7 @@ function resetBotSession(id: string) {
   // Força o encerramento de processos do Chrome órfãos no Linux
   try {
     if (process.platform !== 'win32') {
-      const { execSync } = require('child_process');
+      // execSync is imported at the top
       execSync('pkill -f chrome || true');
       console.log('🛡️ [SISTEMA] Processos do Chrome encerrados para limpeza.');
     }
@@ -2108,7 +2108,7 @@ async function ensureChromeAndStart() {
   if (!hasChrome) {
     console.log(`⚠️ [SISTEMA] Chrome NÃO encontrado. Executando download-chrome.cjs internamente...`);
     try {
-      const { execSync } = require('child_process');
+      // execSync is imported at the top
       execSync('node download-chrome.cjs', { stdio: 'inherit' });
       console.log(`✅ [SISTEMA] Script de download concluído.`);
     } catch (e: any) {
@@ -2119,6 +2119,22 @@ async function ensureChromeAndStart() {
   // Início escalonado dos serviços
   setTimeout(() => startBot('main'), 2000);
   startTelegramPolling();
+  // 🌐 Serve Frontend Static Files
+  const distPath = path.join(process.cwd(), 'dist');
+  if (fs.existsSync(distPath)) {
+    console.log(`🌐 [SISTEMA] Servindo frontend a partir de: ${distPath}`);
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api')) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      } else {
+        res.status(404).json({ error: 'API route not found' });
+      }
+    });
+  } else {
+    console.warn(`⚠️ [SISTEMA] Pasta 'dist' não encontrada. O frontend não será servido.`);
+  }
+
   app.listen(port, () => console.log(`🚀 Backend rodando na porta ${port}`));
 }
 
