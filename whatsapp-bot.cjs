@@ -770,23 +770,19 @@ const client = new Client({
 
         const caption = `✅ <b>${BOT_ID.toUpperCase()} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
         if (lastQrMsgId) {
-            // Tenta editar a mensagem do QR para a de sucesso
+            // Apaga a mensagem da foto do QR Code para não ficar aparecendo acima da confirmação
             try {
-                await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
+                await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/deleteMessage`, {
                     chat_id: CHAT_ID,
-                    message_id: lastQrMsgId,
-                    caption,
-                    parse_mode: 'HTML'
+                    message_id: lastQrMsgId
                 });
-                console.log('✅ [TELEGRAM] Mensagem de QR Code atualizada para sucesso.');
+                console.log('✅ [TELEGRAM] Mensagem de QR Code apagada com sucesso.');
                 lastQrMsgId = 0;
             } catch (e) {
-                console.error('❌ [TELEGRAM] Erro ao editar caption:', e.message);
-                notifyTelegram(caption);
+                console.error('❌ [TELEGRAM] Erro ao apagar mensagem do QR:', e.message);
             }
-        } else {
-            notifyTelegram(caption);
         }
+        notifyTelegram(caption);
     });
 
     client.on('incoming_call', async (call) => {
