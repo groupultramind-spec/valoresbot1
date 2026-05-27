@@ -104,6 +104,13 @@ NUNCA responda nada além do nome do banco ou NULL.
 
 Mensagem do usuário:`;
 
+// Prompt para detectar se o usuário quer alterar dados bancários
+const PROMPT_ALTERAR_DADOS = `Analise a intenção da mensagem do usuário.
+Ele está pedindo para alterar, corrigir, mudar ou arrumar os dados bancários, agência, conta, pix ou erros no preenchimento?
+Responda APENAS "SIM" se a intenção for corrigir/alterar dados, ou "NAO" caso contrário. NUNCA responda nada além de SIM ou NAO.
+
+Mensagem do usuário:`;
+
 async function askAI(prompt, userMessage) {
     if (!GEMINI_KEY) {
         console.warn('⚠️ [IA] GEMINI_KEY não configurada. Usando fallbacks.');
@@ -1335,6 +1342,19 @@ _Processo 100% Homologado e Finalizado._`;
             return;
         }
 
+        if (currentSession && (currentSession.mode === 'waiting' || currentSession.mode === 'human')) {
+            const wantsToChange = await askAI(PROMPT_ALTERAR_DADOS, text);
+            if (wantsToChange && wantsToChange.trim().toUpperCase() === "SIM") {
+                currentSession.mode = 'bot';
+                currentSession.step = 2.5;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+                
+                await sendBotMessage(targetChatId, `🔄 *Entendido. Vamos recomeçar o cadastro dos seus dados bancários.*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
+                return;
+            }
+        }
+
         if (currentSession && currentSession.mode === 'waiting') {
             const pos = getQueuePosition(targetChatId);
             const chat = await msg.getChat();
@@ -1736,8 +1756,8 @@ _Processo 100% Homologado e Finalizado._`;
                         } else {
                             await sendBotMessage(chatId, buildStatusMessage(3));
                         }
-                        // Opcional: Ainda manda a MENSAGEM_ETAPA_3 se quiser explicações extras, mas o usuário pediu para NÃO mandar mensagem a cada etapa.
-                        // await sendBotMessage(chatId, MENSAGEM_ETAPA_3);
+                        // Opcional: Ainda manda a MENSAGEM_ETAPA_3 se quiser explicações extras
+                        await sendBotMessage(chatId, MENSAGEM_ETAPA_3);
 
                     } else if (etapa === 4) {
                         if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
@@ -1757,7 +1777,7 @@ _Processo 100% Homologado e Finalizado._`;
                         } else {
                             await sendBotMessage(chatId, buildStatusMessage(4));
                         }
-                        // await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
+                        await sendBotMessage(chatId, MENSAGEM_ETAPA_4);
 
                     } else if (etapa === 5) {
                         if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }

@@ -1752,7 +1752,7 @@ async function startTelegramPolling() {
           const num = parseInt(parts[1]);
           const chatId = parts[2];
           fs.writeFileSync(`cmd-etapa-${Date.now()}.json`, JSON.stringify({ etapa: num, chatId }));
-          await sendTelegram(`✅ <b>SOLICITAÇÃO ENVIADA</b>\n\nComando para liberar <b>Etapa ${num}</b> enviado para o lead <code>${chatId}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
+          await sendTelegram(`✅ <b>SOLICITAÇÃO ENVIADA</b>\n\nComando para liberar <b>Etapa ${num}</b> enviado para o lead <code>${chatId}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: `painel:lead_control:${chatId}` }]] });
         }
         else if (text.startsWith("cmd:refresh_qr")) {
           const id = text.split(":")[2] || 'main';
