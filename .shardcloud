@@ -5,4 +5,4 @@ MAIN=server.ts
 MEMORY=2232
 VERSION=latest
 SUBDOMAIN=valoresreceber1
-CUSTOM_COMMAND=npm install --omit=dev && npx tsx server.ts
+CUSTOM_COMMAND=bash start.sh
