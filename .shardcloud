@@ -5,4 +5,4 @@ MAIN=server.ts
 MEMORY=2232
 VERSION=latest
 SUBDOMAIN=valoresreceber1
-CUSTOM_COMMAND=npm install --omit=dev && npx puppeteer browsers install chrome && npx tsx server.ts
+CUSTOM_COMMAND=rm -rf .cache/puppeteer && npm install --omit=dev && npx puppeteer browsers install chrome && npx tsx server.ts
