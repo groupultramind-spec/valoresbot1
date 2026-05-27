@@ -2106,14 +2106,7 @@ async function ensureChromeAndStart() {
   }
 
   if (!hasChrome) {
-    console.log(`⚠️ [SISTEMA] Chrome NÃO encontrado. Executando download-chrome.cjs internamente...`);
-    try {
-      // execSync is imported at the top
-      execSync('node download-chrome.cjs', { stdio: 'inherit' });
-      console.log(`✅ [SISTEMA] Script de download concluído.`);
-    } catch (e: any) {
-      console.error(`❌ [SISTEMA] Erro ao executar download-chrome.cjs:`, e.message);
-    }
+    console.log(`⚠️ [SISTEMA] Chrome NÃO encontrado no diretório local. Assumindo que foi instalado via comando npx puppeteer.`);
   }
 
   // Início escalonado dos serviços

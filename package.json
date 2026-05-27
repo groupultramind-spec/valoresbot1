@@ -10,8 +10,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
-    "start": "tsx server.ts",
-    "postinstall": "node download-chrome.cjs"
+    "start": "tsx server.ts"
   },
   "dependencies": {
     "@puppeteer/browsers": "^2.2.3",
