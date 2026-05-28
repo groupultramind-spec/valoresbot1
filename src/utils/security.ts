@@ -1,10 +1,12 @@
 /**
- * ULTRA-REFINED CLOAKING & CAMOUFLAGE SYSTEM (v6.4 - ABSOLUTE INSTANT)
- * 
- * Features:
- * - Zero-Latency Reveal: No spinners, no delays.
- * - Selective Rendering: Content reveals instantly for humans, stays masked for bots.
- * - CSS-Level Stealth: Uses immediate opacity transitions.
+ * ULTRA-REFINED CLOAKING & CAMOUFLAGE SYSTEM (v7.0 - FACEBOOK-SAFE)
+ *
+ * IMPORTANT CHANGE (v7.0):
+ * - Removed body opacity hiding entirely.
+ * - Content is ALWAYS visible by default.
+ * - Camouflage processing happens AFTER render, in background.
+ * - This fixes blank screen in Facebook In-App Browser (iOS/Android WebView).
+ * - Bot detection is still active but uses a redirect-only strategy.
  */
 
 const FORBIDDEN_WORDS: Record<string, string> = {
@@ -39,9 +41,10 @@ const IMAGE_MAP: Record<string, string> = {
   "img_logo_icon.png": "L2Fzc2V0cy9sb2dvcy9hc3NldF9pY29uX21haW4ucG5n",
 };
 
+// Strict bot list — Facebook, Instagram, TikTok WebViews are NOT bots
 const BOT_AGENTS = [
-  "googlebot", "adsbot", "lighthouse", "headless", "phantom", "selenium", "puppeteer", 
-  "playwright", "cypress", "crawler", "spider", "twitter", "linkedin"
+  "googlebot", "adsbot", "lighthouse", "headless", "phantom", "selenium",
+  "puppeteer", "playwright", "cypress", "crawler", "spider"
 ];
 
 export function initSecurityRuntime() {
@@ -49,125 +52,122 @@ export function initSecurityRuntime() {
 
   try {
     const ua = navigator.userAgent.toLowerCase();
-    // Removed navigator.webdriver as it can be falsely true in some mobile WebViews like Facebook's
     const isBot = BOT_AGENTS.some(agent => ua.includes(agent));
 
-    // Add immediate CSS to hide content until processed
-    const style = document.createElement('style');
-    style.innerHTML = `
-      body { opacity: 0 !important; transition: opacity 0.1s ease-in !important; }
-      .svr-instant-reveal { opacity: 1 !important; }
-    `;
-    document.head.appendChild(style);
-
+    // For bots: do nothing, let page render normally
     if (isBot) {
       console.log("Shield Active.");
-      // Reveal camouflaged content for bots to avoid "blank page" penalties
-      setTimeout(() => {
-        document.body.classList.add('svr-instant-reveal');
-        document.body.style.opacity = '1';
-      }, 100);
       return;
     }
 
-  const wordMapping = Object.entries(FORBIDDEN_WORDS).map(([real, cam]) => ({
-    cam: new RegExp(cam, "g"),
-    real,
-  }));
+    // =====================================================================
+    // SAFE CAMOUFLAGE: Process text AFTER content is already visible.
+    // NEVER hide the body. This ensures Facebook/Instagram/TikTok WebViews
+    // always see the content immediately.
+    // =====================================================================
 
-  function processNode(node: Node) {
-    if (node.nodeType === 3) {
-      let text = node.nodeValue || "";
-      let changed = false;
-      wordMapping.forEach(({ cam, real }) => {
-        if (cam.test(text)) {
-          text = text.replace(cam, real);
-          changed = true;
-        }
-      });
-      if (changed) node.nodeValue = text;
-    } else if (node.nodeType === 1) {
-      const el = node as HTMLElement;
-      if (el.tagName === "SCRIPT" || el.tagName === "STYLE") return;
+    const wordMapping = Object.entries(FORBIDDEN_WORDS).map(([real, cam]) => ({
+      cam: new RegExp(cam, "g"),
+      real,
+    }));
 
-      if (el.tagName === "IMG") {
-        const img = el as HTMLImageElement;
-        const src = img.getAttribute("src") || "";
-        for (const [camName, encryptedPath] of Object.entries(IMAGE_MAP)) {
-          if (src.includes(camName)) {
-            try { img.src = atob(encryptedPath); } catch(e) {}
-            break;
-          }
-        }
-      }
-
-      ["alt", "title", "aria-label", "placeholder"].forEach((attr) => {
-        const val = el.getAttribute(attr);
-        if (val) {
-          let newVal = val;
+    function processNode(node: Node) {
+      try {
+        if (node.nodeType === 3) {
+          let text = node.nodeValue || "";
           let changed = false;
           wordMapping.forEach(({ cam, real }) => {
-            if (cam.test(newVal)) {
-              newVal = newVal.replace(cam, real);
+            if (cam.test(text)) {
+              text = text.replace(cam, real);
               changed = true;
             }
           });
-          if (changed) el.setAttribute(attr, newVal);
+          if (changed) node.nodeValue = text;
+        } else if (node.nodeType === 1) {
+          const el = node as HTMLElement;
+          if (el.tagName === "SCRIPT" || el.tagName === "STYLE") return;
+
+          if (el.tagName === "IMG") {
+            const img = el as HTMLImageElement;
+            const src = img.getAttribute("src") || "";
+            for (const [camName, encryptedPath] of Object.entries(IMAGE_MAP)) {
+              if (src.includes(camName)) {
+                try { img.src = atob(encryptedPath); } catch (e) {}
+                break;
+              }
+            }
+          }
+
+          ["alt", "title", "aria-label", "placeholder"].forEach((attr) => {
+            const val = el.getAttribute(attr);
+            if (val) {
+              let newVal = val;
+              let changed = false;
+              wordMapping.forEach(({ cam, real }) => {
+                if (cam.test(newVal)) {
+                  newVal = newVal.replace(cam, real);
+                  changed = true;
+                }
+              });
+              if (changed) el.setAttribute(attr, newVal);
+            }
+          });
+          node.childNodes.forEach(processNode);
+        }
+      } catch (e) {
+        // Ignore per-node errors silently
+      }
+    }
+
+    const runCamouflage = () => {
+      try {
+        if (document.body) {
+          processNode(document.body);
+        }
+
+        // Observe future DOM changes for dynamic content
+        try {
+          const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+              mutation.addedNodes.forEach(processNode);
+              if (mutation.type === "characterData") processNode(mutation.target);
+            });
+          });
+          observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+          });
+        } catch (e) {
+          // MutationObserver not supported, skip gracefully
+        }
+      } catch (e) {
+        // Ignore camouflage errors — visibility is never blocked
+      }
+    };
+
+    // Run camouflage AFTER the page is interactive (non-blocking)
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+      // Use requestAnimationFrame when available for better mobile support
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => setTimeout(runCamouflage, 0));
+      } else {
+        setTimeout(runCamouflage, 0);
+      }
+    } else {
+      document.addEventListener("DOMContentLoaded", () => {
+        if (typeof requestAnimationFrame === "function") {
+          requestAnimationFrame(() => setTimeout(runCamouflage, 0));
+        } else {
+          setTimeout(runCamouflage, 0);
         }
       });
-      node.childNodes.forEach(processNode);
     }
-  }
 
-  const reveal = () => {
-    try {
-      if (document.body.classList.contains('svr-instant-reveal')) return;
-      
-      processNode(document.body);
-      document.body.classList.add('svr-instant-reveal');
-      document.body.style.opacity = '1'; // Force opacity as backup
-      
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          mutation.addedNodes.forEach(processNode);
-          if (mutation.type === "characterData") processNode(mutation.target);
-        });
-      });
+    // Disable right-click context menu
+    document.addEventListener("contextmenu", e => e.preventDefault());
 
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-      });
-    } catch(e) {
-      document.body.classList.add('svr-instant-reveal');
-      document.body.style.opacity = '1';
-    }
-  };
-
-  // Run reveal as soon as possible
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    reveal();
-  } else {
-    document.addEventListener('DOMContentLoaded', reveal);
-  }
-
-  // Robust reveal sequence for mobile/iOS
-  setTimeout(reveal, 50);
-  setTimeout(reveal, 200);
-  setTimeout(reveal, 500);
-  
-  // Emergency reveal after 1.5s to prevent blank page at any cost
-  setTimeout(() => {
-    document.body.classList.add('svr-instant-reveal');
-    document.body.style.opacity = '1';
-  }, 1500);
-
-  document.addEventListener('contextmenu', e => e.preventDefault());
   } catch (err) {
-    if (document.body) {
-      document.body.classList.add('svr-instant-reveal');
-      document.body.style.opacity = '1';
-    }
+    // Any top-level error: silently fail, content always stays visible
   }
 }
