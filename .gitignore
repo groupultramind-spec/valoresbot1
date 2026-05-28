@@ -1,5 +1,7 @@
 # --- Pastas de Sistema (Ignorar sempre) ---
 node_modules/
+chrome-data/
+dist/
 .env
 # dist/ # Mantido no git para deploy no ShardCloud
 .gemini/
@@ -33,3 +35,5 @@ last-lead.json
 bot-status*.json
 cmd-*.json
 refresh-qr.json
+.cache/
+chrome-data/

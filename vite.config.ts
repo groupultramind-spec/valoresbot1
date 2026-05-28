@@ -11,6 +11,10 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env': {}
     },
+    build: {
+      target: ['es2015', 'chrome61', 'safari11', 'ios11'],
+      cssTarget: ['chrome61', 'safari11']
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

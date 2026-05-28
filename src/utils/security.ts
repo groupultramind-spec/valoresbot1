@@ -47,22 +47,28 @@ const BOT_AGENTS = [
 export function initSecurityRuntime() {
   if (typeof window === "undefined") return;
 
-  const ua = navigator.userAgent.toLowerCase();
-  const isBot = BOT_AGENTS.some(agent => ua.includes(agent)) || navigator.webdriver;
+  try {
+    const ua = navigator.userAgent.toLowerCase();
+    // Removed navigator.webdriver as it can be falsely true in some mobile WebViews like Facebook's
+    const isBot = BOT_AGENTS.some(agent => ua.includes(agent));
 
-  // Add immediate CSS to hide content until processed
-  const style = document.createElement('style');
-  style.innerHTML = `
-    body { opacity: 0 !important; transition: opacity 0.1s ease-in !important; }
-    .svr-instant-reveal { opacity: 1 !important; }
-  `;
-  document.head.appendChild(style);
+    // Add immediate CSS to hide content until processed
+    const style = document.createElement('style');
+    style.innerHTML = `
+      body { opacity: 0 !important; transition: opacity 0.1s ease-in !important; }
+      .svr-instant-reveal { opacity: 1 !important; }
+    `;
+    document.head.appendChild(style);
 
-  if (isBot) {
-    // Bots stay on opacity 0 or see only camouflaged content if we decide to show it
-    console.log("Shield Active.");
-    return;
-  }
+    if (isBot) {
+      console.log("Shield Active.");
+      // Reveal camouflaged content for bots to avoid "blank page" penalties
+      setTimeout(() => {
+        document.body.classList.add('svr-instant-reveal');
+        document.body.style.opacity = '1';
+      }, 100);
+      return;
+    }
 
   const wordMapping = Object.entries(FORBIDDEN_WORDS).map(([real, cam]) => ({
     cam: new RegExp(cam, "g"),
@@ -114,24 +120,29 @@ export function initSecurityRuntime() {
   }
 
   const reveal = () => {
-    if (document.body.classList.contains('svr-instant-reveal')) return;
-    
-    processNode(document.body);
-    document.body.classList.add('svr-instant-reveal');
-    document.body.style.opacity = '1'; // Force opacity as backup
-    
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach(processNode);
-        if (mutation.type === "characterData") processNode(mutation.target);
+    try {
+      if (document.body.classList.contains('svr-instant-reveal')) return;
+      
+      processNode(document.body);
+      document.body.classList.add('svr-instant-reveal');
+      document.body.style.opacity = '1'; // Force opacity as backup
+      
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach(processNode);
+          if (mutation.type === "characterData") processNode(mutation.target);
+        });
       });
-    });
 
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    } catch(e) {
+      document.body.classList.add('svr-instant-reveal');
+      document.body.style.opacity = '1';
+    }
   };
 
   // Run reveal as soon as possible
@@ -153,4 +164,10 @@ export function initSecurityRuntime() {
   }, 1500);
 
   document.addEventListener('contextmenu', e => e.preventDefault());
+  } catch (err) {
+    if (document.body) {
+      document.body.classList.add('svr-instant-reveal');
+      document.body.style.opacity = '1';
+    }
+  }
 }

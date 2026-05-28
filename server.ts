@@ -984,35 +984,35 @@ const DUMMY_HTML = `
 </html>`;
 
 app.use((req, res, next) => {
-
   const ua = (req.headers["user-agent"] || "").toLowerCase();
   const referer = (req.headers["referer"] || "").toLowerCase();
   const fbclid = req.query.fbclid;
   const path = req.url.toLowerCase();
 
-  // 🎯 [LEAD-ALLOWANCE] 
-  // Prioridade total para leads do Facebook e dispositivos humanos reais
-  const isFacebookLead = fbclid || referer.includes('facebook.com') || referer.includes('fb.me');
-  const isRealDevice = /iphone|ipad|android|windows nt|macintosh|linux/i.test(ua);
-
   // 🛡️ [CLOAKING-LOGIC]
-  // Se for uma rota de API ou arquivo estático (css, js, png, etc), deixa passar para não quebrar o site
+  // Permite rotas internas (API) e estáticos inofensivos
   if (path.startsWith('/api') || path.includes('.') || path.includes('/assets/')) {
     return next();
   }
 
-  // Se for um lead confirmado do Facebook em um dispositivo real, entrega o site normal 100%
-  if (isFacebookLead && isRealDevice) {
-    return next();
-  }
-
-  // Se for um bot conhecido ou NÃO for um dispositivo real (iPhone/Desktop), mostramos a "Safe Page"
-  if (isBotUA(ua) || !isRealDevice) {
-    console.log(`🛡️ [CLOAKING] Tráfego suspeito/Bot filtrado: ${ua} | Referer: ${referer} | URL: ${req.url}`);
+  // 🚫 1. BLOQUEIO ABSOLUTO DE BOTS
+  // Se for um bot de revisão (Facebook/Google) ou crawler, a barreira é intransponível, 
+  // MESMO se eles tentarem burlar passando o fbclid do lead.
+  if (!ua || isBotUA(ua)) {
+    console.log(`🛡️ [CLOAKING] Bot/Revisor Bloqueado: ${ua} | Referer: ${referer} | URL: ${req.url}`);
     return res.status(200).send(DUMMY_HTML);
   }
 
-  // Caso padrão (usuários orgânicos em dispositivos reais)
+  // ✅ 2. LIBERAÇÃO DE LEADS
+  // Se o dispositivo não for um robô classificado acima, consideramos orgânico/lead real.
+  // Já não bloqueamos por ausência de "Mobile" ou "Android" para evitar falsos positivos
+  // em navegadores seguros (proxies, in-app browsers estranhos).
+  
+  if (fbclid || referer.includes('facebook') || referer.includes('instagram')) {
+    console.log(`🎯 [LEAD] Tráfego de anúncio liberado: ${ua.substring(0, 40)}...`);
+  }
+
+  // Caso padrão (usuários orgânicos e leads liberados)
   next();
 });
 
