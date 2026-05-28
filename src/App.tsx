@@ -9,6 +9,7 @@ import { initSecurityRuntime } from "./utils/security";
 import { useEffect } from "react";
 import axios from "axios";
 import { API_URL } from "./config";
+import { safeStorage } from "./utils/storage";
 
 export type NotificationType = "success" | "error" | "warning" | "info";
 
@@ -26,10 +27,10 @@ export default function App() {
     initSecurityRuntime();
 
     // Advanced Tracking System
-    let userId = localStorage.getItem('svr_user_id');
+    let userId = safeStorage.getItem('svr_user_id');
     if (!userId) {
       userId = Math.random().toString(36).substring(7);
-      localStorage.setItem('svr_user_id', userId);
+      safeStorage.setItem('svr_user_id', userId);
     }
     
     const device = `${navigator.platform} - ${navigator.vendor}`;

