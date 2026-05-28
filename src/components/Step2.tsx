@@ -115,7 +115,7 @@ export function Step2({ data, onReset }: Step2Props) {
         };
 
         notifyConversion().finally(() => {
-          window.location.href = `https://wa.me/${config.whatsappNumber}?text=${message}`;
+          window.location.href = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
         });
       }
     }, 1200);
