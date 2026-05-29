@@ -135,11 +135,12 @@ export function Step2({ data, onReset }: Step2Props) {
           // I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k -> #Intent;scheme=whatsapp;package=com.whatsapp;end
           // aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU= -> https://api.whatsapp.com/send?phone=
 
-          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+          const isMobile = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || (typeof window !== 'undefined' && window.innerWidth <= 1024);
           const isAndroid = /Android/i.test(ua);
 
           if (isMobile) {
             // Força o Deep Link Nativo em vez do link web, evitando a página "Abrir app" do FB
+            // Se o FB ocultar o SO no UA, isAndroid será falso e cairá no whatsapp:// (que funciona em ambos)
             const deepLink = isAndroid 
               ? `${atob("aW50ZW50Oi8vc2VuZD9waG9uZT0=")}${config.whatsappNumber}&text=${message}${atob("I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k")}`
               : `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
