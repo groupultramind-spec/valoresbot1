@@ -139,28 +139,26 @@ export function Step2({ data, onReset }: Step2Props) {
           const isAndroid = /Android/i.test(ua);
 
           if (isMobile) {
-            // Força o Deep Link Nativo em vez do link web, evitando a página "Abrir app" do FB
-            // Se o FB ocultar o SO no UA, isAndroid será falso e cairá no whatsapp:// (que funciona em ambos)
             const deepLink = isAndroid 
               ? `${atob("aW50ZW50Oi8vc2VuZD9waG9uZT0=")}${config.whatsappNumber}&text=${message}${atob("I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k")}`
               : `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
 
-            // Tentativa 1: Iframe invisível (burlar bloqueio de navegação top-level)
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = deepLink;
-            document.body.appendChild(iframe);
+            // Simular clique físico em tag <a> (transpassa alguns bloqueios melhor que window.location)
+            const a = document.createElement('a');
+            a.href = deepLink;
+            a.target = '_top';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
 
-            // Tentativa 2: Replace direto após um breve delay
+            // Fallback de segurança: Se após 2.5 segundos a página ainda estiver aberta 
+            // (significa que o Facebook bloqueou o deep link), envia para a API web
+            // para que o lead não fique travado na tela de carregamento.
             setTimeout(() => {
-              window.location.replace(deepLink);
-            }, 150);
-            
-            // Cleanup do iframe
-            setTimeout(() => {
-              if(document.body.contains(iframe)) document.body.removeChild(iframe);
-            }, 1000);
-            
+               const fallbackUrl = `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`;
+               window.location.href = fallbackUrl;
+            }, 2500);
+
           } else {
             // Desktop puro
             const url = `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`;
