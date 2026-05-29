@@ -115,14 +115,9 @@ export function Step2({ data, onReset }: Step2Props) {
         };
 
         notifyConversion().finally(() => {
-          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-          if (isMobile) {
-            // Abre diretamente o app WhatsApp no iOS/Android
-            window.location.href = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
-          } else {
-            // Fallback para desktop (WhatsApp Web)
-            window.location.href = `https://wa.me/${config.whatsappNumber}?text=${message}`;
-          }
+          // Usa o link oficial do WhatsApp (wa.me) que lida com o redirecionamento
+          // de forma muito mais segura e compatível em todos os dispositivos móveis.
+          window.location.href = `https://wa.me/${config.whatsappNumber}?text=${message}`;
         });
       }
     }, 1200);
