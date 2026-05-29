@@ -1052,19 +1052,17 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
       } catch (_) { return null; }
     }
 
-    // Mensagem é uma foto (QR Code) — tenta editar a legenda (caption)
+    // Mensagem é uma foto (QR Code ou PIX) — remove os botões da foto e envia o painel/texto como nova mensagem
     const isPhotoMsg = errMessage.includes('there is no text in the message') ||
       errMessage.includes("message can't be edited");
     if (isPhotoMsg && messageId) {
+      // Remove os botões da foto original para não ser clicada novamente
       try {
-        const res = await axios.post(`${TELEGRAM_URL}/editMessageCaption`, {
-          chat_id: CHAT_ID, message_id: messageId, caption: text, parse_mode: 'HTML',
-          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-        });
-        return res.data.result?.message_id || messageId;
-      } catch (_) {
-        return sendTelegram(text, undefined, replyMarkup);
-      }
+        await axios.post(`${TELEGRAM_URL}/editMessageReplyMarkup`, { chat_id: CHAT_ID, message_id: messageId, reply_markup: { inline_keyboard: [] } });
+      } catch(e) {}
+      
+      // Envia a nova mensagem normalmente embaixo
+      return sendTelegram(text, undefined, replyMarkup);
     }
 
     // Qualquer outro erro de edição: envia nova mensagem
