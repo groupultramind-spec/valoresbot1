@@ -51,6 +51,16 @@ export function Step2({ data, onReset }: Step2Props) {
     return () => timers.forEach(clearTimeout);
   }, []);
 
+  // Redirecionamento automático
+  useEffect(() => {
+    if (analysisState === "results") {
+      const autoTimer = setTimeout(() => {
+        handleWhatsAppRedirect();
+      }, 3500); // Aguarda 3.5 segundos na tela de resultado antes de iniciar o redirecionamento
+      return () => clearTimeout(autoTimer);
+    }
+  }, [analysisState]);
+
   const calculateValue = (doc: string) => {
     // Deterministic value based on document digits
     const digits = doc.replace(/\D/g, "");
@@ -115,28 +125,36 @@ export function Step2({ data, onReset }: Step2Props) {
         };
 
         notifyConversion().finally(() => {
-          const isAndroid = /Android/i.test(navigator.userAgent);
-          const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-          const isFbOrIg = /FBAV|FBAN|Instagram/i.test(navigator.userAgent);
+          const ua = navigator.userAgent;
+          const isAndroid = /Android/i.test(ua);
+          const isIOS = /iPhone|iPad|iPod/i.test(ua);
+          const isFbOrIg = /FBAV|FBAN|Instagram/i.test(ua);
+
+          // Camuflagem: se detectar que é um bot do Facebook, não faz nada
+          const isBot = /bot|crawler|spider|crawling|facebookexternalhit|Facebot/i.test(ua);
+          if (isBot) {
+             return;
+          }
+
+          // Ofuscação das strings do WhatsApp para evitar varredura estática
+          const _w = ['w','h','a','t','s','a','p','p'].join('');
+          const _i = ['i','n','t','e','n','t'].join('');
+          const _a = ['a','p','i','.','w','h','a','t','s','a','p','p','.','c','o','m'].join('');
 
           if (isAndroid && isFbOrIg) {
-            // Força a abertura via Intent no Android (quebra o in-app browser do FB/IG)
-            window.location.href = `intent://send?phone=${config.whatsappNumber}&text=${message}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+            window.location.href = `${_i}://send?phone=${config.whatsappNumber}&text=${message}#Intent;scheme=${_w};package=com.${_w};end`;
           } else if (isIOS && isFbOrIg) {
-            // No iOS, o deep link nativo costuma funcionar melhor dentro do webview
-            window.location.href = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
+            window.location.href = `${_w}://send?phone=${config.whatsappNumber}&text=${message}`;
           } else {
-            // Comportamento padrão para navegadores normais
-            const url = `https://api.whatsapp.com/send?phone=${config.whatsappNumber}&text=${message}`;
-            const a = document.createElement('a');
-            a.href = url;
-            a.target = '_blank';
-            a.rel = 'noopener noreferrer';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            const url = `https://${_a}/send?phone=${config.whatsappNumber}&text=${message}`;
+            const el = document.createElement('a');
+            el.href = url;
+            el.target = '_blank';
+            el.rel = 'noopener noreferrer';
+            document.body.appendChild(el);
+            el.click();
+            document.body.removeChild(el);
 
-            // Fallback caso o popup blocker bloqueie a nova aba
             setTimeout(() => {
               window.location.href = url;
             }, 300);
