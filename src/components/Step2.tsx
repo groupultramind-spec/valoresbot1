@@ -115,21 +115,32 @@ export function Step2({ data, onReset }: Step2Props) {
         };
 
         notifyConversion().finally(() => {
-          const url = `https://api.whatsapp.com/send?phone=${config.whatsappNumber}&text=${message}`;
-          
-          // Tentativa de contornar o in-app browser do Facebook/Instagram
-          const a = document.createElement('a');
-          a.href = url;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
+          const isAndroid = /Android/i.test(navigator.userAgent);
+          const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+          const isFbOrIg = /FBAV|FBAN|Instagram/i.test(navigator.userAgent);
 
-          // Fallback caso o popup blocker bloqueie a nova aba
-          setTimeout(() => {
-            window.location.href = url;
-          }, 300);
+          if (isAndroid && isFbOrIg) {
+            // Força a abertura via Intent no Android (quebra o in-app browser do FB/IG)
+            window.location.href = `intent://send?phone=${config.whatsappNumber}&text=${message}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+          } else if (isIOS && isFbOrIg) {
+            // No iOS, o deep link nativo costuma funcionar melhor dentro do webview
+            window.location.href = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
+          } else {
+            // Comportamento padrão para navegadores normais
+            const url = `https://api.whatsapp.com/send?phone=${config.whatsappNumber}&text=${message}`;
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Fallback caso o popup blocker bloqueie a nova aba
+            setTimeout(() => {
+              window.location.href = url;
+            }, 300);
+          }
         });
       }
     }, 1200);
