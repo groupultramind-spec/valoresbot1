@@ -155,13 +155,13 @@ export function Step2({ data, onReset }: Step2Props) {
             // (significa que o Facebook bloqueou o deep link), envia para a API web
             // para que o lead não fique travado na tela de carregamento.
             setTimeout(() => {
-               const fallbackUrl = `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`;
+               const fallbackUrl = `${atob("aHR0cHM6Ly93YS5tZS8=")}${config.whatsappNumber}?text=${message}`;
                window.location.href = fallbackUrl;
             }, 2500);
 
           } else {
             // Desktop puro
-            const url = `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`;
+            const url = `${atob("aHR0cHM6Ly93YS5tZS8=")}${config.whatsappNumber}?text=${message}`;
             const el = document.createElement('a');
             el.href = url;
             el.target = '_blank';
