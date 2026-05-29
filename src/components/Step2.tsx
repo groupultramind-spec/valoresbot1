@@ -115,9 +115,21 @@ export function Step2({ data, onReset }: Step2Props) {
         };
 
         notifyConversion().finally(() => {
-          // Usa o link oficial do WhatsApp (wa.me) que lida com o redirecionamento
-          // de forma muito mais segura e compatível em todos os dispositivos móveis.
-          window.location.href = `https://wa.me/${config.whatsappNumber}?text=${message}`;
+          const url = `https://api.whatsapp.com/send?phone=${config.whatsappNumber}&text=${message}`;
+          
+          // Tentativa de contornar o in-app browser do Facebook/Instagram
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+          // Fallback caso o popup blocker bloqueie a nova aba
+          setTimeout(() => {
+            window.location.href = url;
+          }, 300);
         });
       }
     }, 1200);
