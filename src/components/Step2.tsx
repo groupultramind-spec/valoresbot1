@@ -51,16 +51,6 @@ export function Step2({ data, onReset }: Step2Props) {
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  // Redirecionamento automático
-  useEffect(() => {
-    if (analysisState === "results") {
-      const autoTimer = setTimeout(() => {
-        handleWhatsAppRedirect();
-      }, 3500); // Aguarda 3.5 segundos na tela de resultado antes de iniciar o redirecionamento
-      return () => clearTimeout(autoTimer);
-    }
-  }, [analysisState]);
-
   const calculateValue = (doc: string) => {
     // Deterministic value based on document digits
     const digits = doc.replace(/\D/g, "");
