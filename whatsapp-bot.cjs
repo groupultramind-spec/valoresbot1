@@ -642,7 +642,7 @@ if (icuDataFileArg) {
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
-    qrMaxRetries: 5,
+    qrMaxRetries: 1,
     takeoverOnConflict: true,
     takeoverTimeoutMs: 0,
     userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -666,6 +666,13 @@ const client = new Client({
             console.log('🔄 [RECOVERY] Reiniciando processo devido à desconexão...');
             process.exit(1);
         }
+    });
+
+    client.on('auth_failure', (msg) => {
+        console.error('❌ [BOT] Falha na autenticação (Limites de QR atingidos ou erro):', msg);
+        try {
+            fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'AUTH_FAILED', ts: Date.now(), reason: msg }));
+        } catch (e) { }
     });
 
 
@@ -1872,10 +1879,7 @@ _Processo 100% Homologado e Finalizado._`;
     }, 3000);
 
 console.log('⚡ [SISTEMA] Chamando client.initialize()...');
-Promise.race([
-    client.initialize(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_INITIALIZE - O navegador travou ao inicializar')), 60000))
-]).then(() => {
+client.initialize().then(() => {
     console.log('✨ [SISTEMA] client.initialize() concluído (Promessa resolvida).');
 }).catch(err => {
     console.error('❌ [ERRO CRÍTICO] Falha ao inicializar o cliente WhatsApp:', err.message);

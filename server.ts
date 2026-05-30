@@ -1876,13 +1876,18 @@ async function startTelegramPolling() {
             await sendTelegram(`✅ <b>SMTP ATUALIZADO!</b>\n\nO campo <b>${field}</b> foi definido com sucesso.`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:config_smtp" }]] });
           }
           else if (state?.action === 'awaiting_whatsapp_new_number') {
-            const newNumber = msg.text.replace(/\D/g, '');
-            if (newNumber.length < 10) {
-              await sendTelegram(`❌ <b>NÚMERO INVÁLIDO</b>\n\nDigite um número válido.`, targetMsgId);
+            let newNumber = msg.text.replace(/\D/g, '');
+            // Se o usuário digitou apenas DDD + Número (10 ou 11 dígitos), adiciona o 55 do Brasil
+            if (newNumber.length === 10 || newNumber.length === 11) {
+              newNumber = '55' + newNumber;
+            }
+            if (newNumber.length < 12) {
+              await sendTelegram(`❌ <b>NÚMERO INVÁLIDO</b>\n\nDigite um número válido com DDI e DDD (ex: 5511999999999).`, targetMsgId);
               return;
             }
             currentConfig.whatsappNumber = newNumber;
             saveConfig();
+
             const slotId = state.data?.slotId || 'main';
             botStates.delete(userId);
             await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
