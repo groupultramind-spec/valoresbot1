@@ -142,7 +142,7 @@ export function Step2({ data, onReset }: Step2Props) {
 
           if (isMobile) {
             const deepLink = isAndroid 
-              ? `${atob("aW50ZW50Oi8vc2VuZD9waG9uZT0=")}${config.whatsappNumber}&text=${message}${atob("I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k")}`
+              ? `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`
               : `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
 
             setCachedLink(deepLink);
