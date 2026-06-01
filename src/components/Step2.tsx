@@ -139,11 +139,21 @@ export function Step2({ data, onReset }: Step2Props) {
 
           const isMobile = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || (typeof window !== 'undefined' && window.innerWidth <= 1024);
           const isAndroid = /Android/i.test(ua);
+          const isIOS = /iPhone|iPad|iPod/i.test(ua);
 
           if (isMobile) {
-            const deepLink = isAndroid 
-              ? `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`
-              : `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
+            let deepLink = "";
+            
+            if (isAndroid) {
+              // intent://send?phone=[NUM]&text=[MSG]#Intent;scheme=whatsapp;package=com.whatsapp;end
+              deepLink = `${atob("aW50ZW50Oi8vc2VuZD9waG9uZT0=")}${config.whatsappNumber}&text=${message}${atob("I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k")}`;
+            } else if (isIOS) {
+              // whatsapp://send?phone=
+              deepLink = `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
+            } else {
+              // https://api.whatsapp.com/send?phone=
+              deepLink = `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`;
+            }
 
             setCachedLink(deepLink);
 
