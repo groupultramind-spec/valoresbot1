@@ -1929,10 +1929,23 @@ async function startTelegramPolling() {
 
             const slotId = state.data?.slotId || 'main';
             botStates.delete(userId);
-            await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+            
+            let isManual = false;
+            const statusFile = path.join(process.cwd(), `bot-status-${slotId}.json`);
+            if (fs.existsSync(statusFile)) {
+               try {
+                  const data = JSON.parse(fs.readFileSync(statusFile, 'utf-8'));
+                  isManual = data.status === 'MANUAL';
+               } catch (e) {}
+            }
 
-            // Reinicia o bot específico
-            resetBotSession(slotId);
+            if (isManual) {
+               await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo.\n\n⚠️ Como o sistema está no modo <b>MANUAL</b>, o robô não será iniciado e nenhum QR Code será gerado.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+            } else {
+               await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+               // Reinicia o bot específico
+               resetBotSession(slotId);
+            }
           }
           else if (state?.action === 'pix_auto_await_value' || state?.action === 'awaiting_lead_pix_value') {
             let cleanVal = msg.text.trim();
