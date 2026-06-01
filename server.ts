@@ -1361,6 +1361,7 @@ async function startTelegramPolling() {
             inline_keyboard: [
               [{ text: "🟢 Liberar Etapa 2", callback_data: `etapa:2:${chatId}` }, { text: "🔐 Liberar Etapa 3", callback_data: `etapa:3:${chatId}` }],
               [{ text: "💳 Liberar Etapa 4", callback_data: `etapa:4:${chatId}` }, { text: "✨ Finalizar (Etapa 5)", callback_data: `etapa:5:${chatId}` }],
+              [{ text: "📊 Enviar Status", callback_data: `cmd:send_status:${chatId}` }],
               [{ text: "💰 GERAR PIX (COBRAR)", callback_data: `cmd:last_pix` }],
               [{ text: "⬅️ Voltar para Lista", callback_data: "painel:fila" }]
             ]
@@ -1744,6 +1745,11 @@ async function startTelegramPolling() {
           } else {
             await sendTelegram(`⚠️ <b>DADO AUSENTE</b>\n\nO e-mail do lead não foi capturado ou é inválido.\n\nLead: <code>${chatId}</code>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
           }
+        }
+        else if (text.startsWith("cmd:send_status:")) {
+          const chatId = text.split(":")[2];
+          fs.writeFileSync(`cmd-status-${Date.now()}.json`, JSON.stringify({ chatId }));
+          await sendTelegram(`✅ <b>SOLICITAÇÃO ENVIADA</b>\n\nComando para enviar a mensagem de <b>Status</b> encaminhado para o lead <code>${chatId}</code>.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: `painel:lead_control:${chatId}` }]] });
         }
         else if (text.startsWith("etapa:")) {
           const parts = text.split(":");

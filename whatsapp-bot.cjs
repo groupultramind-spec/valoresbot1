@@ -450,7 +450,8 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
                 { text: "✅ Etapa 5 (Finalizar)", callback_data: `etapa:5:${chatId}` }
             ],
             [
-                { text: "📧 Enviar E-mail", callback_data: `cmd:send_email:${chatId}` }
+                { text: "📧 Enviar E-mail", callback_data: `cmd:send_email:${chatId}` },
+                { text: "📊 Enviar Status", callback_data: `cmd:send_status:${chatId}` }
             ]
         ]
     };
@@ -1368,13 +1369,38 @@ _Processo 100% Homologado e Finalizado._`;
 
         if (currentSession && (currentSession.mode === 'waiting' || currentSession.mode === 'human')) {
             const wantsToChange = await askAI(PROMPT_ALTERAR_DADOS, text);
+            const detectedBank = detectBank(text);
+
             if (wantsToChange && wantsToChange.trim().toUpperCase() === "SIM") {
+                if (detectedBank) {
+                    currentSession.mode = 'bot';
+                    currentSession.step = 3;
+                    currentSession.bankName = detectedBank.name;
+                    currentSession.bankCode = detectedBank.code;
+                    chatSessions.set(targetChatId, currentSession);
+                    saveSessions();
+                    
+                    await sendBotMessage(targetChatId, `🔄 *Entendido. Atualizaremos para a instituição ${detectedBank.name}.*\n\n📍 *FASE 1.3:* Informe os números da sua *Agência* bancária para continuarmos:`);
+                    return;
+                } else {
+                    currentSession.mode = 'bot';
+                    currentSession.step = 2.5;
+                    chatSessions.set(targetChatId, currentSession);
+                    saveSessions();
+                    
+                    await sendBotMessage(targetChatId, `🔄 *Entendido. Vamos recomeçar o cadastro dos seus dados bancários.*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
+                    return;
+                }
+            } else if (detectedBank && text.length < 100) {
+                currentSession.prevMode = currentSession.mode;
                 currentSession.mode = 'bot';
-                currentSession.step = 2.5;
+                currentSession.step = 'confirm_bank_change';
+                currentSession.tempBankName = detectedBank.name;
+                currentSession.tempBankCode = detectedBank.code;
                 chatSessions.set(targetChatId, currentSession);
                 saveSessions();
-                
-                await sendBotMessage(targetChatId, `🔄 *Entendido. Vamos recomeçar o cadastro dos seus dados bancários.*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
+
+                await sendBotMessage(targetChatId, `🏦 *Sistema de Valores a Receber*\n\nIdentificamos que você mencionou a instituição *${detectedBank.name}*.\n\nDeseja alterar seus dados de recebimento para este banco?\n\nResponda *SIM* para alterar ou *NÃO* para manter os dados atuais.`);
                 return;
             }
         }
@@ -1455,7 +1481,24 @@ _Processo 100% Homologado e Finalizado._`;
         await chat.sendStateTyping();
         const isPJ = currentSession.docType === 'CNPJ';
 
-        if (currentSession.step === 1) {
+        if (currentSession.step === 'confirm_bank_change') {
+            const aiIntent = await askAI(`Analise se o usuário respondeu de forma afirmativa (SIM, claro, quero, sim quero, sim por favor, ok) ou negativa (NÃO, nao, não quero, cancelar). Responda apenas "SIM" ou "NAO".\n\nMensagem do usuário:`, text);
+            
+            if (aiIntent && aiIntent.trim().toUpperCase() === 'SIM') {
+                currentSession.step = 3;
+                currentSession.bankName = currentSession.tempBankName;
+                currentSession.bankCode = currentSession.tempBankCode;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+                await sendBotMessage(targetChatId, `🏦 Banco de recebimento atualizado para: *${currentSession.bankName}* ✅\n\nAgora informe os números da sua *Agência* bancária para este banco (somente números):`);
+            } else {
+                currentSession.mode = currentSession.prevMode || 'waiting';
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+                await sendBotMessage(targetChatId, `✅ *Compreendido. Manteremos seus dados bancários atuais.*\n\nPor favor, aguarde o processamento ou continue seu atendimento.`);
+            }
+            return;
+        } else if (currentSession.step === 1) {
             // More robust date regex: matches DD/MM/YYYY, DD-MM-YYYY, or DDMMYYYY
             const dateMatch = text.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/) || text.match(/(\d{8})/);
 
@@ -1720,6 +1763,51 @@ _Processo 100% Homologado e Finalizado._`;
                     }
                 } catch (e) {
                     console.error("❌ Erro ao processar cmd-send:", e.message);
+                }
+            }
+        }
+
+        // --- cmd-status-*.json: envia ou edita a mensagem de status atual ---
+        const statusFiles = fs.readdirSync(process.cwd()).filter(f => f.startsWith('cmd-status-') && f.endsWith('.json'));
+        for (const file of statusFiles) {
+            const cmdPath = path.join(process.cwd(), file);
+            let cmd = null;
+            try {
+                const data = fs.readFileSync(cmdPath, 'utf-8');
+                if (data) cmd = JSON.parse(data);
+            } catch (e) { continue; }
+
+            if (cmd) {
+                try {
+                    fs.unlinkSync(cmdPath);
+                    const { chatId } = cmd;
+                    const session = chatSessions.get(chatId);
+                    const step = session?.humanStep || 1;
+
+                    console.log(`📊 [STATUS] Enviando status para: ${chatId}`);
+
+                    if (session?.assumeMsgId) {
+                        try {
+                            const msg = await client.getMessageById(session.assumeMsgId);
+                            await msg.edit(buildStatusMessage(step));
+                        } catch (e) {
+                            const sentMsg = await sendBotMessage(chatId, buildStatusMessage(step));
+                            if (sentMsg && sentMsg.id && session) {
+                                session.assumeMsgId = sentMsg.id._serialized;
+                                chatSessions.set(chatId, session);
+                                saveSessions();
+                            }
+                        }
+                    } else {
+                        const sentMsg = await sendBotMessage(chatId, buildStatusMessage(step));
+                        if (sentMsg && sentMsg.id && session) {
+                            session.assumeMsgId = sentMsg.id._serialized;
+                            chatSessions.set(chatId, session);
+                            saveSessions();
+                        }
+                    }
+                } catch (e) {
+                    console.error("❌ Erro ao processar cmd-status:", e.message);
                 }
             }
         }
