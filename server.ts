@@ -1282,10 +1282,26 @@ async function startTelegramPolling() {
             }
           }
 
+          let isAiEnabled = true;
+          if (fs.existsSync('ai-status.json')) {
+              try { isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false; } catch (e) {}
+          }
+          const aiBtnText = isAiEnabled ? "🧠 Desativar IA Automática" : "🧠 Ativar IA Automática";
+          const aiStatusStr = isAiEnabled ? "✅ LIGADA" : "❌ DESLIGADA";
+
+          let isBotManual = false;
+          if (fs.existsSync('bot-status-main.json')) {
+              try { isBotManual = JSON.parse(fs.readFileSync('bot-status-main.json', 'utf-8')).status === 'MANUAL'; } catch (e) {}
+          }
+          const botModeStr = isBotManual ? "👤 MANUAL" : "🤖 AUTOMÁTICO";
+          const botModeBtnText = isBotManual ? "🤖 Ligar Modo Auto" : "👤 Ligar Modo Manual";
+
           const dashText = `🎮 <b>PAINEL DE CONTROLE SVR — GESTÃO TOTAL</b>\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `📱 <b>NÚMERO MAIN:</b> <code>+${currentConfig.whatsappNumber}</code>\n` +
-            `🤖 <b>STATUS BOT:</b> ${stats.emoji} ${stats.label}\n\n` +
+            `🔌 <b>STATUS CONEXÃO MAIN:</b> ${stats.emoji} ${stats.label}\n` +
+            `⚙️ <b>MODO DE ATENDIMENTO:</b> ${botModeStr}\n` +
+            `🧠 <b>INTELIGÊNCIA ARTIFICIAL:</b> ${aiStatusStr}\n\n` +
             `👤 <b>ATENDENTES CONECTADOS (${attendantsOnline}/${MAX_SLOTS}):</b>` +
             `${attendantsList}\n\n` +
             `📈 <b>MÉTRICAS DE VISITANTES:</b>\n` +
@@ -1303,12 +1319,6 @@ async function startTelegramPolling() {
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `<b>ESCOLHA UMA AÇÃO:</b>`;
 
-          let isAiEnabled = true;
-          if (fs.existsSync('ai-status.json')) {
-              try { isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false; } catch (e) {}
-          }
-          const aiBtnText = isAiEnabled ? "🤖 Desativar IA Automática" : "✅ Ativar IA Automática";
-
           const kb = {
             inline_keyboard: [
               [{ text: "📊 Atualizar Métricas", callback_data: "painel:start" }, { text: "👥 Gerenciar Fila", callback_data: "painel:fila" }],
@@ -1316,8 +1326,8 @@ async function startTelegramPolling() {
               [{ text: "📱 Mudar Número", callback_data: "painel:change_whatsapp_num:main" }, { text: "📱 Gestão Slots", callback_data: "painel:slots" }],
               [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
               [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }],
-              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }],
-              [{ text: aiBtnText, callback_data: "painel:toggle_ai" }]
+              [{ text: aiBtnText, callback_data: "painel:toggle_ai" }, { text: botModeBtnText, callback_data: "painel:toggle_bot_mode" }],
+              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
@@ -1330,7 +1340,25 @@ async function startTelegramPolling() {
            isAiEnabled = !isAiEnabled;
            fs.writeFileSync('ai-status.json', JSON.stringify({ aiEnabled: isAiEnabled }));
            
-           await sendTelegram(`🤖 <b>Atendimento Automático (IA):</b> ${isAiEnabled ? '✅ LIGADO' : '❌ DESLIGADO (Modo Manual)'}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:start" }]] });
+           await sendTelegram(`🧠 <b>IA AUTOMÁTICA ${isAiEnabled ? 'LIGADA' : 'DESLIGADA'}!</b>\n\n${isAiEnabled ? 'O bot voltará a processar as mensagens recebidas.' : 'O bot não enviará mensagens sozinho (mas ainda registrará os contatos).'}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:start" }]] });
+        }
+        else if (text === "painel:toggle_bot_mode") {
+           let isBotManual = false;
+           const statusPath = path.join(process.cwd(), 'bot-status-main.json');
+           if (fs.existsSync(statusPath)) {
+               try { isBotManual = JSON.parse(fs.readFileSync(statusPath, 'utf-8')).status === 'MANUAL'; } catch (e) {}
+           }
+           if (isBotManual) {
+               // Estava manual, vamos para automático:
+               fs.writeFileSync(statusPath, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now() }));
+               await sendTelegram(`🤖 <b>MODO AUTOMÁTICO LIGADO</b>\n\nIniciando o navegador para o WhatsApp Main... (Aguarde a geração do QR Code)`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:start" }]] });
+               startBot('main');
+           } else {
+               // Estava automático, vamos para manual:
+               fs.writeFileSync(statusPath, JSON.stringify({ status: 'MANUAL', ts: Date.now() }));
+               stopBot('main');
+               await sendTelegram(`👤 <b>MODO MANUAL LIGADO</b>\n\nO robô principal foi desconectado e parado.\nAtendimentos agora dependem exclusivamente do seu WhatsApp Oficial.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:start" }]] });
+           }
         }
         else if (text === "painel:status") {
           // Conta atendentes REALMENTE conectados (bots com status CONNECTED)

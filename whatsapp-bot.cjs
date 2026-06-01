@@ -1407,7 +1407,7 @@ _Processo 100% Homologado e Finalizado._`;
             return;
         }
 
-        if (currentSession && (currentSession.mode === 'waiting' || currentSession.mode === 'human')) {
+        if (currentSession && currentSession.mode === 'waiting') {
             const wantsToChange = await askAI(PROMPT_ALTERAR_DADOS, text);
             const detectedBank = detectBank(text);
 
