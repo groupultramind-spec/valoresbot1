@@ -644,9 +644,10 @@ if (icuDataFileArg) {
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: BOT_ID, dataPath: '.wwebjs_auth' }),
     qrMaxRetries: 1,
-    takeoverOnConflict: true,
-    takeoverTimeoutMs: 0,
-    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    // Removido takeover agressivo que causa banimentos:
+    // takeoverOnConflict: true,
+    // takeoverTimeoutMs: 0,
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     puppeteer: {
         headless: true,
         executablePath: chosenStrategy.path,
@@ -665,7 +666,13 @@ const client = new Client({
         // Se não for um logout manual, encerramos para o watchdog reiniciar
         if (reason !== 'NAVIGATION') {
             console.log('🔄 [RECOVERY] Reiniciando processo devido à desconexão...');
-            process.exit(1);
+            // Atraso extra para não ficar brigando pela sessão em caso de conflito de aba
+            if (reason === 'CONFLICT') {
+                console.log('⚠️ [AVISO] Conflito detectado (WhatsApp aberto em outro local). Aguardando antes de fechar...');
+                setTimeout(() => process.exit(1), 15000);
+            } else {
+                process.exit(1);
+            }
         }
     });
 
@@ -736,22 +743,30 @@ const client = new Client({
                 setTimeout(async () => {
                     if (!isBotReady) {
                         try {
-                            await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/editMessageCaption`, {
+                            // Apaga o QR Code anterior por segurança
+                            await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/deleteMessage`, {
                                 chat_id: CHAT_ID,
-                                message_id: msgId,
-                                caption: `❌ <b>QR CODE EXPIRADO — ${slotLabel}</b>\n\nEste código não é mais válido. Clique no botão abaixo para gerar um novo.`,
+                                message_id: msgId
+                            });
+                            
+                            // Avisa o admin e encerra a tentativa
+                            await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+                                chat_id: CHAT_ID,
+                                text: `❌ <b>QR CODE EXPIRADO — ${slotLabel}</b>\n\nO código não foi lido a tempo. Por segurança, a tentativa de conexão foi abortada.\n\nPara tentar novamente, clique no botão abaixo.`,
                                 parse_mode: 'HTML',
                                 reply_markup: JSON.stringify({
                                     inline_keyboard: [
                                         [{ text: "🔄 Gerar Novo QR Code", callback_data: `cmd:refresh_qr:${BOT_ID}` }],
-                                        [{ text: "📱 Mudar Número WhatsApp", callback_data: `painel:change_whatsapp_num:${BOT_ID}` }],
-                                        [{ text: "🔌 Desconectar Sessão", callback_data: `painel:desconectar:slot:${BOT_ID}` }],
                                         [{ text: "🏠 Painel Principal", callback_data: "painel:start" }]
                                     ]
                                 })
                             });
+                            
+                            console.log('❌ [QR CODE] Expirado. Abortando processo...');
+                            // Coloca no status manual para o watchdog não reiniciar imediatamente
+                            fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'MANUAL', ts: Date.now() }));
+                            process.exit(0);
                         } catch (e) { }
-                        // qrSentToTelegram = false; // Comentado para evitar spam automático de QRs
                     }
                 }, 45000);
             }
@@ -1234,6 +1249,13 @@ _Processo 100% Homologado e Finalizado._`;
         if (BOT_ID !== 'main') return;
         if (msg.fromMe) return;
 
+        let isAiEnabled = true;
+        try {
+            if (fs.existsSync('ai-status.json')) {
+                isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false;
+            }
+        } catch (e) {}
+
         const targetChatId = msg.from;
         if (!targetChatId) return;
         // Proteção rigorosa contra encaminhamento em massa e listas
@@ -1271,6 +1293,24 @@ _Processo 100% Homologado e Finalizado._`;
             return;
         }
         processingLock.add(targetChatId);
+
+        if (!isAiEnabled) {
+            const currentSession = chatSessions.get(targetChatId);
+            if (!currentSession) {
+                const text = (msg.body || "").trim();
+                const tgMsgId = await notifyTelegram(`📩 <b>NOVO CONTATO (MANUAL)</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`);
+                chatSessions.set(targetChatId, {
+                    mode: 'human',
+                    humanStep: 1,
+                    lastMsgTime: Date.now(),
+                    createdAt: Date.now(),
+                    tgMsgId
+                });
+                saveSessions();
+            }
+            setTimeout(() => processingLock.delete(targetChatId), 1000);
+            return;
+        }
 
         try {
             await processIncomingMessage(msg, targetChatId);

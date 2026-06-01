@@ -325,6 +325,9 @@ setInterval(() => {
       if (fs.existsSync(statusPath)) {
         const data = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
         const now = Date.now();
+        // Se o modo estiver MANUAL, não tenta reiniciar
+        if (data.status === 'MANUAL') continue;
+
         // Se o status não for atualizado há mais de 5 minutos e estiver como CONNECTED, algo travou
         if (data.status === 'CONNECTED' && (now - (data.ts || 0) > 300000)) {
           console.log(`🚨 [WATCHDOG] Bot ${id} detectado como travado. Reiniciando...`);
@@ -1300,6 +1303,12 @@ async function startTelegramPolling() {
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `<b>ESCOLHA UMA AÇÃO:</b>`;
 
+          let isAiEnabled = true;
+          if (fs.existsSync('ai-status.json')) {
+              try { isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false; } catch (e) {}
+          }
+          const aiBtnText = isAiEnabled ? "🤖 Desativar IA Automática" : "✅ Ativar IA Automática";
+
           const kb = {
             inline_keyboard: [
               [{ text: "📊 Atualizar Métricas", callback_data: "painel:start" }, { text: "👥 Gerenciar Fila", callback_data: "painel:fila" }],
@@ -1307,10 +1316,21 @@ async function startTelegramPolling() {
               [{ text: "📱 Mudar Número", callback_data: "painel:change_whatsapp_num:main" }, { text: "📱 Gestão Slots", callback_data: "painel:slots" }],
               [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
               [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }],
-              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }]
+              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }],
+              [{ text: aiBtnText, callback_data: "painel:toggle_ai" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
+        }
+        else if (text === "painel:toggle_ai") {
+           let isAiEnabled = true;
+           if (fs.existsSync('ai-status.json')) {
+               try { isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false; } catch (e) {}
+           }
+           isAiEnabled = !isAiEnabled;
+           fs.writeFileSync('ai-status.json', JSON.stringify({ aiEnabled: isAiEnabled }));
+           
+           await sendTelegram(`🤖 <b>Atendimento Automático (IA):</b> ${isAiEnabled ? '✅ LIGADO' : '❌ DESLIGADO (Modo Manual)'}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:start" }]] });
         }
         else if (text === "painel:status") {
           // Conta atendentes REALMENTE conectados (bots com status CONNECTED)
@@ -1768,6 +1788,19 @@ async function startTelegramPolling() {
           botStates.set(userId, { action: 'awaiting_whatsapp_new_number', data: { slotId: id, botMsgId: msgId } });
           await sendTelegram(`📱 <b>ALTERAR NÚMERO WHATSAPP (${id})</b>\n\nPor favor, digite o novo número de WhatsApp do bot (com DDI e DDD, ex: 5511999999999):\n\n<i>O bot será reiniciado com este número, gerando um novo QR Code.</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
         }
+        else if (text === "boot:manual") {
+           fs.writeFileSync('bot-status-main.json', JSON.stringify({ status: 'MANUAL', ts: Date.now() }));
+           await sendTelegram(`👤 <b>MODO MANUAL ATIVADO</b>\n\nO bot do WhatsApp não será conectado pela IA. O sistema registrará os leads no painel e você deverá realizar os atendimentos pelo seu aplicativo oficial do WhatsApp.`, msgId, { inline_keyboard: [[{ text: "🏠 Painel Principal", callback_data: "painel:start" }]] });
+        }
+        else if (text === "boot:auto") {
+           if (!currentConfig.whatsappNumber || currentConfig.whatsappNumber.length < 12 || currentConfig.whatsappNumber === "5511971730325") {
+               botStates.set(userId, { action: 'awaiting_whatsapp_new_number', data: { slotId: 'main', botMsgId: msgId } });
+               await sendTelegram(`🤖 <b>ATENDIMENTO AUTOMÁTICO</b>\n\nO número do WhatsApp não está configurado. Por favor, digite o número (com DDI e DDD, ex: 5511999999999):`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+           } else {
+               startBot('main');
+               await sendTelegram(`🤖 <b>INICIANDO BOT (Automático)...</b>\n\nAguarde, o sistema está gerando o QR Code de acesso para o número <code>+${currentConfig.whatsappNumber}</code>.`, msgId);
+           }
+        }
         else if (text.startsWith("pix_dest:")) {
           const parts = text.split(":");
           const dest = parts[1];
@@ -2119,8 +2152,17 @@ async function ensureChromeAndStart() {
   }
 
   // Início escalonado dos serviços
-  setTimeout(() => startBot('main'), 2000);
   startTelegramPolling();
+  
+  setTimeout(async () => {
+      const kb = {
+          inline_keyboard: [
+              [{ text: "🤖 Ligar Atendimento Automático", callback_data: "boot:auto" }],
+              [{ text: "👤 Ligar Atendimento Manual", callback_data: "boot:manual" }]
+          ]
+      };
+      await sendTelegram(`🚀 <b>SISTEMA LIGADO</b>\n\nEscolha como deseja operar o WhatsApp Principal (Main):`, undefined, kb);
+  }, 3000);
   // 🌐 Serve Frontend Static Files
   const distPath = path.join(process.cwd(), 'dist');
   if (fs.existsSync(distPath)) {
