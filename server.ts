@@ -1327,7 +1327,7 @@ async function startTelegramPolling() {
               [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
               [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }],
               [{ text: aiBtnText, callback_data: "painel:toggle_ai" }, { text: botModeBtnText, callback_data: "painel:toggle_bot_mode" }],
-              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }]
+              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }, { text: "📜 Ver Roteiros", callback_data: "painel:scripts:Geral" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
@@ -1420,7 +1420,7 @@ async function startTelegramPolling() {
         else if (text.startsWith("painel:scripts:")) {
           const chatId = cb.data.split(":")[2];
           const txt = `📜 <b>ROTEIROS DE ATENDIMENTO MANUAL</b>\n` +
-            `Lead: <code>${chatId}</code>\n\n` +
+            (chatId !== "Geral" ? `Lead: <code>${chatId}</code>\n\n` : `\n`) +
             `Escolha qual parte do roteiro deseja copiar:`;
             
           const kb = {
@@ -1446,7 +1446,7 @@ async function startTelegramPolling() {
                 { text: "✨ Etapa 5 (Final)", callback_data: `script:e5:${chatId}` }
               ],
               [
-                { text: "⬅️ Voltar ao Controle", callback_data: `painel:lead_control:${chatId}` }
+                { text: chatId === "Geral" ? "⬅️ Voltar ao Painel" : "⬅️ Voltar ao Controle", callback_data: chatId === "Geral" ? "painel:start" : `painel:lead_control:${chatId}` }
               ]
             ]
           };

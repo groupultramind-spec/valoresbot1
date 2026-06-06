@@ -121,7 +121,11 @@ export function Step2({ data, onReset }: Step2Props) {
 
     if (isMobile) {
       // Usar o protocolo universal 'whatsapp://' que abre o app diretamente no Android e iOS
-      const deepLink = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
+      let deepLink = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
+
+      if (isAndroid) {
+        deepLink = `intent://send?phone=${config.whatsappNumber}&text=${message}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+      }
 
       setCachedLink(deepLink);
 
