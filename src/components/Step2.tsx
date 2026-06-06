@@ -335,10 +335,9 @@ export function Step2({ data, onReset }: Step2Props) {
                 
                 <a 
                   href={cachedLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   onClick={(e) => {
-                    // We allow the default <a> behavior because that triggers Universal Links on iOS!
+                    // We allow the default <a> behavior because that triggers Universal Links on iOS.
+                    // Removed target="_blank" so it works inside mobile WebViews (Instagram, Facebook).
                   }}
                   className="mt-8 bg-[#007087] hover:bg-[#005a6b] text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-3 w-full shadow-lg transition-all"
                 >
