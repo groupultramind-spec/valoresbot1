@@ -671,8 +671,14 @@ const client = new Client({
             console.log('🔄 [RECOVERY] Reiniciando processo devido à desconexão...');
             // Atraso extra para não ficar brigando pela sessão em caso de conflito de aba
             if (reason === 'CONFLICT') {
-                console.log('⚠️ [AVISO] Conflito detectado (WhatsApp aberto em outro local). Aguardando antes de fechar...');
-                setTimeout(() => process.exit(1), 15000);
+                console.log('⚠️ [AVISO] Conflito detectado (WhatsApp aberto em outro local). O bot não vai reiniciar sozinho para evitar banimento por spam.');
+                try {
+                    fs.writeFileSync(STATUS_FILE, JSON.stringify({ status: 'MANUAL', ts: Date.now(), reason: 'CONFLICT_PAUSED' }));
+                } catch (e) {}
+                
+                notifyTelegram(`⚠️ <b>CONFLITO DETECTADO (${BOT_ID.toUpperCase()})</b>\n\nO WhatsApp foi aberto em outro dispositivo (ex: no seu celular ou PC).\n\nPara evitar que a conta caia por ficar conectando e desconectando repetidamente (spam de sessão), o bot foi <b>PAUSADO AUTOMATICAMENTE</b>.\n\nQuando você terminar de usar o WhatsApp Oficial, clique em "🔄 Reiniciar Main" no painel principal para que o bot volte a funcionar.`);
+                
+                // Nós não damos process.exit(1) aqui. Assim ele não reinicia no loop infinito.
             } else {
                 process.exit(1);
             }
