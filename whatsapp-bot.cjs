@@ -452,6 +452,9 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
             [
                 { text: "📧 Enviar E-mail", callback_data: `cmd:send_email:${chatId}` },
                 { text: "📊 Enviar Status", callback_data: `cmd:send_status:${chatId}` }
+            ],
+            [
+                { text: "📜 Copiar Roteiros / Scripts", callback_data: `painel:scripts:${chatId}` }
             ]
         ]
     };
