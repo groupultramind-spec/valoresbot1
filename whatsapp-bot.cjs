@@ -805,7 +805,6 @@ const client = new Client({
         // Heartbeat a cada 30 segundos para o Watchdog do server.ts
         setInterval(updateBotStatus, 30000);
 
-        const caption = `✅ <b>${BOT_ID.toUpperCase()} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
         if (lastQrMsgId) {
             // Apaga a mensagem da foto do QR Code para não ficar aparecendo acima da confirmação
             try {
@@ -819,7 +818,11 @@ const client = new Client({
                 console.error('❌ [TELEGRAM] Erro ao apagar mensagem do QR:', e.message);
             }
         }
-        notifyTelegram(caption);
+        
+        if (BOT_ID !== 'main') {
+            const caption = `✅ <b>${BOT_ID.toUpperCase()} CONECTADO</b>\n\n📱 WhatsApp vinculado com sucesso!\nO bot está pronto para atendimento.`;
+            notifyTelegram(caption);
+        }
     });
 
     client.on('incoming_call', async (call) => {
