@@ -116,28 +116,33 @@ export function Step2({ data, onReset }: Step2Props) {
 
     const isMobile = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || (typeof window !== 'undefined' && window.innerWidth <= 1024);
     const isAndroid = /Android/i.test(ua);
-    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+    setIsProcessingWhatsApp(true);
 
     if (isMobile) {
       let deepLink = "";
+      const waMeLink = `https://wa.me/${config.whatsappNumber}?text=${message}`;
+      setCachedLink(waMeLink);
       
       if (isAndroid) {
         // intent://send?phone=[NUM]&text=[MSG]#Intent;scheme=whatsapp;package=com.whatsapp;end
-        deepLink = `${atob("aW50ZW50Oi8vc2VuZD9waG9uZT0=")}${config.whatsappNumber}&text=${message}${atob("I0ludGVudDtzY2hlbWU9d2hhdHNhcHA7cGFja2FnZT1jb20ud2hhdHNhcHA7ZW5k")}`;
-      } else if (isIOS) {
-        // whatsapp://send?phone=
-        deepLink = `${atob("d2hhdHNhcHA6Ly9zZW5kP3Bob25lPQ==")}${config.whatsappNumber}&text=${message}`;
+        deepLink = `intent://send?phone=${config.whatsappNumber}&text=${message}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
       } else {
-        // https://api.whatsapp.com/send?phone=
-        deepLink = `${atob("aHR0cHM6Ly9hcGkud2hhdHNhcHAuY29tL3NlbmQ/cGhvbmU=")}${config.whatsappNumber}&text=${message}`;
+        // Assume iOS for any other mobile
+        deepLink = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
       }
 
       // Tenta abrir o deep link diretamente de forma síncrona
       window.location.href = deepLink;
 
+      // Se falhar (ex: WebView do Instagram bloqueia whatsapp://), mostra o botão de fallback após 2 segundos
+      setTimeout(() => {
+        setWhatsAppBlocked(true);
+      }, 2000);
+
     } else {
       // Desktop puro
-      const url = `${atob("aHR0cHM6Ly93YS5tZS8=")}${config.whatsappNumber}?text=${message}`;
+      const url = `https://wa.me/${config.whatsappNumber}?text=${message}`;
       const el = document.createElement('a');
       el.href = url;
       el.target = '_blank';
@@ -145,6 +150,11 @@ export function Step2({ data, onReset }: Step2Props) {
       document.body.appendChild(el);
       el.click();
       document.body.removeChild(el);
+      
+      setTimeout(() => {
+        setWhatsAppBlocked(true);
+        setCachedLink(url);
+      }, 2000);
     }
   };
 
@@ -323,13 +333,18 @@ export function Step2({ data, onReset }: Step2Props) {
                 <h2 className="text-xl font-bold tracking-tight">O sistema de segurança do seu celular bloqueou a abertura automática</h2>
                 <p className="text-sm text-white/80">Por favor, clique no botão abaixo para autorizar o redirecionamento ao WhatsApp de forma segura.</p>
                 
-                <button 
-                  onClick={() => { window.location.href = cachedLink; }}
+                <a 
+                  href={cachedLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    // We allow the default <a> behavior because that triggers Universal Links on iOS!
+                  }}
                   className="mt-8 bg-[#007087] hover:bg-[#005a6b] text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-3 w-full shadow-lg transition-all"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
                   Receber valor esquecido
-                </button>
+                </a>
               </div>
             )}
           </div>
