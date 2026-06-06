@@ -121,8 +121,6 @@ export function Step2({ data, onReset }: Step2Props) {
 
     if (isMobile) {
       let deepLink = "";
-      const waMeLink = `https://wa.me/${config.whatsappNumber}?text=${message}`;
-      setCachedLink(waMeLink);
       
       if (isAndroid) {
         // intent://send?phone=[NUM]&text=[MSG]#Intent;scheme=whatsapp;package=com.whatsapp;end
@@ -131,6 +129,8 @@ export function Step2({ data, onReset }: Step2Props) {
         // Assume iOS for any other mobile
         deepLink = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
       }
+
+      setCachedLink(deepLink);
 
       // Tenta abrir o deep link diretamente de forma síncrona
       window.location.href = deepLink;
