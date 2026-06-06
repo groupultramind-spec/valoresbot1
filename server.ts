@@ -1814,7 +1814,25 @@ async function startTelegramPolling() {
         else if (text.startsWith("painel:change_whatsapp_num")) {
           const id = text.split(":")[2] || 'main';
           botStates.set(userId, { action: 'awaiting_whatsapp_new_number', data: { slotId: id, botMsgId: msgId } });
-          await sendTelegram(`📱 <b>ALTERAR NÚMERO WHATSAPP (${id})</b>\n\nPor favor, digite o novo número de WhatsApp do bot (com DDI e DDD, ex: 5511999999999):\n\n<i>O bot será reiniciado com este número, gerando um novo QR Code.</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+          await sendTelegram(`📱 <b>ALTERAR NÚMERO WHATSAPP (${id})</b>\n\nPor favor, digite o novo número de WhatsApp do bot (com DDI e DDD, ex: 5511999999999):`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+        }
+        else if (text === "change_num:only_change" || text === "change_num:connect") {
+          const state = botStates.get(userId);
+          if (!state || state.action !== 'awaiting_whatsapp_new_number_confirm') {
+              await sendTelegram(`❌ Sessão expirada.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+              return;
+          }
+          const { newNumber, slotId } = state.data;
+          currentConfig.whatsappNumber = newNumber;
+          saveConfig();
+          botStates.delete(userId);
+
+          if (text === "change_num:only_change") {
+              await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo apenas no sistema.\nNenhum QR Code será gerado agora.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+          } else {
+              await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+              resetBotSession(slotId);
+          }
         }
         else if (text === "boot:manual") {
            fs.writeFileSync('bot-status-main.json', JSON.stringify({ status: 'MANUAL', ts: Date.now() }));
@@ -1952,28 +1970,17 @@ async function startTelegramPolling() {
               await sendTelegram(`❌ <b>NÚMERO INVÁLIDO</b>\n\nDigite um número válido com DDI e DDD (ex: 5511999999999).`, targetMsgId);
               return;
             }
-            currentConfig.whatsappNumber = newNumber;
-            saveConfig();
-
-            const slotId = state.data?.slotId || 'main';
-            botStates.delete(userId);
             
-            let isManual = false;
-            const statusFile = path.join(process.cwd(), `bot-status-${slotId}.json`);
-            if (fs.existsSync(statusFile)) {
-               try {
-                  const data = JSON.parse(fs.readFileSync(statusFile, 'utf-8'));
-                  isManual = data.status === 'MANUAL';
-               } catch (e) {}
-            }
-
-            if (isManual) {
-               await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo.\n\n⚠️ Como o sistema está no modo <b>MANUAL</b>, o robô não será iniciado e nenhum QR Code será gerado.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
-            } else {
-               await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
-               // Reinicia o bot específico
-               resetBotSession(slotId);
-            }
+            const slotId = state.data?.slotId || 'main';
+            botStates.set(userId, { action: 'awaiting_whatsapp_new_number_confirm', data: { newNumber, slotId, botMsgId: targetMsgId } });
+            
+            await sendTelegram(`📱 <b>NOVO NÚMERO DEFINIDO:</b> ${newNumber}\n\nO que você deseja fazer agora?`, targetMsgId, {
+                inline_keyboard: [
+                    [{ text: "🔄 Apenas Trocar no Sistema", callback_data: "change_num:only_change" }],
+                    [{ text: "📲 Conectar (Gerar QR Code)", callback_data: "change_num:connect" }],
+                    [{ text: "❌ Cancelar", callback_data: "painel:back" }]
+                ]
+            });
           }
           else if (state?.action === 'pix_auto_await_value' || state?.action === 'awaiting_lead_pix_value') {
             let cleanVal = msg.text.trim();
