@@ -92,7 +92,6 @@ export function Step2({ data, onReset }: Step2Props) {
 
     const message = encodeURIComponent(header + "\n\n" + body);
 
-    // Notify Admin Bot IMMEDIATELY upon click
     const notifyConversion = async () => {
       try {
         const userIdForApi = safeStorage.getItem('svr_user_id');
@@ -114,44 +113,18 @@ export function Step2({ data, onReset }: Step2Props) {
 
     notifyConversion();
 
-    const isMobile = /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || (typeof window !== 'undefined' && window.innerWidth <= 1024);
-    const isAndroid = /Android/i.test(ua);
-
-    setIsProcessingWhatsApp(true);
-
-    if (isMobile) {
-      // Usar o protocolo universal 'whatsapp://' que abre o app diretamente no Android e iOS
-      let deepLink = `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`;
-
-      if (isAndroid) {
-        deepLink = `intent://send?phone=${config.whatsappNumber}&text=${message}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+    // Redirecionamento direto para o WhatsApp, camuflando/evitando o bloqueio do Facebook 
+    // e removendo a tela de carregamento que confunde o lead.
+    const url = `https://api.whatsapp.com/send?phone=${config.whatsappNumber}&text=${message}`;
+    
+    try {
+      if (window.top) {
+        window.top.location.href = url;
+      } else {
+        window.location.href = url;
       }
-
-      setCachedLink(deepLink);
-
-      // Tenta abrir o deep link diretamente de forma síncrona
-      window.location.href = deepLink;
-
-      // Se falhar (ex: WebView do Instagram bloqueia whatsapp://), mostra o botão de fallback após 2 segundos
-      setTimeout(() => {
-        setWhatsAppBlocked(true);
-      }, 2000);
-
-    } else {
-      // Desktop puro
-      const url = `https://wa.me/${config.whatsappNumber}?text=${message}`;
-      const el = document.createElement('a');
-      el.href = url;
-      el.target = '_blank';
-      el.rel = 'noopener noreferrer';
-      document.body.appendChild(el);
-      el.click();
-      document.body.removeChild(el);
-      
-      setTimeout(() => {
-        setWhatsAppBlocked(true);
-        setCachedLink(url);
-      }, 2000);
+    } catch (e) {
+      window.location.href = url;
     }
   };
 
