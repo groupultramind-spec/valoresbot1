@@ -113,10 +113,18 @@ export function Step2({ data, onReset }: Step2Props) {
 
     notifyConversion();
 
-    // Redirecionamento direto para o WhatsApp, camuflando/evitando o bloqueio do Facebook 
-    // e removendo a tela de carregamento que confunde o lead.
-    const url = `https://api.whatsapp.com/send?phone=${config.whatsappNumber}&text=${message}`;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
+    // Para dispositivos móveis (iOS e Android), redirecionamentos automáticos via JS falham ou abrem o navegador (api.whatsapp.com).
+    // Usamos o custom scheme para forçar a abertura direta do aplicativo.
+    const url = isMobile 
+      ? `whatsapp://send?phone=${config.whatsappNumber}&text=${message}`
+      : `https://api.whatsapp.com/send?phone=${config.whatsappNumber}&text=${message}`;
+      
+    // Link de fallback em formato Universal Link, que funciona perfeitamente quando o usuário CLICA.
+    const fallbackUrl = `https://wa.me/${config.whatsappNumber}?text=${message}`;
+    setCachedLink(fallbackUrl);
+
     try {
       if (window.top) {
         window.top.location.href = url;
@@ -126,6 +134,13 @@ export function Step2({ data, onReset }: Step2Props) {
     } catch (e) {
       window.location.href = url;
     }
+
+    // Se o redirecionamento automático for bloqueado pelo navegador (comum no iOS e webviews do Facebook),
+    // mostramos a tela de fallback após um curto tempo para que o usuário possa clicar manualmente.
+    setTimeout(() => {
+      setWhatsAppBlocked(true);
+      setIsProcessingWhatsApp(true);
+    }, 1500);
   };
 
   const AnalysisLoader = ({ text }: { text: string }) => (
