@@ -720,7 +720,9 @@ app.post("/api/v1/validate/document", async (req, res) => {
     console.log("Infoseek response:", JSON.stringify(responseData));
 
     // A API pode retornar o nome em diferentes campos dependendo se é CPF ou CNPJ
-    const name = responseData.data?.name ||
+    const name = responseData.data?.dadosCPF?.NOME ||
+      responseData.data?.dadosCNPJ?.RAZAO_SOCIAL ||
+      responseData.data?.name ||
       responseData.data?.nome ||
       responseData.data?.Nome ||
       responseData.data?.razao_social ||

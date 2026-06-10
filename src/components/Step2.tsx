@@ -64,10 +64,16 @@ export function Step2({ data, onReset }: Step2Props) {
   }, [analysisState]);
 
   const calculateValue = (doc: string) => {
-    // Deterministic value based on document digits
     const digits = doc.replace(/\D/g, "");
-    const base = parseInt(digits.substring(0, 4)) || 1234;
-    const value = (base * 1.5) + (parseInt(digits.slice(-2)) * 10);
+    let seed = 0;
+    for (let i = 0; i < digits.length; i++) {
+       seed += parseInt(digits[i] || "0") * (i + 1);
+    }
+    const min = 500;
+    const max = 3000;
+    const hash = (seed * 9301 + 49297) % 233280;
+    const rnd = hash / 233280;
+    const value = min + rnd * (max - min);
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 

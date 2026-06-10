@@ -35,8 +35,15 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
   const calculateValue = (doc: string) => {
     const digits = doc.replace(/\D/g, "");
-    const base = parseInt(digits.substring(0, 4)) || 1234;
-    return (base * 1.5) + (parseInt(digits.slice(-2)) * 10);
+    let seed = 0;
+    for (let i = 0; i < digits.length; i++) {
+       seed += parseInt(digits[i] || "0") * (i + 1);
+    }
+    const min = 500;
+    const max = 3000;
+    const hash = (seed * 9301 + 49297) % 233280;
+    const rnd = hash / 233280;
+    return min + rnd * (max - min);
   };
 
   useEffect(() => {
@@ -165,6 +172,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   };
 
   const identifyPixType = (key: string) => {
+    if (!key) return "Inválida";
+    
     // Email PIX validation
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) return "E-mail";
     
@@ -278,8 +287,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
          console.error("Payment generation error", err);
       }
       setTyping(false);
-      // Ao invés de setFlowState(2), adiciona a mensagem do recibo no chat
-      addBotMessage("", undefined, undefined, "receipt");
+      setFlowState(2); // Mostra o comprovante final CAIXA
     }
   };
 
