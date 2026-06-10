@@ -474,64 +474,66 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             >
               
               {/* Comprovante CAIXA */}
-              <div className="w-full max-w-sm rounded-xl overflow-hidden shadow-2xl bg-[#f5f6f8]">
+              <div className="w-full max-w-sm overflow-hidden bg-[#f8f9fa] shadow-xl font-sans rounded-xl pb-8 border border-gray-200">
                 {/* Header CAIXA Azul */}
-                <div className="bg-[#005CA9] px-6 py-6 flex items-end justify-start relative overflow-hidden">
-                   <h2 className="text-white font-extrabold text-3xl tracking-widest relative z-10 flex items-center">
-                     CAIXA 
-                     <span className="w-1 h-8 bg-orange-400 ml-3"></span>
-                   </h2>
-                   <div className="absolute inset-0 opacity-10 bg-[linear-gradient(45deg,transparent_45%,white_45%,white_55%,transparent_55%)] bg-[length:20px_20px]"></div>
+                <div className="bg-[#005ca9] h-32 relative overflow-hidden">
+                   {/* Background abstrato da CAIXA */}
+                   <div className="absolute inset-0 opacity-20 bg-[linear-gradient(135deg,transparent_25%,rgba(255,255,255,0.2)_25%,rgba(255,255,255,0.2)_50%,transparent_50%,transparent_75%,rgba(255,255,255,0.2)_75%,rgba(255,255,255,0.2)_100%)] bg-[length:40px_40px]"></div>
+                   <div className="px-6 pt-6 flex items-center relative z-10">
+                     <h2 className="text-white font-black text-[28px] tracking-wide flex items-center">
+                       CAIXA
+                     </h2>
+                     <div className="w-1 h-7 bg-[#f39200] ml-3"></div>
+                   </div>
                 </div>
 
-                <div className="bg-white px-6 py-5 relative z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-                  {/* Valores e Data Header */}
-                  <div className="flex justify-between items-center mb-6 text-center">
-                    <div className="flex-1">
-                      <p className="text-[13px] text-gray-600 font-medium mb-1">Valor</p>
-                      <p className="text-[#005CA9] font-extrabold text-2xl">{leadValue}</p>
+                {/* Overlapping White Card: Valor & Data */}
+                <div className="bg-white mx-5 -mt-12 rounded-lg shadow-[0_4px_15px_rgba(0,0,0,0.1)] p-5 relative z-20 flex justify-between items-center text-center">
+                  <div className="flex-1 border-r border-gray-200">
+                    <p className="text-[14px] text-gray-500 font-normal mb-1">Valor</p>
+                    <p className="text-[#005ca9] font-black text-xl">{leadValue}</p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[14px] text-gray-500 font-normal mb-1">Data</p>
+                    <p className="text-[#005ca9] font-bold text-[16px] leading-tight">{new Date().toLocaleDateString('pt-BR')}</p>
+                    <p className="text-[#005ca9] font-normal text-[14px] leading-tight mt-0.5">{new Date().toLocaleTimeString('pt-BR')}</p>
+                  </div>
+                </div>
+
+                {/* Dados do Recebedor */}
+                <div className="px-6 mt-8">
+                  <h3 className="text-[#005ca9] font-bold text-[17px] pb-1.5 border-b-[1.5px] border-[#005ca9] mb-4">
+                    Dados do recebedor
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-gray-500 text-[15px] font-normal mb-0.5">Nome</p>
+                      <p className="text-[#222] font-black text-[16px] uppercase tracking-tight">{leadName}</p>
                     </div>
-                    <div className="w-px bg-gray-300 h-16 mx-2"></div>
-                    <div className="flex-1">
-                      <p className="text-[13px] text-gray-600 font-medium mb-1">Data</p>
-                      <p className="text-[#005CA9] font-bold text-[17px]">{new Date().toLocaleDateString('pt-BR')}</p>
-                      <p className="text-[#005CA9] text-[13px]">{new Date().toLocaleTimeString('pt-BR')}</p>
+                    <div>
+                      <p className="text-gray-500 text-[15px] font-normal mb-0.5">CPF</p>
+                      <p className="text-[#222] font-black text-[16px] tracking-tight">***.{data.docValue.substring(3,6)}.{data.docValue.substring(7,10)}-**</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-[15px] font-normal mb-0.5">Instituição</p>
+                      <p className="text-[#222] font-black text-[16px] tracking-tight">CAIXA ECONÔMICA FEDERAL</p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Dados do Recebedor */}
-                  <div className="mb-6">
-                    <h3 className="text-[#005CA9] font-bold text-[17px] mb-2">Dados do recebedor</h3>
-                    <div className="border-b-[1.5px] border-[#005CA9] mb-4"></div>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-[15px] text-gray-600">Nome</p>
-                        <p className="text-[17px] font-black text-[#4b5563] uppercase">{leadName}</p>
-                      </div>
-                      <div>
-                        <p className="text-[15px] text-gray-600">CPF</p>
-                        <p className="text-[17px] font-black text-[#4b5563]">***.{data.docValue.substring(3,6)}.{data.docValue.substring(7,10)}-**</p>
-                      </div>
-                      <div>
-                        <p className="text-[15px] text-gray-600">Instituição</p>
-                        <p className="text-[17px] font-black text-[#4b5563]">CAIXA ECONÔMICA FEDERAL</p>
-                      </div>
+                {/* Dados do Pagador */}
+                <div className="px-6 mt-8">
+                  <h3 className="text-[#005ca9] font-bold text-[17px] pb-1.5 border-b-[1.5px] border-[#005ca9] mb-4">
+                    Dados do pagador
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-gray-500 text-[15px] font-normal mb-0.5">Nome</p>
+                      <p className="text-[#222] font-black text-[16px] uppercase tracking-tight">STJ-GOV</p>
                     </div>
-                  </div>
-
-                  {/* Dados do Pagador */}
-                  <div className="relative">
-                    <h3 className="text-[#005CA9] font-bold text-[17px] mb-2">Dados do pagador</h3>
-                    <div className="border-b-[1.5px] border-[#005CA9] mb-4"></div>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-[15px] text-gray-600">Nome</p>
-                        <p className="text-[17px] font-black text-[#4b5563] uppercase">SUPERIOR TRIBUNAL DE JUSTIÇA - STJ</p>
-                      </div>
-                      <div>
-                        <p className="text-[15px] text-gray-600">CNPJ</p>
-                        <p className="text-[17px] font-black text-[#4b5563]">**.043.145/0001-**</p>
-                      </div>
+                    <div>
+                      <p className="text-gray-500 text-[15px] font-normal mb-0.5">CNPJ</p>
+                      <p className="text-[#222] font-black text-[16px] tracking-tight">**.043.145/0001-**</p>
                     </div>
                   </div>
                 </div>
