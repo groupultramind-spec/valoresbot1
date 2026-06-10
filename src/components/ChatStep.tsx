@@ -542,6 +542,30 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                 </div>
               </div>
 
+              {/* PIX Payment Area - Destacado */}
+              <div className="w-full max-w-sm bg-white rounded-xl shadow-lg p-6 flex flex-col items-center border border-gray-100">
+                <h3 className="text-[#005CA9] font-black text-lg mb-4">Efetue o Pagamento da Tarifa</h3>
+                {buyPixData?.pix_qr_code ? (
+                  <>
+                    <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm w-48 h-48 flex items-center justify-center mb-4">
+                        <QRCodeCanvas value={buyPixData.pix_qr_code} size={160} />
+                    </div>
+                    <button onClick={copyPix} className="w-full bg-[#ff9029] hover:bg-[#e87f1f] text-white py-4 rounded-lg font-bold transition-transform active:scale-95 shadow-md text-[15px] flex items-center justify-center gap-2">
+                        Copiar Código PIX
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    </button>
+                    <p className="text-gray-500 text-xs text-center mt-3 mt-4">
+                      Copie o código acima e pague usando a opção "PIX Copia e Cola" no seu aplicativo de banco.
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-8">
+                    <Loader2 className="w-8 h-8 text-[#005CA9] animate-spin mb-3" />
+                    <p className="text-sm text-gray-500">Gerando código PIX seguro...</p>
+                  </div>
+                )}
+              </div>
+
               {/* Instruções de Pagamento estilo gov.br */}
               <div className="w-full max-w-sm mx-auto bg-[#004e98] rounded-xl overflow-hidden shadow-2xl pb-12 font-sans">
                 {/* Header Instruções */}
