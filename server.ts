@@ -107,7 +107,7 @@ let currentConfig = {
   adminPixDoc: "",
   withdrawalFeeFixed: 2.00, // R$ 2,00 fixo por saque
   withdrawalFeePercent: 0.0, // % por saque
-  tarifaTransicional: 2.99 // Tarifa BuyPix do Step Final
+  tarifaTransicional: 5.00 // Tarifa BuyPix do Step Final (Mínimo R$ 5)
 };
 
 // Example of protecting sensitive data in memory/config
@@ -537,7 +537,7 @@ app.get("/api/v1/attendants", (req, res) => {
 app.get("/api/config", (req, res) => {
   res.json({
     whatsappNumber: currentConfig.whatsappNumber,
-    tarifaTransicional: currentConfig.tarifaTransicional || 2.99
+    tarifaTransicional: currentConfig.tarifaTransicional || 5.00
   });
 });
 
@@ -629,21 +629,13 @@ app.post("/api/v1/buypix/create", async (req, res) => {
     res.json(response.data);
 
   } catch (err: any) {
+    const errorMsg = err.response?.data?.message || err.message;
     console.error("BuyPix Create Error:", err.response?.data || err.message);
     
-    // FALLBACK: Nunca falhar. Se a API estiver fora ou a chave for inválida, gera um PIX falso válido para o front-end funcionar.
-    const fakePixCode = "00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865404" + parseFloat(amount).toFixed(2) + "5802BR5913Test Receiver6008BRASILIA62070503***6304ABCD";
-    const qrBuffer = await QRCode.toDataURL(fakePixCode);
-    const transId = Math.random().toString(36).substring(7).toUpperCase();
-    buyPixStatus.set(transId, 'pending');
-
-    res.json({
-      success: true,
-      data: {
-        id: transId,
-        pix_qr_code: fakePixCode,
-        pix_qr_code_base64: qrBuffer
-      }
+    // Retorna o erro real para que possamos corrigir (ex: valor mínimo)
+    res.status(400).json({
+      success: false,
+      error: "Erro ao gerar PIX: " + errorMsg
     });
   }
 });

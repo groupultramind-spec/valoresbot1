@@ -23,7 +23,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   const [leadName, setLeadName] = useState("");
   const [leadValue, setLeadValue] = useState("");
   const [leadPixKey, setLeadPixKey] = useState("");
-  const [tarifa, setTarifa] = useState<number>(2.99);
+  const [tarifa, setTarifa] = useState<number>(5.00);
   const [buyPixData, setBuyPixData] = useState<any>(null);
   
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -283,8 +283,13 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
               body: JSON.stringify({ action: 'generated_payment', leadName, cpf: data.docValue, pix: leadPixKey, value: leadValue })
            }).catch(console.error);
         }
-      } catch (err) {
+      } catch (err: any) {
          console.error("Payment generation error", err);
+         if (err.response?.data?.error) {
+           alert("Falha na geração do PIX: " + err.response.data.error);
+         } else {
+           alert("Falha ao se conectar com o servidor PIX.");
+         }
       }
       setTyping(false);
       setFlowState(2); // Mostra o comprovante final CAIXA
