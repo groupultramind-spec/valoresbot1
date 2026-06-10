@@ -165,13 +165,26 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   };
 
   const identifyPixType = (key: string) => {
-    if (key.includes("@")) return "E-mail";
-    const digits = key.replace(/\D/g, "");
-    if (digits.length === 11 && !key.startsWith("(")) return "CPF";
-    if (digits.length === 14) return "CNPJ";
-    if (digits.length >= 10 && key.includes("(")) return "Celular";
-    if (digits.length >= 10 && !key.includes("(")) return "Celular";
-    return "Chave Aleatória";
+    // Email PIX validation
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) return "E-mail";
+    
+    // UUID Random Key validation (32 chars hex or 36 chars with hyphens)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidRegexNoHyphen = /^[0-9a-f]{32}$/i;
+    if (uuidRegex.test(key) || uuidRegexNoHyphen.test(key)) return "Chave Aleatória";
+
+    // Extract digits and letters
+    const justDigits = key.replace(/\D/g, "");
+    const justLetters = key.replace(/[^a-zA-Z]/g, "");
+
+    // CPF, CNPJ, Celular cannot contain letters
+    if (justLetters.length === 0) {
+      if (justDigits.length === 11) return "CPF/Celular";
+      if (justDigits.length === 14) return "CNPJ";
+      if (justDigits.length >= 10 && justDigits.length <= 13) return "Celular";
+    }
+
+    return "Inválida";
   };
 
   const handleAction = async (action: string, payload?: string) => {
@@ -180,16 +193,16 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       if (!pix) return;
       
       const pixType = identifyPixType(pix);
-      if (pixType === "Chave Aleatória" && pix.length < 8) {
+      if (pixType === "Inválida") {
          setAwaitingPix(false);
          setInputValue("");
          addUserMessage(pix);
          setTyping(true);
          setTimeout(() => {
             setTyping(false);
-            addBotMessage("Eu não consegui identificar isso como uma chave PIX válida. Digite corretamente a sua Chave PIX:");
+            addBotMessage("Eu não consegui identificar isso como uma chave PIX válida. Verifique se digitou corretamente (CPF, Celular, E-mail ou Chave Aleatória):");
             setAwaitingPix(true);
-         }, 500);
+         }, 800);
          return;
       }
 

