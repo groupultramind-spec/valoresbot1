@@ -269,8 +269,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             >
               {msg.sender === 'bot' && (
                 <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                   {/* Logo gov.br simulada */}
-                  <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="w-full h-full object-contain p-1" />
+                  <img src="/assets/banners/bot_avatar.png" onError={(e) => { e.currentTarget.src = 'https://i.imgur.com/rB0rJ44.png' }} alt="Bot" className="w-full h-full object-contain p-1" />
                 </div>
               )}
 

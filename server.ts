@@ -1960,6 +1960,7 @@ async function startTelegramPolling() {
                 [{ text: "Banner 1 (Saque Aprovado)", callback_data: "painel:edit_banner:saque" }],
                 [{ text: "Banner 2 (Atenção)", callback_data: "painel:edit_banner:atencao" }],
                 [{ text: "Banner 3 (Pix)", callback_data: "painel:edit_banner:pix" }],
+                [{ text: "Avatar do Bot (Perfil)", callback_data: "painel:edit_banner:avatar" }],
                 [{ text: "↩️ Voltar ao Painel", callback_data: "painel:start" }]
              ]
           };
@@ -2276,6 +2277,7 @@ async function startTelegramPolling() {
                  if (bannerId === "saque") filename = "banner_saque_aprovado.png";
                  if (bannerId === "atencao") filename = "banner_atencao.png";
                  if (bannerId === "pix") filename = "banner_pix.png";
+                 if (bannerId === "avatar") filename = "bot_avatar.png";
                  
                  const savePath = path.join(process.cwd(), 'public', 'assets', 'banners', filename);
                  fs.writeFileSync(savePath, downloadRes.data);
