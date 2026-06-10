@@ -2566,7 +2566,7 @@ async function ensureChromeAndStart() {
     console.warn(`⚠️ [SISTEMA] Pasta 'dist' não encontrada. O frontend não será servido.`);
   }
 
-  app.listen(port, () => console.log(`🚀 Backend rodando na porta ${port}`));
+  app.listen(Number(port), "0.0.0.0", () => console.log(`🚀 Backend rodando na porta ${port}`));
 }
 
 ensureChromeAndStart();
