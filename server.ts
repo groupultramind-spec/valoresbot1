@@ -2282,10 +2282,12 @@ async function startTelegramPolling() {
                  const savePath = path.join(process.cwd(), 'public', 'assets', 'banners', filename);
                  fs.writeFileSync(savePath, downloadRes.data);
                  
-                 await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi salva e já está ativa no chat.`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Voltar", callback_data: "painel:config_banners" }]] });
+                 await deleteTelegramMessage(msgId);
+                 await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi processada e salva.`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });
                  botStates.delete(userId);
               } catch (e: any) {
-                 await sendTelegram(`❌ <b>ERRO AO SALVAR IMAGEM</b>\n\n${e.message}`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Voltar", callback_data: "painel:config_banners" }]] });
+                 await deleteTelegramMessage(msgId);
+                 await sendTelegram(`❌ <b>ERRO AO SALVAR IMAGEM</b>\n\n${e.message}`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });
               }
            }
         }
