@@ -165,12 +165,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       setTyping(true);
       
       try {
-        // Fetch TTS audio
         const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { 
-           name: name,
+           name: leadName,
            attendantName: attendant.name,
            voiceId: attendant.voiceId,
-           value: formattedVal
+           value: leadValue
         });
         if (ttsRes.data.audioBase64) {
            const url = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
