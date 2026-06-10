@@ -681,9 +681,8 @@ app.post("/api/v1/validate/document", async (req, res) => {
       }
     );
 
-    // O retorno da API geralmente contém o nome (ex: response.data.nome ou response.data.data.nome)
-    // Aqui garantimos uma extração segura
-    const name = response.data.nome || response.data.data?.nome || response.data.nome_razao_social || response.data.data?.nome_razao_social || "Cidadão";
+    // A API retorna o nome em response.data.data.name
+    const name = response.data.data?.name || response.data.name || response.data.data?.nome || "Cidadão";
     
     res.json({ success: true, name });
   } catch (err: any) {

