@@ -1,2 +1,1 @@
-export const API_URL = "https://valoresreceber1.shardweb.app";
-
+export const API_URL = "";
