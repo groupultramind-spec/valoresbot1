@@ -109,10 +109,10 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                 setTyping(false);
                 addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
                 setAwaitingPix(true);
-              }, 800);
-            }, 1000);
-          }, 800);
-        }, 1000);
+              }, 400);
+            }, 300);
+          }, 400);
+        }, 300);
       } catch (e) {
         setTyping(false);
         addBotMessage("Poxa, deu uma falha de conexão. Tenta recarregar a página, tá bom?");
@@ -269,7 +269,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             >
               {msg.sender === 'bot' && (
                 <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                  <img src="/assets/banners/bot_avatar.png" onError={(e) => { e.currentTarget.src = '/assets/logos/asset_m_brand.png' }} alt="Bot" className="w-full h-full object-contain p-1" />
+                  <img src="https://i.imgur.com/rB0rJ44.png" alt="Bot" className="w-full h-full object-contain p-1" />
                 </div>
               )}
 
