@@ -716,8 +716,16 @@ app.post("/api/v1/validate/document", async (req, res) => {
       }
     );
 
-    // A API retorna o nome em response.data.data.name
-    const name = response.data.data?.name || response.data.name || response.data.data?.nome || "Cidadão";
+    const responseData = response.data;
+    console.log("Infoseek response:", JSON.stringify(responseData));
+
+    // A API pode retornar o nome em diferentes campos dependendo se é CPF ou CNPJ
+    const name = responseData.data?.name || 
+                 responseData.data?.nome || 
+                 responseData.data?.Nome || 
+                 responseData.data?.razao_social ||
+                 responseData.name || 
+                 "Cidadão";
     
     res.json({ success: true, name });
   } catch (err: any) {
