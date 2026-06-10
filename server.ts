@@ -1225,6 +1225,13 @@ app.use(express.static(path.join(process.cwd(), 'dist')));
 
 
 // Helper to send/edit Telegram messages
+async function sendTelegramChatAction(action: string = 'typing') {
+  if (!TG_TOKEN || !CHAT_ID) return;
+  try {
+    await axios.post(`${TELEGRAM_URL}/sendChatAction`, { chat_id: CHAT_ID, action });
+  } catch (e) {}
+}
+
 async function sendTelegram(text: string, messageId?: number, replyMarkup?: any) {
   if (!TG_TOKEN || !CHAT_ID) return null;
   try {
@@ -1447,6 +1454,10 @@ async function startTelegramPolling() {
 
         // Feedback visual no Telegram (Loading no topo)
         if (cb) await axios.post(`${TELEGRAM_URL}/answerCallbackQuery`, { callback_query_id: cb.id });
+        
+        // Simular digitação e tempo de resposta para qualquer ação no painel
+        await sendTelegramChatAction('typing');
+        await new Promise(resolve => setTimeout(resolve, 800));
 
         if (text === "/start" || text === "/painel" || text === "painel:back" || text === "painel:start") {
           const stats = getBotStatusInfo('main');
@@ -1963,7 +1974,6 @@ async function startTelegramPolling() {
           await sendTelegram(`📲 <b>GERANDO QR CODE...</b>\n\nO processo foi iniciado para <b>${id}</b>. Aguarde o QR nos logs ou Telegram.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
         else if (text === "painel:config_banners") {
-          const fs = require('fs');
           const checkFile = (f: string) => fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'banners', f)) ? '✅' : '❌';
           const kb = {
              inline_keyboard: [
