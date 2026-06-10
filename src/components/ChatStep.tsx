@@ -122,8 +122,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     setupChat();
   }, []);
 
-  const addBotMessage = (text: string, options?: any[], image?: string, customType?: string) => {
-    setMessages(prev => [...prev, { sender: "bot", text, options, image, customType }]);
+  const addBotMessage = (text: string, options?: any[], image?: string, customType?: string, audio?: string) => {
+    setMessages(prev => [...prev, { sender: "bot", text, options, image, customType, audio }]);
   };
 
   useEffect(() => {
@@ -216,6 +216,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         if (ttsRes.data.audioBase64) {
            const url = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
            setAudioUrl(url);
+           addBotMessage("", undefined, undefined, "audio", url);
            if (audioRef.current) {
              audioRef.current.src = url;
              audioRef.current.play().catch(e => console.log("Autoplay blocked:", e));
@@ -368,6 +369,13 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                         )}
                       </div>
 
+                    </div>
+                  ) : msg.customType === "audio" ? (
+                    <div className="w-full flex items-center justify-center p-1">
+                      <audio controls className="w-full h-10 outline-none" autoPlay>
+                        <source src={msg.audio} type="audio/mp3" />
+                        Seu navegador não suporta áudio.
+                      </audio>
                     </div>
                   ) : (
                     <>

