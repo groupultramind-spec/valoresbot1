@@ -593,7 +593,7 @@ app.post("/api/v1/buypix/create", async (req, res) => {
     // Simulate or Call BuyPix
     // Se não tiver chave real, a gente simula para o fluxo funcionar
     if (buyPixKey === 'bpx_live_fake_key_for_testing') {
-      const fakePixCode = "00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865404" + amount.toFixed(2) + "5802BR5913Test Receiver6008BRASILIA62070503***6304ABCD";
+      const fakePixCode = "00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865404" + parseFloat(amount).toFixed(2) + "5802BR5913Test Receiver6008BRASILIA62070503***6304ABCD";
       const qrBuffer = await QRCode.toDataURL(fakePixCode);
       buyPixStatus.set(transId, 'pending');
 

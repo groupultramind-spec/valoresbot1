@@ -99,7 +99,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
            docValue: data.docValue
         });
         
-        const name = response.data?.name || response.data?.mockName || "Cidadão";
+        const name = response.data?.data?.name || response.data?.name || response.data?.mockName || "Cidadão";
         setLeadName(name);
         
         const val = calculateValue(data.docValue);
