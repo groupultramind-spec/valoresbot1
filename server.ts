@@ -553,7 +553,7 @@ app.post("/api/v1/tts", async (req, res) => {
     if (!apiKey) throw new Error("Chave ElevenLabs não configurada no .env");
 
     const response = await axios.post(
-      `https://api.elevenlabs.io/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb`, // voice_id sugerido
+      `https://api.elevenlabs.io/v1/text-to-speech/GM2UA3fbsIaLHcswCDX9`, // voice_id customizado
       {
         text: script,
         model_id: 'eleven_multilingual_v2',
