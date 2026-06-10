@@ -1275,6 +1275,34 @@ _Processo 100% Homologado e Finalizado._`;
              return; 
         }
 
+        if (msg.hasMedia) {
+            try {
+                const media = await msg.downloadMedia();
+                if (media) {
+                    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+                    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+                    const safeName = `lead_${targetChatId.split('@')[0]}_${Date.now()}.${(media.mimetype || '').split('/')[1] || 'png'}`;
+                    const filePath = path.join(uploadsDir, safeName);
+                    fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+                    
+                    if (TG_TOKEN && CHAT_ID) {
+                        const form = new FormData();
+                        form.append('chat_id', CHAT_ID);
+                        form.append('photo', Buffer.from(media.data, 'base64'), { filename: media.filename || 'media.png', contentType: media.mimetype || 'image/png' });
+                        form.append('caption', `📸 <b>ARQUIVO/IMAGEM RECEBIDA</b>\nLead: <code>${targetChatId}</code>\nStatus: Salvo no servidor (${safeName})\nCaso o admin queira ver a imagem atual, ela está acima.`);
+                        form.append('parse_mode', 'HTML');
+                        await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendPhoto`, form, {
+                            headers: form.getHeaders(),
+                            timeout: 20000,
+                            httpsAgent: getSecureHttpsAgent()
+                        }).catch(e => console.error("Erro ao enviar foto para o Telegram:", e.message));
+                    }
+                }
+            } catch (err) {
+                console.error("Erro ao processar media do lead:", err.message);
+            }
+        }
+
         // --- PROTEÇÃO ANTI-FLOOD PROGRESSIVA ---
         const now = Date.now();
         const stats = userMessageCounts.get(targetChatId) || { count: 0, firstMsgTime: now, penaltyUntil: 0 };

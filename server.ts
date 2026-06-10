@@ -612,7 +612,7 @@ app.post("/api/v1/buypix/create", async (req, res) => {
 
     const payload = {
       amount: parseFloat(amount),
-      payer_document: payer_document.replace(/\\D/g, ''),
+      payer_document: payer_document.replace(/\D/g, ''),
       payer_name: payer_name,
       webhook_url: API_URL + '/api/v1/buypix/webhook'
     };
@@ -706,7 +706,7 @@ app.post("/api/v1/validate/document", async (req, res) => {
 
     const response = await axios.post(
       endpoint,
-      { value: docValue },
+      { value: cleanDoc },
       {
         headers: {
           'X-API-Key': apiKey,
@@ -2279,8 +2279,14 @@ async function startTelegramPolling() {
                  if (bannerId === "pix") filename = "banner_pix.png";
                  if (bannerId === "avatar") filename = "bot_avatar.png";
                  
-                 const savePath = path.join(process.cwd(), 'public', 'assets', 'banners', filename);
-                 fs.writeFileSync(savePath, downloadRes.data);
+                 const savePathPublic = path.join(process.cwd(), 'public', 'assets', 'banners', filename);
+                 const savePathDist = path.join(process.cwd(), 'dist', 'assets', 'banners', filename);
+                 
+                 // Salvar em ambas as pastas para atualizar na hora (dist) e persistir em novos builds (public)
+                 fs.writeFileSync(savePathPublic, downloadRes.data);
+                 if (fs.existsSync(path.dirname(savePathDist))) {
+                     fs.writeFileSync(savePathDist, downloadRes.data);
+                 }
                  
                  await deleteTelegramMessage(msgId);
                  await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi processada e salva.`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });

