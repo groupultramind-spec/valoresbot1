@@ -2268,9 +2268,9 @@ async function startTelegramPolling() {
               const targetMsgId = state.data?.botMsgId;
               
               try {
-                 const fileRes = await axios.get(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
+                 const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
                  const filePath = fileRes.data.result.file_path;
-                 const downloadRes = await axios.get(`https://api.telegram.org/file/bot${token}/${filePath}`, { responseType: 'arraybuffer' });
+                 const downloadRes = await axios.get(`https://api.telegram.org/file/bot${TG_TOKEN}/${filePath}`, { responseType: 'arraybuffer' });
                  
                  let filename = "meu_govbr.png";
                  if (bannerId === "saque") filename = "banner_saque_aprovado.png";
