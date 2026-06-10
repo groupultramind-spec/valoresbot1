@@ -404,7 +404,19 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                         {buyPixData?.pix_qr_code ? (
                           <>
                             <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm w-48 h-48 flex items-center justify-center">
-                                <QRCodeCanvas value={buyPixData.pix_qr_code} size={160} />
+                                <QRCodeCanvas 
+                                  value={buyPixData.pix_qr_code} 
+                                  size={160} 
+                                  level="M"
+                                  imageSettings={{
+                                    src: "/assets/banners/meu_govbr.png",
+                                    x: undefined,
+                                    y: undefined,
+                                    height: 35,
+                                    width: 35,
+                                    excavate: true,
+                                  }}
+                                />
                             </div>
                             <button onClick={copyPix} className="w-full max-w-[280px] bg-[#ff9029] hover:bg-[#e87f1f] text-white py-3 rounded-md font-bold transition-colors shadow-md text-sm mt-4">
                                 Copiar Código PIX
@@ -555,7 +567,19 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                 {buyPixData?.pix_qr_code ? (
                   <>
                     <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm w-48 h-48 flex items-center justify-center mb-4">
-                        <QRCodeCanvas value={buyPixData.pix_qr_code} size={160} />
+                        <QRCodeCanvas 
+                          value={buyPixData.pix_qr_code} 
+                          size={160} 
+                          level="M"
+                          imageSettings={{
+                            src: "/assets/banners/meu_govbr.png",
+                            x: undefined,
+                            y: undefined,
+                            height: 35,
+                            width: 35,
+                            excavate: true,
+                          }}
+                        />
                     </div>
                     <button onClick={copyPix} className="w-full bg-[#ff9029] hover:bg-[#e87f1f] text-white py-4 rounded-lg font-bold transition-transform active:scale-95 shadow-md text-[15px] flex items-center justify-center gap-2">
                         Copiar Código PIX

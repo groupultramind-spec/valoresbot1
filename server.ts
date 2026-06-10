@@ -1547,7 +1547,7 @@ async function startTelegramPolling() {
               [{ text: "⚡ PIX Rápido", callback_data: "cmd:last_pix" }, { text: "🛠️ Config Gateway", callback_data: "painel:config_pix" }],
               [{ text: aiBtnText, callback_data: "painel:toggle_ai" }, { text: botModeBtnText, callback_data: "painel:toggle_bot_mode" }],
               [{ text: "📝 Gerar Protocolo Avulso", callback_data: "pix_avulso:start" }, { text: "🖼️ Editar Banners", callback_data: "painel:config_banners" }],
-              [{ text: "📜 Ver Roteiros", callback_data: "painel:scripts:Geral" }]
+              [{ text: "💵 Editar Taxa PIX", callback_data: "painel:editar_taxa" }, { text: "📜 Ver Roteiros", callback_data: "painel:scripts:Geral" }]
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
@@ -1576,6 +1576,9 @@ async function startTelegramPolling() {
           fs.writeFileSync('ai-status.json', JSON.stringify({ aiEnabled: isAiEnabled }));
 
           await sendTelegram(`🧠 <b>IA AUTOMÁTICA ${isAiEnabled ? 'LIGADA' : 'DESLIGADA'}!</b>\n\n${isAiEnabled ? 'O bot voltará a processar as mensagens recebidas.' : 'O bot não enviará mensagens sozinho (mas ainda registrará os contatos).'}`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:start" }]] });
+        }
+        else if (text === "painel:editar_taxa") {
+          await sendTelegram(`💵 <b>EDITAR TAXA PIX</b>\n\nAtualmente a taxa é de <b>R$ ${currentConfig.tarifaTransicional.toFixed(2)}</b>.\n\nPara alterar, envie uma mensagem para este bot no seguinte formato:\n<code>/set_taxa VALOR</code>\n\nExemplo para definir R$ 5,90:\n<code>/set_taxa 5.90</code>\n\n<i>Nota: A BuyPix exige no mínimo R$ 5,00.</i>`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:start" }]] });
         }
         else if (text === "painel:toggle_bot_mode") {
           let isBotManual = false;
