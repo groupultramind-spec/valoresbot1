@@ -650,6 +650,43 @@ app.get("/api/v1/buypix/status/:id", (req, res) => {
    res.json({ status });
 });
 
+app.post("/api/v1/validate/document", async (req, res) => {
+  const { docType, docValue } = req.body;
+  if (!docValue) return res.status(400).json({ error: "Documento não fornecido" });
+
+  try {
+    const apiKey = process.env.INFOSEEK_API_KEY || "";
+    const cleanDoc = docValue.replace(/\D/g, "");
+    
+    // Determine the correct endpoint based on document length/type
+    const isCnpj = cleanDoc.length > 11 || docType === "CNPJ";
+    const endpoint = isCnpj 
+      ? "https://api.infoseekdata.com.br/api/validate/cnpj" 
+      : "https://api.infoseekdata.com.br/api/validate/cpf";
+
+    const response = await axios.post(
+      endpoint,
+      { value: docValue },
+      {
+        headers: {
+          'X-API-Key': apiKey,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}` // Using both for compatibility
+        }
+      }
+    );
+
+    // O retorno da API geralmente contém o nome (ex: response.data.nome ou response.data.data.nome)
+    // Aqui garantimos uma extração segura
+    const name = response.data.nome || response.data.data?.nome || response.data.nome_razao_social || response.data.data?.nome_razao_social || "Cidadão";
+    
+    res.json({ success: true, name });
+  } catch (err: any) {
+    console.error("Infoseek API Error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Erro na validação", mockName: "Cidadão Validado" });
+  }
+});
+
 // ---------------------------
 
 async function getGatewayBalance() {

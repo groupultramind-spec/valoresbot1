@@ -56,10 +56,15 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     const fetchInfoseek = async () => {
       setTyping(true);
       try {
-        // Here you would call Infoseek, but for now we simulate
-        await new Promise(r => setTimeout(r, 1500));
-        const name = "MARTA DA SILVA"; // Fake name
+        const response = await axios.post(`${API_URL}/api/v1/validate/document`, {
+           docType: data.docType,
+           docValue: data.docValue
+        });
+        
+        // Se a API retornar o nome real usamos ele, senão faz fallback
+        const name = response.data?.name || response.data?.mockName || "Cidadão";
         setLeadName(name);
+        
         const val = calculateValue(data.docValue);
         setLeadValue(val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
         
@@ -69,7 +74,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         ]);
       } catch (e) {
         setTyping(false);
-        addBotMessage("Erro ao buscar dados. Tente novamente.");
+        addBotMessage("Erro de conexão ao buscar seus dados. Por favor, recarregue a página e tente novamente.");
       }
     };
 
