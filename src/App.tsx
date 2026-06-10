@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Header, Footer } from "./components/Layout";
 import { Step1 } from "./components/Step1";
-import { Step2 } from "./components/Step2";
+import { ChatStep } from "./components/ChatStep";
 import { AlertTriangle, CheckCircle, Info } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { TalkSystem } from "./components/TalkSystem";
@@ -117,7 +117,7 @@ export default function App() {
                 transition={{ duration: 0.3 }}
                 className="w-full"
               >
-                <Step2 data={userData} onReset={handleReset} />
+                <ChatStep data={userData} onReset={handleReset} />
               </motion.div>
             )}
           </AnimatePresence>

