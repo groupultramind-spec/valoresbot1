@@ -3,7 +3,7 @@ import { CheckCircle2, Search, ArrowRight, ShieldCheck, Loader2, PlayCircle, Pau
 import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
 import { API_URL } from "../config";
-import QRCode from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 
 interface ChatStepProps {
   data: {
@@ -282,7 +282,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
            {buyPixData?.pix_qr_code && (
               <div className="flex flex-col items-center space-y-4">
                  <div className="bg-white p-2 rounded-xl relative border-2 border-gray-100 inline-block shadow-sm">
-                    <QRCode value={buyPixData.pix_qr_code} size={200} />
+                    <QRCodeCanvas value={buyPixData.pix_qr_code} size={200} />
                     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded p-1">
                       <span className="font-bold text-blue-700 text-[10px]">CAIXA</span>
                     </div>
