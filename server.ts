@@ -1955,21 +1955,25 @@ async function startTelegramPolling() {
           await sendTelegram(`📲 <b>GERANDO QR CODE...</b>\n\nO processo foi iniciado para <b>${id}</b>. Aguarde o QR nos logs ou Telegram.`, msgId, { inline_keyboard: [[{ text: "⬅️ Voltar", callback_data: "painel:back" }]] });
         }
         else if (text === "painel:config_banners") {
+          const fs = require('fs');
+          const checkFile = (f: string) => fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'banners', f)) ? '✅' : '❌';
           const kb = {
              inline_keyboard: [
-                [{ text: "Banner 1 (Saque Aprovado)", callback_data: "painel:edit_banner:saque" }],
-                [{ text: "Banner 2 (Atenção)", callback_data: "painel:edit_banner:atencao" }],
-                [{ text: "Banner 3 (Pix)", callback_data: "painel:edit_banner:pix" }],
-                [{ text: "Avatar do Bot (Perfil)", callback_data: "painel:edit_banner:avatar" }],
+                [{ text: `Banner 1 (Saque Aprovado) [${checkFile('banner_saque_aprovado.png')}]`, callback_data: "painel:edit_banner:saque" }],
+                [{ text: `Banner 2 (Atenção) [${checkFile('banner_atencao.png')}]`, callback_data: "painel:edit_banner:atencao" }],
+                [{ text: `Banner 3 (Pix) [${checkFile('banner_pix.png')}]`, callback_data: "painel:edit_banner:pix" }],
+                [{ text: `Avatar do Bot [${checkFile('bot_avatar.png')}]`, callback_data: "painel:edit_banner:avatar" }],
+                [{ text: `Vídeo Explicativo [${checkFile('video_explicacao.mp4')}]`, callback_data: "painel:edit_banner:video" }],
                 [{ text: "↩️ Voltar ao Painel", callback_data: "painel:start" }]
              ]
           };
-          await sendTelegram(`🖼️ <b>EDITAR BANNERS DO CHAT</b>\n\nEscolha qual banner deseja alterar enviando uma nova imagem:`, msgId, kb);
+          await sendTelegram(`🖼️ <b>EDITAR BANNERS DO CHAT</b>\n\nEscolha qual banner ou vídeo deseja alterar enviando uma nova imagem ou vídeo:`, msgId, kb);
         }
         else if (text.startsWith("painel:edit_banner:")) {
           const bannerId = text.split(":")[2];
           botStates.set(userId, { action: `awaiting_banner_${bannerId}`, data: { botMsgId: msgId } });
-          await sendTelegram(`🖼️ <b>ENVIE A NOVA IMAGEM</b>\n\nPor favor, envie a foto/imagem que você deseja usar para este banner agora.\n\n<i>Aguardando imagem...</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+          const typeName = bannerId === "video" ? "vídeo" : "foto/imagem";
+          await sendTelegram(`🖼️ <b>ENVIE A NOVA MÍDIA</b>\n\nPor favor, envie a(o) ${typeName} que você deseja usar para este slot agora.\n\n<i>Aguardando arquivo...</i>`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
         }
         else if (text === "painel:config_pix") {
           const txt = `🛠️ <b>CONFIGURAÇÃO DO GATEWAY PIX</b>\n\n` +
@@ -2261,11 +2265,21 @@ async function startTelegramPolling() {
             await sendTelegram(`📱 <b>ENVIAR PARA OUTRO NÚMERO</b>\n\nPor favor, digite o número de telefone (com DDD) para o qual deseja enviar este PIX:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
           }
         }
-        else if (!cb && msg?.photo) {
+        else if (!cb && (msg?.photo || msg?.video)) {
            const state = botStates.get(userId);
            if (state?.action?.startsWith('awaiting_banner_')) {
               const bannerId = state.action.replace('awaiting_banner_', '');
-              const fileId = msg.photo[msg.photo.length - 1].file_id;
+              
+              if (bannerId === "video" && !msg.video) {
+                 await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie um arquivo de vídeo (MP4) de até 20MB.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+                 return;
+              }
+              if (bannerId !== "video" && !msg.photo) {
+                 await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie uma foto/imagem compactada.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+                 return;
+              }
+
+              const fileId = msg.video ? msg.video.file_id : msg.photo[msg.photo.length - 1].file_id;
               const targetMsgId = state.data?.botMsgId;
               
               try {
@@ -2278,6 +2292,7 @@ async function startTelegramPolling() {
                  if (bannerId === "atencao") filename = "banner_atencao.png";
                  if (bannerId === "pix") filename = "banner_pix.png";
                  if (bannerId === "avatar") filename = "bot_avatar.png";
+                 if (bannerId === "video") filename = "video_explicacao.mp4";
                  
                  const savePathPublic = path.join(process.cwd(), 'public', 'assets', 'banners', filename);
                  const savePathDist = path.join(process.cwd(), 'dist', 'assets', 'banners', filename);

