@@ -622,6 +622,33 @@ app.post("/api/v1/tts", async (req, res) => {
 // Cache for BuyPix Status
 const buyPixStatus = new Map<string, string>();
 
+app.post('/api/v1/cpf-consulta', async (req, res) => {
+  try {
+    const { cpf, data_nascimento } = req.body;
+    
+    if (!cpf) {
+      return res.status(400).json({ success: false, error: "CPF não informado" });
+    }
+
+    const cleanCpf = cpf.replace(/\D/g, '');
+    let params = `cpf=${cleanCpf}&token=208887580QRdULgMhZk377140192`;
+    if (data_nascimento) {
+       params += `&data=${data_nascimento}`;
+    }
+
+    const response = await axios.get(`https://ws.hubdodesenvolvedor.com.br/v2/cpf/?${params}`, { timeout: 10000 });
+    
+    if (response.data && response.data.return === 'OK' && response.data.result) {
+       return res.json({ success: true, nome: response.data.result.nome_da_pf });
+    } else {
+       return res.json({ success: false, error: response.data?.message || 'Consulta NOK' });
+    }
+  } catch (error) {
+    console.error('Erro na consulta de CPF:', error);
+    return res.status(500).json({ success: false, error: 'Erro ao conectar à API de CPF' });
+  }
+});
+
 app.post("/api/v1/buypix/create", async (req, res) => {
   const { amount, payer_document, payer_name } = req.body;
   try {

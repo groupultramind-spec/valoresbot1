@@ -55,7 +55,7 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
     const [day, month, year] = birthDate.split("/").map(Number);
     const dateObj = new Date(year, month - 1, day);
     const now = new Date();
-    
+
     if (
       dateObj.getFullYear() !== year ||
       dateObj.getMonth() !== month - 1 ||
@@ -83,13 +83,13 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
     }
 
     setLoading(true);
-    
+
     // Honeypot check (Bot trap)
     const honeypot = (e.target as any).elements.confirm_email?.value;
     if (honeypot) {
-        // Silent reject for bots
-        setTimeout(() => setLoading(false), 2000);
-        return;
+      // Silent reject for bots
+      setTimeout(() => setLoading(false), 2000);
+      return;
     }
 
     // Simulate processing
@@ -203,23 +203,23 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
             </label>
             <div className="flex gap-2">
               <div className="relative border border-[#ccc] dark:border-[#4b5563] p-0 bg-[#f9f9f9] dark:bg-[#1a2227] flex-shrink-0 flex items-center justify-center overflow-hidden rounded shadow-inner transition-colors duration-300" style={{ width: '150px', height: '122px' }}>
-                 {/* Grid background for captcha as in image */}
-                 <div className="absolute inset-0 opacity-20 pointer-events-none select-none" style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
-                 <div className="absolute inset-0 flex items-center justify-around font-black text-2xl tracking-[0.1em] text-[#000] select-none pointer-events-none italic opacity-90" style={{ fontFamily: 'serif' }}>
-                    {captchaCode.split('').map((char, i) => (
-                      <span key={i} style={{ 
-                        transform: `rotate(${Math.random() * 40 - 20}deg) translateY(${Math.random() * 10 - 5}px)`,
-                      }}>
-                        {char}
-                      </span>
-                    ))}
-                 </div>
-                 {/* Wavy/Distorted lines to match image */}
-                 <svg className="absolute inset-0 pointer-events-none opacity-60" width="100%" height="100%">
-                    <path d="M 0 40 Q 75 10 150 40" stroke="#000" strokeWidth="2" fill="none" />
-                    <path d="M 0 60 Q 75 90 150 60" stroke="#000" strokeWidth="2" fill="none" />
-                    <line x1="0" y1="50" x2="150" y2="50" stroke="#000" strokeWidth="4" className="opacity-40" />
-                 </svg>
+                {/* Grid background for captcha as in image */}
+                <div className="absolute inset-0 opacity-20 pointer-events-none select-none" style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
+                <div className="absolute inset-0 flex items-center justify-around font-black text-2xl tracking-[0.1em] text-[#000] select-none pointer-events-none italic opacity-90" style={{ fontFamily: 'serif' }}>
+                  {captchaCode.split('').map((char, i) => (
+                    <span key={i} style={{
+                      transform: `rotate(${Math.random() * 40 - 20}deg) translateY(${Math.random() * 10 - 5}px)`,
+                    }}>
+                      {char}
+                    </span>
+                  ))}
+                </div>
+                {/* Wavy/Distorted lines to match image */}
+                <svg className="absolute inset-0 pointer-events-none opacity-60" width="100%" height="100%">
+                  <path d="M 0 40 Q 75 10 150 40" stroke="#000" strokeWidth="2" fill="none" />
+                  <path d="M 0 60 Q 75 90 150 60" stroke="#000" strokeWidth="2" fill="none" />
+                  <line x1="0" y1="50" x2="150" y2="50" stroke="#000" strokeWidth="4" className="opacity-40" />
+                </svg>
               </div>
               <div className="flex flex-col gap-[2px] flex-grow">
                 <input
@@ -230,8 +230,8 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
                   onChange={(e) => setCaptcha(e.target.value)}
                   required
                 />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => {
                     const utterance = new SpeechSynthesisUtterance(`Os caracteres são: ${captchaCode.split('').join(', ')}`);
                     utterance.lang = 'pt-BR';
@@ -239,14 +239,14 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
                   }}
                   className="h-[40px] bg-[#2398bf] hover:bg-[#1a7a9a] text-white py-1 px-3 rounded-sm text-[14px] flex items-center justify-center gap-2 transition-colors font-medium text-center"
                 >
-                  <Volume2 size={20} /> <span className="leading-tight">Ouvir os<br/>caracteres</span>
+                  <Volume2 size={20} /> <span className="leading-tight">Ouvir os<br />caracteres</span>
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={generateCaptcha}
                   className="h-[40px] bg-[#2398bf] hover:bg-[#1a7a9a] text-white py-1 px-3 rounded-sm text-[14px] flex items-center justify-center gap-2 transition-colors font-medium text-center"
                 >
-                  <RefreshCcw size={18} /> <span className="leading-tight">Troque os<br/>caracteres</span>
+                  <RefreshCcw size={18} /> <span className="leading-tight">Troque os<br />caracteres</span>
                 </button>
               </div>
             </div>

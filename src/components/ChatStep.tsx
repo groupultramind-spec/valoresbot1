@@ -11,6 +11,7 @@ interface ChatStepProps {
     docType: string;
     docValue: string;
     birthDate: string;
+    name?: string;
   };
   onReset: () => void;
 }
@@ -122,7 +123,13 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         await sleep(1500);
         setTyping(true);
         
-        let name = "Cidadão";
+        let name = data.name || "Cidadão";
+        
+        // Formatar o nome para Title Case (primeira letra maiúscula) caso venha tudo em MAIÚSCULO
+        if (name !== "Cidadão" && name === name.toUpperCase()) {
+           name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+        }
+        
         setLeadName(name);
         (window as any)._globalLeadName = name; // Hack to fix closure bug for handleAction
 
@@ -165,7 +172,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             { text: "Não, estão errados", action: "confirm_identity_no" }
           ]);
         } else {
-          addBotMessage(`Antes de prosseguirmos, por favor confirme se os dados informados estão corretos:\n\n**CPF:** ${data.docValue}\n**Data de Nascimento:** ${data.birthDate}`, [
+          let messageOptions = `Antes de prosseguirmos, por favor confirme se os dados informados estão corretos:\n\n**CPF:** ${data.docValue}\n**Data de Nascimento:** ${data.birthDate}`;
+          if (data.name) {
+             messageOptions = `Antes de prosseguirmos, por favor confirme se os dados informados estão corretos:\n\n**Nome:** ${name}\n**CPF:** ${data.docValue}\n**Data de Nascimento:** ${data.birthDate}`;
+          }
+          addBotMessage(messageOptions, [
             { text: "Sim, estão corretos", action: "confirm_identity_yes" },
             { text: "Não, estão errados", action: "confirm_identity_no" }
           ]);
