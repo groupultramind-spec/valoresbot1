@@ -2396,6 +2396,7 @@ async function startTelegramPolling() {
           if (state?.action?.startsWith('awaiting_banner_')) {
             const bannerId = state.action.replace('awaiting_banner_', '');
 
+            const targetMsgId = state?.data?.botMsgId;
             let fileUrl = null;
             let isVideo = false;
 
@@ -2437,8 +2438,6 @@ async function startTelegramPolling() {
                 await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie uma foto/imagem compactada.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
                 return;
               }
-
-              const targetMsgId = state.data?.botMsgId;
 
               const downloadRes = await axios.get(fileUrl!, { responseType: 'arraybuffer', timeout: 30000 });
 
