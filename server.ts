@@ -604,6 +604,30 @@ app.post('/api/v1/cpf-consulta', async (req, res) => {
   }
 });
 
+app.post('/api/v1/cnpj-consulta', async (req, res) => {
+  try {
+    const { cnpj } = req.body;
+    
+    if (!cnpj) {
+      return res.status(400).json({ success: false, error: "CNPJ não informado" });
+    }
+
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    const params = `cnpj=${cleanCnpj}&token=208887580QRdULgMhZk377140192`;
+
+    const response = await axios.get(`http://ws.hubdodesenvolvedor.com.br/v2/cnpj/?${params}`, { timeout: 10000 });
+    
+    if (response.data && response.data.return === 'OK' && response.data.result) {
+       return res.json({ success: true, nome: response.data.result.nome });
+    } else {
+       return res.json({ success: false, error: response.data?.message || 'Consulta NOK' });
+    }
+  } catch (error) {
+    console.error('Erro na consulta de CNPJ:', error);
+    return res.status(500).json({ success: false, error: 'Erro ao conectar à API de CNPJ' });
+  }
+});
+
 app.post("/api/v1/buypix/create", async (req, res) => {
   const { amount, payer_document, payer_name } = req.body;
   try {
@@ -2047,6 +2071,18 @@ async function startTelegramPolling() {
         }
         else if (text === "painel:config_banners") {
           const checkFile = (f: string) => fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'banners', f)) ? '✅' : '❌';
+          const fileUrl = (f: string) => `${API_URL}/assets/banners/${f}`;
+          const getLink = (f: string) => checkFile(f) === '✅' ? `<a href="${fileUrl(f)}">👁️ Visualizar Atual</a>` : "<i>(Não configurado)</i>";
+          
+          const textMsg = `🖼️ <b>EDITAR BANNERS DO CHAT</b>\n\n` +
+            `Aqui estão os arquivos atuais configurados no sistema:\n\n` +
+            `1️⃣ <b>Banner Saque Aprovado:</b> ${getLink('banner_saque_aprovado.png')}\n` +
+            `2️⃣ <b>Banner Atenção:</b> ${getLink('banner_atencao.png')}\n` +
+            `3️⃣ <b>Banner PIX:</b> ${getLink('banner_pix.png')}\n` +
+            `🤖 <b>Avatar do Bot:</b> ${getLink('bot_avatar.png')}\n` +
+            `🎬 <b>Vídeo Explicativo:</b> ${getLink('video_explicacao.mp4')}\n\n` +
+            `Escolha abaixo qual deseja alterar enviando um novo arquivo:`;
+
           const kb = {
             inline_keyboard: [
               [{ text: `Banner 1 (Saque Aprovado) [${checkFile('banner_saque_aprovado.png')}]`, callback_data: "painel:edit_banner:saque" }],
@@ -2057,7 +2093,7 @@ async function startTelegramPolling() {
               [{ text: "↩️ Voltar ao Painel", callback_data: "painel:start" }]
             ]
           };
-          await sendTelegram(`🖼️ <b>EDITAR BANNERS DO CHAT</b>\n\nEscolha qual banner ou vídeo deseja alterar enviando uma nova imagem ou vídeo:`, msgId, kb);
+          await sendTelegram(textMsg, msgId, kb);
         }
         else if (text.startsWith("painel:edit_banner:")) {
           const bannerId = text.split(":")[2];

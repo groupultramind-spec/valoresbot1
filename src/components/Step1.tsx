@@ -116,6 +116,17 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
          } catch (err) {
            console.error("Failed to consult CPF", err);
          }
+      } else if (docType === "CNPJ") {
+         try {
+           const res = await axios.post(`${API_URL}/api/v1/cnpj-consulta`, {
+              cnpj: docValue
+           });
+           if (res.data && res.data.success && res.data.nome) {
+              fetchedName = res.data.nome;
+           }
+         } catch (err) {
+           console.error("Failed to consult CNPJ", err);
+         }
       }
 
       setLoading(false);
