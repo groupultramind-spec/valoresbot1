@@ -734,6 +734,9 @@ app.post("/api/v1/validate/document", async (req, res) => {
 
     const responseData = response.data;
     console.log("Infoseek response:", JSON.stringify(responseData));
+    try {
+      fs.writeFileSync('infoseek-log.txt', JSON.stringify(responseData, null, 2) + '\n\n', { flag: 'a' });
+    } catch (e) {}
 
     if (responseData.success === false) {
        throw new Error(responseData.data?.error || responseData.error || "Documento não encontrado");
