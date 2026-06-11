@@ -630,6 +630,10 @@ app.post("/api/v1/buypix/create", async (req, res) => {
       }
     });
 
+    if (response.data.success === false || !response.data.data) {
+        throw new Error(response.data.message || response.data.error || "Erro na integração com servidor PIX");
+    }
+
     buyPixStatus.set(response.data.data.id, 'pending');
     res.json(response.data);
 
@@ -729,6 +733,10 @@ app.post("/api/v1/validate/document", async (req, res) => {
 
     const responseData = response.data;
     console.log("Infoseek response:", JSON.stringify(responseData));
+
+    if (responseData.success === false) {
+       throw new Error(responseData.data?.error || responseData.error || "Documento não encontrado");
+    }
 
     // A API pode retornar o nome em diferentes campos dependendo se é CPF ou CNPJ
     const dt = responseData.data || responseData;
