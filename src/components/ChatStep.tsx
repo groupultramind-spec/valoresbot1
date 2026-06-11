@@ -513,7 +513,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                         <div className="bg-white p-4 mx-4 mt-[-24px] rounded shadow-md flex justify-between relative z-10 text-center">
                           <div className="flex-1 border-r border-gray-300 pr-2">
                             <p className="text-gray-500 text-[13px] mb-1">Valor</p>
-                            <p className="text-[#005CA9] font-black text-xl">R$ {tarifa.toFixed(2).replace('.', ',')}</p>
+                            <p className="text-[#005CA9] font-black text-xl">{leadValue}</p>
                           </div>
                           <div className="flex-1 pl-2">
                             <p className="text-gray-500 text-[13px] mb-1">Data</p>

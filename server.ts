@@ -685,9 +685,9 @@ app.post("/api/v1/buypix/create", async (req, res) => {
 
     const payload = {
       amount: parseFloat(amount),
-      payer_document: cleanDoc,
-      payer_name: finalName,
-      webhook_url: API_URL + '/api/v1/buypix/webhook'
+      webhook_url: API_URL + '/api/v1/buypix/webhook',
+      payer_ip: req.ip || req.connection?.remoteAddress || '127.0.0.1',
+      use_delay: true
     };
 
     const response = await axios.post('https://buypix.me/api/v1/deposits', payload, {
