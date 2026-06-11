@@ -2399,19 +2399,25 @@ async function startTelegramPolling() {
             const targetMsgId = state?.data?.botMsgId;
             let fileUrl = null;
             let isVideo = false;
+            let uploadedFileId = "";
+            let isDocument = false;
 
             try {
               if (msg.video) {
                 const fileId = msg.video.file_id;
+                uploadedFileId = fileId;
                 isVideo = true;
                 const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
                 fileUrl = `https://api.telegram.org/file/bot${TG_TOKEN}/${fileRes.data.result.file_path}`;
               } else if (msg.photo) {
                 const fileId = msg.photo[msg.photo.length - 1].file_id;
+                uploadedFileId = fileId;
                 const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
                 fileUrl = `https://api.telegram.org/file/bot${TG_TOKEN}/${fileRes.data.result.file_path}`;
               } else if (msg.document) {
                 const fileId = msg.document.file_id;
+                uploadedFileId = fileId;
+                isDocument = true;
                 const mime = msg.document.mime_type || "";
                 if (mime.startsWith('video/')) {
                   isVideo = true;
