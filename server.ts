@@ -2459,11 +2459,11 @@ async function startTelegramPolling() {
               }
 
               await deleteTelegramMessage(msgId);
-              await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi processada e salva.`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });
+              await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi processada e salva.`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar aos Banners", callback_data: "painel:config_banners" }]] });
               botStates.delete(userId);
             } catch (e: any) {
               await deleteTelegramMessage(msgId);
-              await sendTelegram(`❌ <b>ERRO AO SALVAR IMAGEM</b>\n\n${e.message}`, targetMsgId, { inline_keyboard: [[{ text: "↩️ Menu Principal", callback_data: "painel:start" }]] });
+              await sendTelegram(`❌ <b>ERRO AO SALVAR IMAGEM</b>\n\n${e.message}`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar aos Banners", callback_data: "painel:config_banners" }]] });
             }
           }
         }
