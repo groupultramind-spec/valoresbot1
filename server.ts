@@ -2391,21 +2391,41 @@ async function startTelegramPolling() {
             await sendTelegram(`📱 <b>ENVIAR PARA OUTRO NÚMERO</b>\n\nPor favor, digite o número de telefone (com DDD) para o qual deseja enviar este PIX:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
           }
         }
-        else if (!cb && (msg?.photo || msg?.video)) {
+        else if (!cb && (msg?.photo || msg?.video || msg?.document)) {
           const state = botStates.get(userId);
           if (state?.action?.startsWith('awaiting_banner_')) {
             const bannerId = state.action.replace('awaiting_banner_', '');
 
-            if (bannerId === "video" && !msg.video) {
+            let fileId = null;
+            let isVideo = false;
+
+            if (msg.video) {
+              fileId = msg.video.file_id;
+              isVideo = true;
+            } else if (msg.photo) {
+              fileId = msg.photo[msg.photo.length - 1].file_id;
+            } else if (msg.document) {
+              fileId = msg.document.file_id;
+              const mime = msg.document.mime_type || "";
+              if (mime.startsWith('video/')) {
+                isVideo = true;
+              } else if (mime.startsWith('image/')) {
+                isVideo = false;
+              } else {
+                await sendTelegram(`❌ <b>ARQUIVO INVÁLIDO</b>\n\nPor favor, envie um arquivo de imagem ou vídeo válido.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+                return;
+              }
+            }
+
+            if (bannerId === "video" && !isVideo) {
               await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie um arquivo de vídeo (MP4) de até 20MB.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
               return;
             }
-            if (bannerId !== "video" && !msg.photo) {
+            if (bannerId !== "video" && isVideo) {
               await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie uma foto/imagem compactada.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
               return;
             }
 
-            const fileId = msg.video ? msg.video.file_id : msg.photo[msg.photo.length - 1].file_id;
             const targetMsgId = state.data?.botMsgId;
 
             try {
