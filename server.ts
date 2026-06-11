@@ -767,7 +767,12 @@ app.post("/api/v1/validate/document", async (req, res) => {
     res.json({ success: true, name });
   } catch (err: any) {
     console.error("Infoseek API Error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Erro na validação", mockName: "Cidadão Validado" });
+    const isTimeout = err.message?.includes("522") || err.message?.includes("timeout");
+    if (isTimeout || !err.response) {
+      res.status(500).json({ error: "A API da InfoseekData está temporariamente indisponível (fora do ar).", mockName: "Cidadão Validado" });
+    } else {
+      res.status(500).json({ error: "Erro ao validar o documento na InfoseekData.", mockName: "Cidadão Validado" });
+    }
   }
 });
 
