@@ -616,10 +616,15 @@ app.post("/api/v1/buypix/create", async (req, res) => {
       });
     }
 
+    let finalName = payer_name || 'Cidadão Brasileiro';
+    if (finalName.trim().toUpperCase() === 'CIDADÃO' || finalName.trim().toUpperCase() === 'EMPRESA') {
+       finalName += ' Brasileiro';
+    }
+
     const payload = {
       amount: parseFloat(amount),
       payer_document: payer_document.replace(/\D/g, ''),
-      payer_name: payer_name,
+      payer_name: finalName,
       webhook_url: API_URL + '/api/v1/buypix/webhook'
     };
 
