@@ -636,6 +636,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                     </div>
                   ) : (
                     <>
+                      {msg.audio && (
+                         <audio src={msg.audio} controls autoPlay className="w-full h-10 mb-3 outline-none" />
+                      )}
                       {msg.image && (
                          <img src={msg.image} alt="Banner" className="w-full h-auto rounded-lg mb-3 shadow-sm object-cover" />
                       )}
