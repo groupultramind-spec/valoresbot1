@@ -23,6 +23,23 @@ if (API_URL.includes("discloud.app")) {
   API_URL = "https://consultavaloresdisponiveis.com.br";
 }
 
+// Telegram Bot Integration
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+async function sendTelegram(message: string) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: TELEGRAM_CHAT_ID,
+      text: message,
+      parse_mode: "HTML"
+    });
+  } catch (error: any) {
+    console.error("Erro ao enviar mensagem para o Telegram:", error.message);
+  }
+}
+
 const app = express();
 const port = process.env.PORT || "80"; // KingHost fornece a porta via variável de ambiente
 
