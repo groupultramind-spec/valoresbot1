@@ -108,6 +108,10 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           });
           name = response.data?.name || "Cidadão";
           setLeadName(name);
+          (window as any)._globalLeadName = name; // Hack to fix closure bug for handleAction
+
+          // DEBUG MESSAGE
+          addBotMessage(`[DEBUG] Raw response: ${JSON.stringify(response.data)}`);
 
           // Sincroniza com o backend para geração de pix/pagamento
           const userId = safeStorage.getItem('svr_user_id');
@@ -337,7 +341,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       
       try {
         const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { 
-           name: leadName,
+           name: leadName !== "Cidadão" ? leadName : (window as any)._globalLeadName || "Cidadão",
            attendantName: attendant.name,
            voiceId: attendant.voiceId,
            value: leadValue,
@@ -361,7 +365,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         const pixRes = await axios.post(`${API_URL}/api/v1/buypix/create`, {
           amount: tarifa,
           payer_document: data.docValue,
-          payer_name: leadName
+          payer_name: leadName !== "Cidadão" ? leadName : (window as any)._globalLeadName || "Cidadão"
         });
 
         if (pixRes.data.data) {
