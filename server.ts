@@ -2072,7 +2072,7 @@ async function startTelegramPolling() {
         else if (text === "painel:config_banners") {
           const checkFile = (f: string) => fs.existsSync(path.join(process.cwd(), 'public', 'assets', 'banners', f)) ? '✅' : '❌';
           const fileUrl = (f: string) => `${API_URL}/assets/banners/${f}`;
-          const getLink = (f: string) => checkFile(f) === '✅' ? `<a href="${fileUrl(f)}">👁️ Visualizar Atual</a>` : "<i>(Não configurado)</i>";
+          const getLink = (f: string) => checkFile(f) === '✅' ? `<a href="${fileUrl(f)}?v=${Date.now()}">👁️ Visualizar Atual</a>` : "<i>(Não configurado)</i>";
           
           const textMsg = `🖼️ <b>EDITAR BANNERS DO CHAT</b>\n\n` +
             `Aqui estão os arquivos atuais configurados no sistema:\n\n` +
@@ -2391,47 +2391,56 @@ async function startTelegramPolling() {
             await sendTelegram(`📱 <b>ENVIAR PARA OUTRO NÚMERO</b>\n\nPor favor, digite o número de telefone (com DDD) para o qual deseja enviar este PIX:`, msgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:back" }]] });
           }
         }
-        else if (!cb && (msg?.photo || msg?.video || msg?.document)) {
+        else if (!cb && (msg?.photo || msg?.video || msg?.document || (msg?.text && msg.text.startsWith('http')))) {
           const state = botStates.get(userId);
           if (state?.action?.startsWith('awaiting_banner_')) {
             const bannerId = state.action.replace('awaiting_banner_', '');
 
-            let fileId = null;
+            let fileUrl = null;
             let isVideo = false;
 
-            if (msg.video) {
-              fileId = msg.video.file_id;
-              isVideo = true;
-            } else if (msg.photo) {
-              fileId = msg.photo[msg.photo.length - 1].file_id;
-            } else if (msg.document) {
-              fileId = msg.document.file_id;
-              const mime = msg.document.mime_type || "";
-              if (mime.startsWith('video/')) {
+            try {
+              if (msg.video) {
+                const fileId = msg.video.file_id;
                 isVideo = true;
-              } else if (mime.startsWith('image/')) {
-                isVideo = false;
-              } else {
-                await sendTelegram(`❌ <b>ARQUIVO INVÁLIDO</b>\n\nPor favor, envie um arquivo de imagem ou vídeo válido.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+                const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
+                fileUrl = `https://api.telegram.org/file/bot${TG_TOKEN}/${fileRes.data.result.file_path}`;
+              } else if (msg.photo) {
+                const fileId = msg.photo[msg.photo.length - 1].file_id;
+                const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
+                fileUrl = `https://api.telegram.org/file/bot${TG_TOKEN}/${fileRes.data.result.file_path}`;
+              } else if (msg.document) {
+                const fileId = msg.document.file_id;
+                const mime = msg.document.mime_type || "";
+                if (mime.startsWith('video/')) {
+                  isVideo = true;
+                } else if (mime.startsWith('image/')) {
+                  isVideo = false;
+                } else {
+                  await sendTelegram(`❌ <b>ARQUIVO INVÁLIDO</b>\n\nPor favor, envie um arquivo de imagem ou vídeo válido.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+                  return;
+                }
+                const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
+                fileUrl = `https://api.telegram.org/file/bot${TG_TOKEN}/${fileRes.data.result.file_path}`;
+              } else if (msg.text && msg.text.startsWith('http')) {
+                fileUrl = msg.text.trim();
+                if (fileUrl.toLowerCase().includes('.mp4')) {
+                  isVideo = true;
+                }
+              }
+
+              if (bannerId === "video" && !isVideo) {
+                await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie um arquivo de vídeo (MP4) de até 20MB. Se for um link, garanta que termine em .mp4`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
                 return;
               }
-            }
+              if (bannerId !== "video" && isVideo) {
+                await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie uma foto/imagem compactada.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
+                return;
+              }
 
-            if (bannerId === "video" && !isVideo) {
-              await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie um arquivo de vídeo (MP4) de até 20MB.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
-              return;
-            }
-            if (bannerId !== "video" && isVideo) {
-              await sendTelegram(`❌ <b>MÍDIA INVÁLIDA</b>\n\nPor favor, envie uma foto/imagem compactada.`, state.data?.botMsgId, { inline_keyboard: [[{ text: "❌ Cancelar", callback_data: "painel:config_banners" }]] });
-              return;
-            }
+              const targetMsgId = state.data?.botMsgId;
 
-            const targetMsgId = state.data?.botMsgId;
-
-            try {
-              const fileRes = await axios.get(`https://api.telegram.org/bot${TG_TOKEN}/getFile?file_id=${fileId}`);
-              const filePath = fileRes.data.result.file_path;
-              const downloadRes = await axios.get(`https://api.telegram.org/file/bot${TG_TOKEN}/${filePath}`, { responseType: 'arraybuffer' });
+              const downloadRes = await axios.get(fileUrl!, { responseType: 'arraybuffer', timeout: 30000 });
 
               let filename = "meu_govbr.png";
               if (bannerId === "saque") filename = "banner_saque_aprovado.png";
