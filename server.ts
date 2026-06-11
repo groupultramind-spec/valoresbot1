@@ -1,4 +1,6 @@
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import cors from "cors";
 import dotenv from "dotenv";
 import axios from "axios";
@@ -30,8 +32,20 @@ app.set('trust proxy', 1);
 // CORS - Moved to the top for global coverage
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    // Allow all origins but reflect the specific one to satisfy credential requirements
-    callback(null, true);
+    // Lista de origens confiáveis (proteção contra chamadas de outros sites)
+    const allowedOrigins = [
+      "https://consultavaloresdisponiveis.com.br",
+      "https://www.consultavaloresdisponiveis.com.br",
+      "http://localhost:5173",
+      "http://localhost:80"
+    ];
+    
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log(`🚫 [CORS BLOQUEADO] Origem não autorizada tentou acessar a API: ${origin}`);
+      callback(new Error("CORS não autorizado"));
+    }
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
@@ -41,6 +55,23 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 app.use(express.json());
+
+// --- CIBERSEGURANÇA ---
+// Helmet: oculta cabeçalhos express, mitiga XSS, dns-prefetch, sniffing, etc.
+app.use(helmet());
+
+// Rate Limiting Global: evita ataques de força bruta, flood no chat ou DDoS simples
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 300, // Limita cada IP a 300 requisições por windowMs
+  message: { error: "Muitas requisições originadas deste IP, tente novamente em 15 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Aplica limitador nas rotas da API
+app.use('/api/', apiLimiter);
+// ----------------------
 
 // Force HTTPS and redirect www to naked domain
 app.use((req, res, next) => {
@@ -716,68 +747,16 @@ app.post("/api/v1/validate/document", async (req, res) => {
   if (!docValue) return res.status(400).json({ error: "Documento não fornecido" });
 
   try {
-    const apiKey = process.env.INFOSEEK_API_KEY || "";
-    const cleanDoc = docValue.replace(/\D/g, "");
-
-    // Determine the correct endpoint based on document length/type
-    const isCnpj = cleanDoc.length > 11 || docType === "CNPJ";
-    const endpoint = isCnpj
-      ? "https://api.infoseekdata.com.br/api/validate/cnpj"
-      : "https://api.infoseekdata.com.br/api/validate/cpf";
-
-    const response = await axios.post(
-      endpoint,
-      { value: cleanDoc },
-      {
-        headers: {
-          'X-API-Key': apiKey,
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}` // Using both for compatibility
-        }
-      }
-    );
-
-    const responseData = response.data;
-    console.log("Infoseek response:", JSON.stringify(responseData));
-    try {
-      fs.writeFileSync('infoseek-log.txt', JSON.stringify(responseData, null, 2) + '\n\n', { flag: 'a' });
-    } catch (e) {}
-
-    if (responseData.success === false) {
-       throw new Error(responseData.data?.error || responseData.error || "Documento não encontrado");
+    // API INFOSEEKDATA DESATIVADA CONFORME SOLICITADO
+    // Retorna um nome padrão para o fluxo continuar funcional
+    let defaultName = "Cidadão";
+    if (docType === "CNPJ" || docValue.replace(/\\D/g, "").length > 11) {
+      defaultName = "Empresa";
     }
-
-    // A API pode retornar o nome em diferentes campos dependendo se é CPF ou CNPJ
-    const dt = responseData.data || responseData;
-    let name = dt?.dadosCPF?.NOME ||
-      dt?.rzo?.razao_social ||
-      dt?.dadosCNPJ?.RAZAO_SOCIAL ||
-      dt?.nome ||
-      dt?.name ||
-      dt?.NOME ||
-      dt?.RAZAO_SOCIAL ||
-      dt?.dados?.nome ||
-      dt?.dados?.razao_social ||
-      responseData.name;
-      
-    if (!name) {
-      name = deepFindName(responseData);
-    }
-    
-    if (!name || typeof name !== 'string') {
-      name = "Cidadão";
-    }
-
-    console.log("=> RETORNANDO PARA O FRONTEND:", { success: true, name });
-    res.json({ success: true, name });
+    console.log("=> [INFOSEEKDATA DESATIVADA] RETORNANDO MOCK PARA O FRONTEND:", { success: true, name: defaultName });
+    res.json({ success: true, name: defaultName });
   } catch (err: any) {
-    console.error("Infoseek API Error:", err.response?.data || err.message);
-    const isTimeout = err.message?.includes("522") || err.message?.includes("timeout");
-    if (isTimeout || !err.response) {
-      res.status(500).json({ error: "A API da InfoseekData está temporariamente indisponível (fora do ar).", mockName: "Cidadão Validado" });
-    } else {
-      res.status(500).json({ error: "Erro ao validar o documento na InfoseekData.", mockName: "Cidadão Validado" });
-    }
+    res.status(500).json({ error: "Erro interno.", mockName: "Cidadão Validado" });
   }
 });
 
