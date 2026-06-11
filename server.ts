@@ -770,6 +770,11 @@ app.post("/api/v1/validate/document", async (req, res) => {
   }
 });
 
+// Endpoint to verify server version
+app.get("/api/v1/version", (req, res) => {
+  res.json({ version: "2.0.0", message: "Servidor atualizado com sucesso!" });
+});
+
 // ---------------------------
 
 async function getGatewayBalance() {
