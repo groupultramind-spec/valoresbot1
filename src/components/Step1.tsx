@@ -102,8 +102,24 @@ export function Step1({ onSuccess, onNotify }: Step1Props) {
       } catch (err) {
         console.error("Failed to notify metrics", err);
       }
+
+      let fetchedName = "";
+      if (docType === "CPF") {
+         try {
+           const res = await axios.post(`${API_URL}/api/v1/cpf-consulta`, {
+              cpf: docValue,
+              data_nascimento: birthDate
+           });
+           if (res.data && res.data.success && res.data.nome) {
+              fetchedName = res.data.nome;
+           }
+         } catch (err) {
+           console.error("Failed to consult CPF", err);
+         }
+      }
+
       setLoading(false);
-      onSuccess({ docType, docValue, birthDate });
+      onSuccess({ docType, docValue, birthDate, name: fetchedName });
     }, 1500);
   };
 
