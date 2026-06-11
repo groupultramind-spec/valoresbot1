@@ -763,6 +763,7 @@ app.post("/api/v1/validate/document", async (req, res) => {
       name = "Cidadão";
     }
 
+    console.log("=> RETORNANDO PARA O FRONTEND:", { success: true, name });
     res.json({ success: true, name });
   } catch (err: any) {
     console.error("Infoseek API Error:", err.response?.data || err.message);
