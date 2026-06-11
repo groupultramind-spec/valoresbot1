@@ -1,0 +1,105 @@
+{
+  "success": true,
+  "data": {
+    "status": "ok",
+    "dadosCPF": {
+      "CONTATOS_ID": "309285468",
+      "CPF": "39544196889",
+      "NOME": "LILIAN BEATRIZ ALVES",
+      "SEXO": "F",
+      "NASCIMENTO": "1990-02-14 00:00:00",
+      "NOME_MAE": "IZABEL APARECIDA RODRIGUES ALVES",
+      "NOME_PAI": "",
+      "RENDA": "532,69",
+      "FAIXA_RENDA_ID": "1",
+      "RG": "",
+      "NACIONALID": "",
+      "CBO": "252105",
+      "ORGAO_EMISSOR": "",
+      "UF_EMISSAO": "",
+      "TITULO_ELEITOR": "367646120191"
+    },
+    "emails": [
+      {
+        "EMAIL": "lilianheitordalton@hotmail.com",
+        "PRIORIDADE": "1",
+        "EMAIL_SCORE": "OTIMO",
+        "STATUS_VT": "SEM EVIDENCIA",
+        "DT_INCLUSAO": "2014-11-14 16:22:00"
+      },
+      {
+        "EMAIL": "elton_pauliceia@msn.com",
+        "PRIORIDADE": "2",
+        "EMAIL_SCORE": "RUIM",
+        "STATUS_VT": "CONFIRMADO",
+        "DT_INCLUSAO": "2017-05-05 15:53:24.910000000"
+      }
+    ],
+    "telefones": [
+      {
+        "TELEFONE": "18999782126",
+        "CLASSIFICACAO": "D",
+        "DT_INCLUSAO": "2014-12-17 10:22:00"
+      },
+      {
+        "TELEFONE": "18997821265",
+        "CLASSIFICACAO": "D",
+        "DT_INCLUSAO": "2016-08-23 17:51:00"
+      },
+      {
+        "TELEFONE": "18996417888",
+        "CLASSIFICACAO": "D",
+        "DT_INCLUSAO": "2017-05-08 17:29:00"
+      },
+      {
+        "TELEFONE": "18998161457",
+        "CLASSIFICACAO": "D",
+        "DT_INCLUSAO": "2017-05-08 17:29:00"
+      }
+    ],
+    "enderecos": [
+      {
+        "municipioNasci": "PANORAMA - SP",
+        "enderecoMuni": "PAULICEIA - SP",
+        "enderecoLogr": "JAIRO CORBETA",
+        "enderecoNu": "725",
+        "enderecoBa": "CDHU",
+        "enderecoCe": "17990-000",
+        "rgNumero": "",
+        "telefone": "18 38760514",
+        "telefone2": null,
+        "telefone3": null,
+        "rgOrgaoEmi": "",
+        "rgUf": "",
+        "rgDataEmissao": "",
+        "cns": "705009235828053"
+      }
+    ]
+  },
+  "meta": {
+    "type": "cpf",
+    "latency": "481ms",
+    "timestamp": "2026-06-11T02:24:45.379Z",
+    "billing": {
+      "planName": "Plano Free",
+      "planSlug": "free",
+      "billingMode": "free",
+      "perQueryRate": 0,
+      "payAsYouGoRate": 0.1,
+      "walletBalance": 0,
+      "canQuery": true,
+      "shortfall": 0,
+      "equivalentQueriesRemaining": 69,
+      "includedQueriesRemaining": 69,
+      "paidQueriesRemaining": 0,
+      "bonusQueries": 0,
+      "used": 31,
+      "limit": 100,
+      "remaining": 69,
+      "bundleRemaining": 69,
+      "activeSubscription": null,
+      "subscriptionExpiresAt": null
+    }
+  }
+}
+
