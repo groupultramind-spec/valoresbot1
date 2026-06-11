@@ -560,9 +560,34 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                       </div>
 
                       {/* Text below receipt */}
-                      <div className="text-white space-y-4 text-sm leading-relaxed">
-                        <p className="font-bold text-[15px]">GUIA DE PAGAMENTO GERADA COM SUCESSO!</p>
-                        <p>A taxa de emissão da transferência é gerada para processar a liberação e validar a chave PIX informada.</p>
+                      <div className="text-[#e2e8f0] space-y-4 text-[14px] leading-relaxed mt-4">
+                        <p className="font-bold text-[15px] text-white">GUIA DE PAGAMENTO GERADA COM SUCESSO!</p>
+                        <p>O cálculo do valor total da tarifa é feito sobre o valor que você tem disponível para receber (<span className="font-bold">{leadValue}</span>).</p>
+                        
+                        <div className="space-y-1 my-4 text-[#cbd5e1]">
+                          <p>Tarifa Transacional: <span className="text-white">R$ {(tarifa - 1.98).toFixed(2).replace('.', ',')}</span></p>
+                          <p>Contribuição Federal: <span className="text-white">R$ 0,99</span></p>
+                          <p>Tarifa de Saque: <span className="text-white">R$ 0,99</span></p>
+                          <p className="font-bold text-white">Total da Tarifa: R$ {tarifa.toFixed(2).replace('.', ',')}</p>
+                        </div>
+
+                        <p className="font-bold text-white uppercase">
+                          APÓS O PAGAMENTO DA TARIFA, EM ATÉ 2 HORAS VOCÊ RECEBERÁ O VALOR TOTAL DE {leadValue} NA CONTA DA CHAVE PIX CADASTRADA:
+                        </p>
+
+                        <div className="mt-2 text-[#cbd5e1]">
+                          <p>Nome: <span className="text-white font-bold">{leadName}</span></p>
+                          <p>Chave Pix: <span className="text-white font-bold">{leadPixKey || "Informada no checkout"}</span></p>
+                        </div>
+                      </div>
+
+                      {/* Pix Pendente Badge */}
+                      <div className="mt-4 bg-[#ffecee] border border-[#ffcdd2] rounded-md p-3 flex items-start gap-3 w-full max-w-[320px] mx-auto">
+                        <div className="bg-[#ef4444] text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl flex-shrink-0 mt-0.5">!</div>
+                        <div className="text-left">
+                          <p className="text-[#e11d48] font-black text-[16px] leading-none mb-1">PIX Pendente!</p>
+                          <p className="text-[#ef4444] text-[13px] leading-snug">Aguardando Pagamento da Tarifa Transacional...</p>
+                        </div>
                       </div>
 
                       <div className="mt-6 pt-5 border-t border-[#2e3b4e] flex flex-col items-center space-y-4">
@@ -572,6 +597,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                           </div>
                         ) : buyPixData?.pix_qr_code ? (
                           <>
+                            <div className="w-full flex justify-center mb-2">
+                               <p className="text-[#ff9029] font-bold text-[15px]">Este QR Code expira em: <CountdownTimer /></p>
+                            </div>
                             <div className="bg-white p-3 rounded-lg flex items-center justify-center w-full max-w-[280px]">
                               <QRCodeCanvas value={buyPixData.pix_qr_code} size={200} />
                             </div>
@@ -689,3 +717,18 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
     </div>
   );
 }
+
+const CountdownTimer = () => {
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutos
+  
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
+  return <span>{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}</span>;
+};
