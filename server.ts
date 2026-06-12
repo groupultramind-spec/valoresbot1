@@ -798,16 +798,38 @@ app.post("/api/v1/tts", async (req, res) => {
       text = `Parabéns, ${firstName}. O seu pagamento foi confirmado com sucesso! O seu valor de ${value} já está garantido. Agora, falta apenas a última etapa: a liberação com um agente oficial. Por favor, clique no botão abaixo para falar com o nosso atendimento e concluir a sua transferência.`;
     }
 
-    const googleTTS = await import('google-tts-api');
-    const chunks = await googleTTS.getAllAudioBase64(text, {
-      lang: 'pt',
-      slow: false,
-      host: 'https://translate.google.com',
-      splitPunct: ',.?'
+    if (!process.env.AZURE_TTS_KEY || !process.env.AZURE_TTS_REGION) {
+      throw new Error("Chaves da Azure (AZURE_TTS_KEY, AZURE_TTS_REGION) não encontradas no painel da Shardcloud/ou .env");
+    }
+
+    const sdk = await import('microsoft-cognitiveservices-speech-sdk');
+    const speechConfig = sdk.SpeechConfig.fromSubscription(process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_REGION);
+    speechConfig.speechSynthesisVoiceName = "pt-BR-FranciscaNeural";
+    speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3;
+    
+    let synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+    const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="pt-BR">
+      <voice name="pt-BR-FranciscaNeural">
+        <prosody rate="+10%">${safeText}</prosody>
+      </voice>
+    </speak>`;
+
+    const audioBase64 = await new Promise((resolve, reject) => {
+      synthesizer.speakSsmlAsync(ssml, (result: any) => {
+        if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+          const buffer = Buffer.from(result.audioData);
+          resolve(buffer.toString('base64'));
+        } else {
+          reject(new Error("Erro na Azure TTS: " + result.errorDetails));
+        }
+        synthesizer.close();
+      }, (error: any) => {
+        reject(error);
+        synthesizer.close();
+      });
     });
-    const buffers = chunks.map((chunk: any) => Buffer.from(chunk.base64, 'base64'));
-    const finalBuffer = Buffer.concat(buffers);
-    const audioBase64 = finalBuffer.toString('base64');
+
     res.json({ audioBase64 });
   } catch (e: any) {
     console.error("TTS Error:", e?.response?.data?.toString() || e.message);
