@@ -443,6 +443,25 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ action: 'generated_payment', leadName, cpf: data.docValue, pix: leadPixKey, value: leadValue })
            }).catch(console.error);
+
+           try {
+              const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { 
+                name: leadName !== "Cidadão" ? leadName : (window as any)._globalLeadName || "Cidadão",
+                attendantName: attendant.name,
+                voiceId: attendant.voiceId,
+                value: leadValue,
+                docType: data.docType,
+                type: 'taxa'
+              });
+              if (ttsRes.data.audioBase64) {
+                 const feeAudioUrl = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
+                 setTimeout(() => {
+                    addBotMessage("", undefined, undefined, "audio", feeAudioUrl);
+                 }, 4000);
+              }
+           } catch (err: any) {
+              console.error("Fee TTS generation error", err);
+           }
         }
       } catch (err: any) {
          console.error("Payment generation error", err);

