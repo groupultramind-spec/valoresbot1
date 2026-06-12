@@ -794,6 +794,8 @@ app.post("/api/v1/tts", async (req, res) => {
     
     if (type === 'taxa') {
       text = `Para que o seu saque seja liberado imediatamente, é necessário realizar o pagamento da tarifa transacional. Esse valor é cobrado pelo banco central, para cobrir os custos de transferência bancária, mas não se preocupe, essa taxa será devolvida junto com o seu saque de ${value}.`;
+    } else if (type === 'final') {
+      text = `Parabéns, ${firstName}. O seu pagamento foi confirmado com sucesso! O seu valor de ${value} já está garantido. Agora, falta apenas a última etapa: a liberação com um agente oficial. Por favor, clique no botão abaixo para falar com o nosso atendimento e concluir a sua transferência.`;
     }
 
     if (!process.env.ELEVENLABS_API_KEY) {

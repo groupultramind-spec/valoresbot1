@@ -273,6 +273,23 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       addBotMessage(`✅ **PAGAMENTO CONFIRMADO!**\n\nSeu protocolo é: **${protocol}**\n\nSua solicitação já está em nosso sistema. Para finalizar a liberação do valor manualmente, clique no botão abaixo e fale com o atendimento no WhatsApp.`, [
         { text: "Liberar Transferência (WhatsApp)", action: "go_whatsapp" }
       ]);
+      
+      // Request final audio
+      axios.post(`${API_URL}/api/v1/tts`, { 
+        name: leadName !== "Cidadão" ? leadName : (window as any)._globalLeadName || "Cidadão",
+        attendantName: attendant.name,
+        voiceId: attendant.voiceId,
+        value: leadValue,
+        type: 'final'
+      }).then(ttsRes => {
+        if (ttsRes.data.audioBase64) {
+          const finalAudioUrl = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
+          setTimeout(() => {
+            addBotMessage("", undefined, undefined, "audio", finalAudioUrl);
+          }, 2000);
+        }
+      }).catch(err => console.error("Final TTS error", err));
+      
     }, 1500);
   };
 
