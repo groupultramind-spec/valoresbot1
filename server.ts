@@ -1317,6 +1317,8 @@ app.use((req, res, next) => {
 });
 
 
+// Serve banners directly from public folder so manual changes reflect immediately
+app.use('/assets/banners', express.static(path.join(process.cwd(), 'public', 'assets', 'banners')));
 app.use(express.static(path.join(process.cwd(), 'dist')));
 
 
