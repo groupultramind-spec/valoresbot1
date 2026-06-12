@@ -2765,7 +2765,7 @@ async function startTelegramPolling() {
 
       }
     } catch (e: any) {
-      console.error("❌ [TELEGRAM POLLING ERROR]:", e.message);
+      console.error("❌ [TELEGRAM POLLING ERROR]:", e.response?.data || e.message);
       await new Promise(r => setTimeout(r, 5000));
     }
   }

@@ -557,7 +557,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             >
               {msg.sender === 'bot' && (
                 <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                  <img src={`/assets/banners/bot_avatar.png?v=${Date.now()}`} alt="gov.br" className="w-full h-full object-contain p-1" />
+                  <img src={`/assets/banners/bot_avatar.png?v=${Date.now()}`} alt="gov.br" className="w-full h-full object-cover rounded-full" />
                 </div>
               )}
 
@@ -735,9 +735,9 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
           ))}
 
           {typing && (
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-start gap-3">
-               <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                 <img src={`/assets/banners/bot_avatar.png?v=${Date.now()}`} alt="gov.br" className="w-full h-full object-contain p-1" />
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start items-center gap-3">
+               <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm border-2 border-[#161c24]">
+                 <img src={`/assets/banners/bot_avatar.png?v=${Date.now()}`} alt="gov.br" className="w-full h-full object-cover rounded-full" />
                </div>
                <div className="bg-[#1e2732] p-4 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-2">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
