@@ -798,25 +798,17 @@ app.post("/api/v1/tts", async (req, res) => {
       text = `Parabéns, ${firstName}. O seu pagamento foi confirmado com sucesso! O seu valor de ${value} já está garantido. Agora, falta apenas a última etapa: a liberação com um agente oficial. Por favor, clique no botão abaixo para falar com o nosso atendimento e concluir a sua transferência.`;
     }
 
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
-    
-    const tmpFile = path.join(process.cwd(), `tts_${Date.now()}_${Math.random().toString(36).substring(7)}.mp3`);
-    
-    try {
-      const safeText = text.replace(/"/g, '\\"');
-      await execAsync(`python -m edge_tts --text "${safeText}" --voice pt-BR-FranciscaNeural --rate=+10% --write-media "${tmpFile}"`);
-      
-      const audioBuffer = await fs.promises.readFile(tmpFile);
-      const audioBase64 = audioBuffer.toString('base64');
-      
-      await fs.promises.unlink(tmpFile).catch(() => {});
-      res.json({ audioBase64 });
-    } catch (err: any) {
-      await fs.promises.unlink(tmpFile).catch(() => {});
-      throw err;
-    }
+    const googleTTS = await import('google-tts-api');
+    const chunks = await googleTTS.getAllAudioBase64(text, {
+      lang: 'pt',
+      slow: false,
+      host: 'https://translate.google.com',
+      splitPunct: ',.?'
+    });
+    const buffers = chunks.map((chunk: any) => Buffer.from(chunk.base64, 'base64'));
+    const finalBuffer = Buffer.concat(buffers);
+    const audioBase64 = finalBuffer.toString('base64');
+    res.json({ audioBase64 });
   } catch (e: any) {
     console.error("TTS Error:", e?.response?.data?.toString() || e.message);
     res.status(500).json({ error: "TTS failed" });
