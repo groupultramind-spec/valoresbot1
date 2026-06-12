@@ -13,6 +13,7 @@
     "start": "tsx server.ts"
   },
   "dependencies": {
+    "@andresaya/edge-tts": "^1.8.0",
     "@google/genai": "^1.29.0",
     "@puppeteer/browsers": "^2.2.3",
     "@tailwindcss/vite": "^4.1.14",
@@ -33,6 +34,8 @@
     "helmet": "^8.2.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "msedge-tts": "^2.0.5",
+    "node-edge-tts": "^1.2.10",
     "nodemailer": "^8.0.7",
     "puppeteer": "^22.0.0",
     "qrcode": "^1.5.4",
