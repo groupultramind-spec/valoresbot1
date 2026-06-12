@@ -2451,7 +2451,7 @@ async function startTelegramPolling() {
 
               const downloadRes = await axios.get(fileUrl!, { responseType: 'arraybuffer', timeout: 30000 });
               const contentType = String(downloadRes.headers['content-type'] || '');
-              if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
+              if (!uploadedFileId && !contentType.startsWith('image/') && !contentType.startsWith('video/')) {
                   throw new Error("O link fornecido não contém uma imagem ou vídeo válido.");
               }
 
