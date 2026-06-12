@@ -1332,7 +1332,7 @@ async function sendTelegram(text: string, messageId?: number, replyMarkup?: any)
   if (!TG_TOKEN || !CHAT_ID) return null;
   try {
     const url = messageId ? `${TELEGRAM_URL}/editMessageText` : `${TELEGRAM_URL}/sendMessage`;
-    const payload: any = { chat_id: CHAT_ID, text, parse_mode: 'HTML' };
+    const payload: any = { chat_id: CHAT_ID, text, parse_mode: 'HTML', disable_web_page_preview: true };
     if (messageId) payload.message_id = messageId;
     if (replyMarkup) payload.reply_markup = replyMarkup;
     const res = await axios.post(url, payload);
