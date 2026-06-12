@@ -1,10 +1,59 @@
 import { useState, useEffect, useRef } from "react";
-import { CheckCircle2, Search, ArrowRight, ShieldCheck, Loader2, PlayCircle, PauseCircle, AlertCircle } from "lucide-react";
+import { CheckCircle2, Search, ArrowRight, ShieldCheck, Loader2, AlertCircle, Play, Pause } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
 import { API_URL } from "../config";
 import { QRCodeCanvas } from "qrcode.react";
 import { safeStorage } from "../utils/storage";
+
+const WhatsAppAudioPlayer = ({ src, attendantName }: { src: string, attendantName: string }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.play().catch(e => console.log('Autoplay prevented'));
+    }
+  }, []);
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) audioRef.current.pause();
+      else audioRef.current.play();
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 bg-[#f0f2f5] rounded-full px-4 py-2 w-full max-w-[280px] shadow-sm mb-2 mt-1">
+      <button onClick={togglePlay} className="text-[#54656f] hover:text-[#00a884] transition-colors focus:outline-none bg-white rounded-full p-2 shadow-sm flex items-center justify-center">
+        {isPlaying ? <Pause size={18} className="text-[#00a884] fill-current" /> : <Play size={18} className="text-[#54656f] fill-current ml-0.5" />}
+      </button>
+      <div className="flex-1 h-1.5 bg-[#d1d7db] rounded-full overflow-hidden relative">
+         <div className="absolute top-0 left-0 h-full bg-[#00a884] rounded-full transition-all duration-100 ease-linear" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="text-[#54656f] text-[11px] font-medium min-w-[35px] text-right">
+         0:00
+      </div>
+      <audio 
+        ref={audioRef} 
+        src={src} 
+        onTimeUpdate={handleTimeUpdate} 
+        onEnded={() => { setIsPlaying(false); setProgress(0); }} 
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        className="hidden" 
+      />
+    </div>
+  );
+};
 
 interface ChatStepProps {
   data: {
@@ -648,10 +697,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
                     </div>
                   ) : msg.customType === "audio" ? (
                     <div className="w-full flex items-center justify-center p-1">
-                      <audio controls className="w-full h-10 outline-none" autoPlay>
-                        <source src={msg.audio} type="audio/mp3" />
-                        Seu navegador não suporta áudio.
-                      </audio>
+                      <WhatsAppAudioPlayer src={msg.audio} attendantName={attendant.name} />
                     </div>
                   ) : (
                     <>
