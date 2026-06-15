@@ -586,7 +586,7 @@ app.post('/api/v1/cpf-consulta', async (req, res) => {
     }
 
     const cleanCpf = cpf.replace(/\D/g, '');
-    let params = `cpf=${cleanCpf}&token=208887580QRdULgMhZk377140192`;
+    let params = `cpf=${cleanCpf}&token=209102035XnRDxeJFVC377527384`;
     if (data_nascimento) {
        params += `&data=${data_nascimento}`;
     }
@@ -613,7 +613,7 @@ app.post('/api/v1/cnpj-consulta', async (req, res) => {
     }
 
     const cleanCnpj = cnpj.replace(/\D/g, '');
-    const params = `cnpj=${cleanCnpj}&token=208887580QRdULgMhZk377140192`;
+    const params = `cnpj=${cleanCnpj}&token=209102035XnRDxeJFVC377527384`;
 
     const response = await axios.get(`http://ws.hubdodesenvolvedor.com.br/v2/cnpj/?${params}`, { timeout: 10000 });
     

