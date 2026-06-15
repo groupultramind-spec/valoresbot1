@@ -45,9 +45,9 @@ export function Step2({ data, onReset }: Step2Props) {
     fetchConfig();
 
     const timers = [
-      setTimeout(() => setAnalysisState("verifying_identity"), 2500),
-      setTimeout(() => setAnalysisState("finalizing"), 4500),
-      setTimeout(() => setAnalysisState("results"), 6500),
+      setTimeout(() => setAnalysisState("verifying_identity"), 800),
+      setTimeout(() => setAnalysisState("finalizing"), 1500),
+      setTimeout(() => setAnalysisState("results"), 2000),
     ];
 
     return () => timers.forEach(clearTimeout);
